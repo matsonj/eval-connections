@@ -5,34 +5,7 @@ from typing import Dict, List
 from ..utils.retry import retry_with_backoff
 
 
-# Model mappings from short names to OpenRouter model IDs
-MODEL_MAPPINGS = {
-    # OpenAI models (updated with correct OpenRouter model IDs)
-    "o3": "openai/o3",
-    "o3-pro": "openai/o3-pro",
-    "o3-mini": "openai/o3-mini", 
-    "o4-mini": "openai/o4-mini",
-    "gpt4": "openai/gpt-4",
-    "gpt4-turbo": "openai/gpt-4-turbo",
-    "gpt4o": "openai/gpt-4o",
-    "gpt4o-mini": "openai/gpt-4o-mini",
-    
-    # xAI models (corrected prefix: x-ai not xai)
-    "grok3": "x-ai/grok-3",
-    "grok3-mini": "x-ai/grok-3-mini",
-    "grok4": "x-ai/grok-4",
-    
-    # Anthropic models (using stable versions)
-    "sonnet": "anthropic/claude-3.5-sonnet",
-    "sonnet-4": "anthropic/claude-sonnet-4",
-    "opus": "anthropic/claude-3-opus",
-    "opus-4": "anthropic/claude-opus-4",
-    "haiku": "anthropic/claude-3.5-haiku",
-    
-    # Google models
-    "gemini": "google/gemini-2.5-pro",
-    "gemini-flash": "google/gemini-2.0-flash-001",
-}
+# Model mappings are now loaded from inputs/model_mappings.yml
 
 
 @retry_with_backoff(max_retries=3, base_delay=2.0, exceptions=(requests.RequestException,))
@@ -42,7 +15,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     
     Args:
         messages: List of message objects with 'role' and 'content'
-        model: Short model name (e.g., 'o3', 'grok3') or full OpenRouter model ID
+        model: OpenRouter model ID (e.g., 'openai/o3', 'x-ai/grok-3')
         timeout: Request timeout in seconds
         
     Returns:
@@ -50,16 +23,9 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
         
     Raises:
         requests.RequestException: On API errors
-        ValueError: If model is not supported
     """
-    # Map short name to full OpenRouter model ID
-    if model in MODEL_MAPPINGS:
-        openrouter_model = MODEL_MAPPINGS[model]
-    elif "/" in model:
-        # Already a full model ID
-        openrouter_model = model
-    else:
-        raise ValueError(f"Unsupported model: {model}")
+    # Model ID is already the full OpenRouter model ID from YAML mapping
+    openrouter_model = model
     
     url = "https://openrouter.ai/api/v1/chat/completions"
     
@@ -79,6 +45,9 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     payload = {
         "model": openrouter_model,
         "messages": messages,
+        "usage": {
+            "include": True  # Request cost and usage information
+        }
     }
     
     # Handle different model types
@@ -112,6 +81,4 @@ def _get_api_key() -> str:
     return api_key
 
 
-def get_supported_models() -> List[str]:
-    """Get list of supported model short names."""
-    return list(MODEL_MAPPINGS.keys())
+

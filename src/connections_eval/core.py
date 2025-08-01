@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Set, Tuple, Any
 from dataclasses import dataclass
 
 from .utils.timing import Timer
-from .utils.tokens import count_tokens, extract_token_usage
+from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info
 from .utils.logging import log_exchange, log_summary, setup_logger
 from .adapters import openrouter_adapter
 
@@ -49,34 +49,8 @@ class GameState:
 class ConnectionsGame:
     """Main game engine for Connections puzzles."""
     
-    # Model configuration - all models now use OpenRouter
-    MODEL_CONFIG = {
-        # OpenAI models
-        "o3": "o3",
-        "o3-pro": "o3-pro",
-        "o3-mini": "o3-mini",
-        "o4-mini": "o4-mini",
-        "gpt4": "gpt4",
-        "gpt4-turbo": "gpt4-turbo",
-        "gpt4o": "gpt4o",
-        "gpt4o-mini": "gpt4o-mini",
-        
-        # xAI models
-        "grok3": "grok3",
-        "grok3-mini": "grok3-mini",
-        "grok4": "grok4",
-        
-        # Anthropic models
-        "sonnet": "sonnet",
-        "sonnet-4": "sonnet-4",
-        "opus": "opus", 
-        "opus-4": "opus-4",
-        "haiku": "haiku",
-        
-        # Google models
-        "gemini": "gemini",
-        "gemini-flash": "gemini-flash",
-    }
+    # Model configuration loaded from YAML file
+    MODEL_CONFIG = {}
     
     MAX_GUESSES = 6
     MAX_MISTAKES = 4
@@ -100,6 +74,7 @@ class ConnectionsGame:
         
         self.puzzles = self._load_puzzles()
         self.prompt_template = self._load_prompt_template()
+        self.MODEL_CONFIG = self._load_model_mappings()
         
         # Will be set when starting a run
         self.logger = None
@@ -138,6 +113,13 @@ class ConnectionsGame:
         template_file = self.inputs_path / "prompt_template.xml"
         with open(template_file, 'r') as f:
             return f.read()
+    
+    def _load_model_mappings(self) -> Dict[str, str]:
+        """Load model mappings from YAML file."""
+        mappings_file = self.inputs_path / "model_mappings.yml"
+        with open(mappings_file, 'r') as f:
+            data = yaml.safe_load(f)
+        return data["models"]
     
     def run_evaluation(
         self,
@@ -178,6 +160,8 @@ class ConnectionsGame:
             "total_time_sec": 0.0,
             "total_tokens": 0,
             "token_count_method": "APPROXIMATE",
+            "total_cost": 0.0,
+            "total_upstream_cost": 0.0,
         }
         
         for puzzle in puzzles_to_run:
@@ -197,6 +181,8 @@ class ConnectionsGame:
                 total_stats["invalid_responses"] += stats["invalid_count"]
                 total_stats["total_time_sec"] += stats["time_sec"]
                 total_stats["total_tokens"] += stats["total_tokens"]
+                total_stats["total_cost"] += stats.get("total_cost", 0.0)
+                total_stats["total_upstream_cost"] += stats.get("total_upstream_cost", 0.0)
                 
                 if stats["token_count_method"] == "API":
                     total_stats["token_count_method"] = "API"
@@ -243,6 +229,8 @@ class ConnectionsGame:
         messages = []
         total_tokens = 0
         token_method = "APPROXIMATE"
+        total_cost = 0.0
+        total_upstream_cost = 0.0
         
         # Create first prompt
         shuffled_words = puzzle.words.copy()
@@ -283,6 +271,13 @@ class ConnectionsGame:
                         prompt_text = " ".join([msg["content"] for msg in messages])
                         total_tokens += count_tokens(prompt_text) + count_tokens(content)
                     
+                    # Track costs
+                    cost, upstream_cost = extract_cost_info(response)
+                    if cost is not None:
+                        total_cost += cost
+                    if upstream_cost is not None:
+                        total_upstream_cost += upstream_cost
+                    
                     result = self._process_guess(state, content)
                     
                 except Exception as e:
@@ -309,7 +304,7 @@ class ConnectionsGame:
             
             # Log successful exchange AFTER timer context exits
             if not state.finished:
-                log_exchange(self.logger, {
+                exchange_data = {
                     "run_id": self.run_id,
                     "model": model_name,
                     "puzzle_id": puzzle.id,
@@ -320,7 +315,15 @@ class ConnectionsGame:
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "result": result
-                })
+                }
+                
+                # Add cost information if available
+                if cost is not None:
+                    exchange_data["cost"] = cost
+                if upstream_cost is not None:
+                    exchange_data["upstream_cost"] = upstream_cost
+                
+                log_exchange(self.logger, exchange_data)
                 
                 # Add response and result to conversation
                 messages.append({"role": "assistant", "content": content})
@@ -338,7 +341,9 @@ class ConnectionsGame:
             "solved_groups": list(state.solved_groups),
             "time_sec": time_sec,
             "total_tokens": total_tokens,
-            "token_count_method": token_method
+            "token_count_method": token_method,
+            "total_cost": total_cost,
+            "total_upstream_cost": total_upstream_cost
         }
     
     def _run_puzzle_interactive(self, puzzle: Puzzle) -> Dict[str, Any]:
@@ -423,7 +428,9 @@ class ConnectionsGame:
             "solved_groups": list(state.solved_groups),
             "time_sec": time_sec,
             "total_tokens": 0,
-            "token_count_method": "N/A"
+            "token_count_method": "N/A",
+            "total_cost": 0.0,
+            "total_upstream_cost": 0.0
         }
     
     def _process_guess(self, state: GameState, response: str) -> str:

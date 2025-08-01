@@ -72,13 +72,15 @@ def run(
         console.print("❌ Cannot specify both --model and --interactive", style="red") 
         raise typer.Exit(1)
     
-    # Validate model
-    if model and model not in ConnectionsGame.MODEL_CONFIG:
-        console.print(f"❌ Unknown model: {model}", style="red")
-        console.print("Available models:", style="yellow")
-        for model_name in ConnectionsGame.MODEL_CONFIG.keys():
-            console.print(f"  - {model_name}")
-        raise typer.Exit(2)
+    # Validate model (create temporary instance to load model config)
+    if model:
+        temp_game = ConnectionsGame(inputs_path, log_path)
+        if model not in temp_game.MODEL_CONFIG:
+            console.print(f"❌ Unknown model: {model}", style="red")
+            console.print("Available models:", style="yellow")
+            for model_name in temp_game.MODEL_CONFIG.keys():
+                console.print(f"  - {model_name}")
+            raise typer.Exit(2)
     
     # Check OpenRouter API key for non-interactive mode
     if not interactive:
@@ -164,6 +166,12 @@ def _display_summary(summary: dict, interactive: bool):
     if not interactive:
         table.add_row("Total Tokens", str(summary["total_tokens"]))
         table.add_row("Token Method", summary["token_count_method"])
+        
+        # Add cost information
+        if summary.get("total_cost", 0) > 0:
+            table.add_row("Total Cost", f"${summary['total_cost']:.6f}")
+        if summary.get("total_upstream_cost", 0) > 0:
+            table.add_row("Upstream Cost", f"${summary['total_upstream_cost']:.6f}")
     
     table.add_row("Seed", str(summary["seed"]))
     
@@ -179,7 +187,9 @@ def list_models():
     """List available models."""
     console.print("Available models:", style="bold blue")
     
-    for model_name in ConnectionsGame.MODEL_CONFIG.keys():
+    # Create temporary instance to load model config
+    temp_game = ConnectionsGame(Path("inputs"), Path("logs"))
+    for model_name in temp_game.MODEL_CONFIG.keys():
         console.print(f"  {model_name}")
 
 

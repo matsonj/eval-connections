@@ -44,3 +44,26 @@ def extract_token_usage(response_data: dict) -> tuple[Optional[int], Optional[in
         return prompt_tokens, completion_tokens, "API"
     
     return None, None, "APPROXIMATE"
+
+
+def extract_cost_info(response_data: dict) -> tuple[Optional[float], Optional[float]]:
+    """
+    Extract cost information from API response.
+    
+    Args:
+        response_data: Raw API response data
+        
+    Returns:
+        Tuple of (total_cost, upstream_cost)
+        Costs are in USD or None if not available
+    """
+    usage = response_data.get("usage", {})
+    
+    # Total cost charged by OpenRouter
+    total_cost = usage.get("cost")
+    
+    # Upstream cost (for BYOK requests)
+    cost_details = usage.get("cost_details", {})
+    upstream_cost = cost_details.get("upstream_inference_cost")
+    
+    return total_cost, upstream_cost
