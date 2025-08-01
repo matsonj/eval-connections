@@ -12,7 +12,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     
     Args:
         messages: List of message objects with 'role' and 'content'
-        model: OpenAI model name (e.g., 'gpt-o3', 'gpt-o4-mini')
+        model: OpenAI model name (e.g., 'o3', 'o4-mini', 'gpt-4o')
         timeout: Request timeout in seconds
         
     Returns:
@@ -28,12 +28,20 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
         "Content-Type": "application/json",
     }
     
+    # Check if this is a reasoning model that doesn't support certain parameters
+    is_reasoning_model = model.startswith(('o1', 'o3', 'o4'))
+    
     payload = {
         "model": model,
         "messages": messages,
-        "max_tokens": 100,
-        "temperature": 0.0,
     }
+    
+    # Only add these parameters for non-reasoning models
+    if not is_reasoning_model:
+        payload.update({
+            "max_tokens": 100,
+            "temperature": 0.0,
+        })
     
     response = requests.post(url, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()

@@ -53,8 +53,10 @@ class ConnectionsGame:
     MODEL_CONFIG = {
         "grok3": ("xai", "Grok3"),
         "grok4": ("xai", "Grok4"),
-        "gpt-o3": ("openai", "gpt-o3"),
-        "gpt-o4-mini": ("openai", "gpt-o4-mini"),
+        "o3": ("openai", "o3"),
+        "o4-mini": ("openai", "o4-mini"),
+        "gpt4": ("openai", "gpt-4"),
+        "gpt4-turbo": ("openai", "gpt-4-turbo"),
         "gemini": ("gemini", "gemini-2.5-pro"),
         "sonnet": ("anthropic", "sonnet-4"),
         "opus": ("anthropic", "opus-4"),
@@ -232,7 +234,18 @@ class ConnectionsGame:
             puzzle.id, puzzle.difficulty, shuffled_words
         )
         messages.append({"role": "system", "content": first_prompt.split('<user>')[0].replace('<system>', '').replace('</system>', '').strip()})
-        messages.append({"role": "user", "content": first_prompt.split('<user>')[1].split('</user>')[0].strip()})
+        # Get user content and include the puzzle words
+        user_section = first_prompt.split('<user>')[1]
+        rules_content = user_section.split('</user>')[0].strip()
+        puzzle_section = user_section.split('</user>')[1].strip()
+        
+        # Combine rules and puzzle info
+        user_content = rules_content
+        if puzzle_section and '<puzzle>' in puzzle_section and '</puzzle>' in puzzle_section:
+            words_content = puzzle_section.split('<puzzle>')[1].split('</puzzle>')[0].strip()
+            user_content += f"\n\nAvailable words: {words_content}"
+        
+        messages.append({"role": "user", "content": user_content})
         
         state.start_time = time.time()
         
@@ -254,26 +267,10 @@ class ConnectionsGame:
                     
                     result = self._process_guess(state, content)
                     
-                    # Log exchange
-                    log_exchange(self.logger, {
-                        "run_id": self.run_id,
-                        "model": model_name,
-                        "puzzle_id": puzzle.id,
-                        "guess_index": state.guess_count,
-                        "request": messages[-1]["content"] if len(messages) > 1 else first_prompt,
-                        "response": content,
-                        "latency_ms": timer.elapsed_ms,
-                        "prompt_tokens": prompt_tokens,
-                        "completion_tokens": completion_tokens,
-                        "result": result
-                    })
-                    
-                    # Add response and result to conversation
-                    messages.append({"role": "assistant", "content": content})
-                    if not state.finished:
-                        messages.append({"role": "user", "content": result})
-                        
                 except Exception as e:
+                    # Calculate elapsed time manually since timer context was interrupted
+                    elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
+                    
                     log_exchange(self.logger, {
                         "run_id": self.run_id,
                         "model": model_name,
@@ -281,13 +278,36 @@ class ConnectionsGame:
                         "guess_index": state.guess_count,
                         "request": messages[-1]["content"] if messages else first_prompt,
                         "response": str(e),
-                        "latency_ms": timer.elapsed_ms,
+                        "latency_ms": elapsed_ms,
                         "prompt_tokens": None,
                         "completion_tokens": None,
                         "result": "API_ERROR"
                     })
+                    
+                    # Log the actual error for debugging
+                    self.logger.error(f"API call failed: {str(e)}")
                     state.finished = True
                     break
+            
+            # Log successful exchange AFTER timer context exits
+            if not state.finished:
+                log_exchange(self.logger, {
+                    "run_id": self.run_id,
+                    "model": model_name,
+                    "puzzle_id": puzzle.id,
+                    "guess_index": state.guess_count,
+                    "request": messages[-1]["content"] if len(messages) > 1 else first_prompt,
+                    "response": content,
+                    "latency_ms": timer.elapsed_ms,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "result": result
+                })
+                
+                # Add response and result to conversation
+                messages.append({"role": "assistant", "content": content})
+                if not state.finished:
+                    messages.append({"role": "user", "content": result})
         
         state.end_time = time.time()
         time_sec = state.end_time - state.start_time
@@ -348,10 +368,12 @@ class ConnectionsGame:
                 print(f"Result: {result}")
                 
                 if result == "CORRECT":
+                    print("Congratulations! You won!")
+                elif result == "CORRECT. NEXT GUESS?":
                     remaining_groups = 4 - len(state.solved_groups)
                     print(f"Great! {remaining_groups} groups remaining.")
-                elif result == "INCORRECT":
-                    print(f"Not quite. {self.MAX_MISTAKES - state.mistake_count} mistakes left.")
+                elif result.startswith("INCORRECT"):
+                    print("Not quite.")
                 elif result.startswith("INVALID_RESPONSE"):
                     print("Please try again with a valid guess.")
                 
@@ -420,14 +442,18 @@ class ConnectionsGame:
                 if len(state.solved_groups) >= 4:
                     state.finished = True
                     state.won = True
-                return "CORRECT"
+                    return "CORRECT"
+                else:
+                    # If not finished, ask for next guess
+                    return "CORRECT. NEXT GUESS?"
         
         # Incorrect guess
         state.mistake_count += 1
         if state.mistake_count >= self.MAX_MISTAKES:
             state.finished = True
-        
-        return "INCORRECT"
+            
+        remaining_guesses = self.MAX_MISTAKES - state.mistake_count
+        return f"INCORRECT. {remaining_guesses} INCORRECT GUESSES REMAINING"
     
     def _parse_response(self, response: str) -> List[str]:
         """Parse response into list of words."""

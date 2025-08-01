@@ -23,7 +23,7 @@ def run(
     model: Optional[str] = typer.Option(
         None,
         "--model",
-        help="Model to evaluate (grok3, grok4, gpt-o3, gpt-o4-mini, gemini, sonnet, opus)"
+        help="Model to evaluate (grok3, grok4, o3, o4-mini, gpt4, gpt4-turbo, gemini, sonnet, opus)"
     ),
     interactive: bool = typer.Option(
         False,
