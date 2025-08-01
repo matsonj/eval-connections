@@ -48,7 +48,7 @@ class TestConnectionsGame:
         """Create a mock game with proper initialization."""
         with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
              patch.object(ConnectionsGame, '_load_prompt_template', return_value=""):
-            return ConnectionsGame(Path("."), Path("."))
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
     
     def test_parse_response(self, mock_game):
         """Test response parsing."""
@@ -113,7 +113,7 @@ class TestConnectionsGame:
         # Correct guess for fruits group
         result = mock_game._process_guess(game_state, "APPLE, BANANA, CHERRY, GRAPE")
         
-        assert result == "CORRECT"
+        assert result == "CORRECT. NEXT GUESS?"
         assert game_state.guess_count == 1
         assert game_state.mistake_count == 0
         assert "green" in game_state.solved_groups
@@ -124,7 +124,7 @@ class TestConnectionsGame:
         # Mix of different groups
         result = mock_game._process_guess(game_state, "APPLE, BLUE, FAST, BRIGHT")
         
-        assert result == "INCORRECT"
+        assert result == "INCORRECT. 3 INCORRECT GUESSES REMAINING"
         assert game_state.guess_count == 1
         assert game_state.mistake_count == 1
         assert len(game_state.solved_groups) == 0
@@ -148,12 +148,13 @@ class TestConnectionsGame:
         for i, group in enumerate(game_state.puzzle.groups):
             words_str = ", ".join(group.words)
             result = mock_game._process_guess(game_state, words_str)
-            assert result == "CORRECT"
             
             if i == 3:  # Last group
+                assert result == "CORRECT"
                 assert game_state.finished
                 assert game_state.won
             else:
+                assert result == "CORRECT. NEXT GUESS?"
                 assert not game_state.finished
     
     def test_game_lose_condition_mistakes(self, mock_game, game_state):
@@ -161,7 +162,8 @@ class TestConnectionsGame:
         # Make 4 incorrect guesses
         for i in range(4):
             result = mock_game._process_guess(game_state, "APPLE, BLUE, FAST, BRIGHT")
-            assert result == "INCORRECT"
+            expected_remaining = 3 - i
+            assert result == f"INCORRECT. {expected_remaining} INCORRECT GUESSES REMAINING"
             
             if i == 3:  # 4th mistake
                 assert game_state.finished

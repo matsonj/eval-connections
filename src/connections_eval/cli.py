@@ -54,6 +54,11 @@ def run(
         "prompt_template.xml",
         "--prompt-file",
         help="Prompt template file name"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose", "-v",
+        help="Print logs to terminal for debugging"
     )
 ):
     """Run connections evaluation."""
@@ -75,18 +80,10 @@ def run(
             console.print(f"  - {model_name}")
         raise typer.Exit(2)
     
-    # Check API key for non-interactive mode
+    # Check OpenRouter API key for non-interactive mode
     if not interactive:
-        vendor, _ = ConnectionsGame.MODEL_CONFIG[model]
-        api_key_var = {
-            "openai": "OPENAI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY", 
-            "xai": "XAI_API_KEY",
-            "gemini": "GEMINI_API_KEY"
-        }[vendor]
-        
-        if not os.getenv(api_key_var):
-            console.print(f"❌ {api_key_var} environment variable not set", style="red")
+        if not os.getenv("OPENROUTER_API_KEY"):
+            console.print("❌ OPENROUTER_API_KEY environment variable not set", style="red")
             raise typer.Exit(1)
     
     # Validate inputs path
@@ -113,7 +110,7 @@ def run(
     
     # Initialize game
     try:
-        game = ConnectionsGame(inputs_path, log_path, seed)
+        game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose)
         
         # Show run info
         console.print(f"🎮 Starting Connections evaluation", style="bold blue")
@@ -182,8 +179,8 @@ def list_models():
     """List available models."""
     console.print("Available models:", style="bold blue")
     
-    for model_name, (vendor, model_id) in ConnectionsGame.MODEL_CONFIG.items():
-        console.print(f"  {model_name:<12} ({vendor}: {model_id})")
+    for model_name in ConnectionsGame.MODEL_CONFIG.keys():
+        console.print(f"  {model_name}")
 
 
 if __name__ == "__main__":

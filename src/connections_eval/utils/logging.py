@@ -25,13 +25,14 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_data, ensure_ascii=False)
 
 
-def setup_logger(log_path: Path, run_id: str) -> logging.Logger:
+def setup_logger(log_path: Path, run_id: str, verbose: bool = False) -> logging.Logger:
     """
     Set up logger with JSON formatting.
     
     Args:
         log_path: Directory to write logs to
         run_id: Unique run identifier
+        verbose: Whether to also log to console
         
     Returns:
         Configured logger
@@ -52,6 +53,12 @@ def setup_logger(log_path: Path, run_id: str) -> logging.Logger:
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(JSONFormatter())
     logger.addHandler(file_handler)
+    
+    # Console handler if verbose
+    if verbose:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(JSONFormatter())
+        logger.addHandler(console_handler)
     
     return logger
 

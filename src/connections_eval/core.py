@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage
 from .utils.logging import log_exchange, log_summary, setup_logger
-from .adapters import openai_adapter, anthropic_adapter, xai_adapter, gemini_adapter
+from .adapters import openrouter_adapter
 
 
 @dataclass
@@ -49,24 +49,40 @@ class GameState:
 class ConnectionsGame:
     """Main game engine for Connections puzzles."""
     
-    # Model configuration
+    # Model configuration - all models now use OpenRouter
     MODEL_CONFIG = {
-        "grok3": ("xai", "Grok3"),
-        "grok4": ("xai", "Grok4"),
-        "o3": ("openai", "o3"),
-        "o4-mini": ("openai", "o4-mini"),
-        "gpt4": ("openai", "gpt-4"),
-        "gpt4-turbo": ("openai", "gpt-4-turbo"),
-        "gemini": ("gemini", "gemini-2.5-pro"),
-        "sonnet": ("anthropic", "sonnet-4"),
-        "opus": ("anthropic", "opus-4"),
+        # OpenAI models
+        "o3": "o3",
+        "o3-pro": "o3-pro",
+        "o3-mini": "o3-mini",
+        "o4-mini": "o4-mini",
+        "gpt4": "gpt4",
+        "gpt4-turbo": "gpt4-turbo",
+        "gpt4o": "gpt4o",
+        "gpt4o-mini": "gpt4o-mini",
+        
+        # xAI models
+        "grok3": "grok3",
+        "grok3-mini": "grok3-mini",
+        "grok4": "grok4",
+        
+        # Anthropic models
+        "sonnet": "sonnet",
+        "sonnet-4": "sonnet-4",
+        "opus": "opus", 
+        "opus-4": "opus-4",
+        "haiku": "haiku",
+        
+        # Google models
+        "gemini": "gemini",
+        "gemini-flash": "gemini-flash",
     }
     
     MAX_GUESSES = 6
     MAX_MISTAKES = 4
     MAX_INVALID = 3
     
-    def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None):
+    def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None, verbose: bool = False):
         """
         Initialize the game engine.
         
@@ -74,10 +90,12 @@ class ConnectionsGame:
             inputs_path: Path to inputs directory
             log_path: Path to logs directory
             seed: Random seed for reproducibility
+            verbose: Whether to print logs to console
         """
         self.inputs_path = inputs_path
         self.log_path = log_path
         self.seed = seed or int(time.time())
+        self.verbose = verbose
         self.rng = random.Random(self.seed)
         
         self.puzzles = self._load_puzzles()
@@ -140,7 +158,7 @@ class ConnectionsGame:
         """
         start_timestamp = datetime.utcnow().isoformat() + "Z"
         self.run_id = f"{datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')}_{model_name}"
-        self.logger = setup_logger(self.log_path, self.run_id)
+        self.logger = setup_logger(self.log_path, self.run_id, verbose=self.verbose)
         
         # Randomize puzzle order
         puzzles_to_run = self.puzzles.copy()
@@ -207,8 +225,8 @@ class ConnectionsGame:
     
     def _run_puzzle_ai(self, puzzle: Puzzle, model_name: str) -> Dict[str, Any]:
         """Run a single puzzle with AI model."""
-        vendor, model_id = self.MODEL_CONFIG[model_name]
-        adapter = self._get_adapter(vendor)
+        model_id = self.MODEL_CONFIG[model_name]
+        adapter = openrouter_adapter
         
         state = GameState(
             puzzle=puzzle,
@@ -513,12 +531,4 @@ class ConnectionsGame:
         remaining_words = all_words - solved_words
         return list(remaining_words)
     
-    def _get_adapter(self, vendor: str):
-        """Get the appropriate adapter for a vendor."""
-        adapters = {
-            "openai": openai_adapter,
-            "anthropic": anthropic_adapter,
-            "xai": xai_adapter,
-            "gemini": gemini_adapter,
-        }
-        return adapters[vendor]
+

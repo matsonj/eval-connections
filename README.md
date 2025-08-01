@@ -8,7 +8,7 @@ This project provides a comprehensive evaluation framework for testing linguisti
 
 ## Features
 
-- **Multi-model support**: OpenAI, Anthropic, xAI, and Google Gemini
+- **Multi-model support**: Access 200+ AI models through OpenRouter (OpenAI, Anthropic, xAI, Google Gemini, and more)
 - **Interactive mode**: Human players can test their skills
 - **Comprehensive metrics**: Track guesses, errors, time, and token usage
 - **Reproducible**: Controlled randomization with optional seeds
@@ -35,8 +35,8 @@ uv run connections_eval list-models
 ### Run AI Model Evaluation
 
 ```bash
-# Set API key
-export OPENAI_API_KEY="your-key-here"
+# Set OpenRouter API key
+export OPENROUTER_API_KEY="your-key-here"
 
 # Run evaluation
 uv run connections_eval run --model o3 --puzzles 5
@@ -61,17 +61,23 @@ uv run connections_eval run \
 
 ## Supported Models
 
-| CLI Name      | Vendor    | Model ID         | API Key Env Var     |
-|---------------|-----------|------------------|---------------------|
-| `grok3`       | xAI       | `Grok3`          | `XAI_API_KEY`       |
-| `grok4`       | xAI       | `Grok4`          | `XAI_API_KEY`       |
-| `o3`          | OpenAI    | `o3`             | `OPENAI_API_KEY`    |
-| `o4-mini`     | OpenAI    | `o4-mini`        | `OPENAI_API_KEY`    |
-| `gpt4`        | OpenAI    | `gpt-4`          | `OPENAI_API_KEY`    |
-| `gpt4-turbo`  | OpenAI    | `gpt-4-turbo`    | `OPENAI_API_KEY`    |
-| `gemini`      | Google    | `gemini-2.5-pro` | `GEMINI_API_KEY`    |
-| `sonnet`      | Anthropic | `sonnet-4`       | `ANTHROPIC_API_KEY` |
-| `opus`        | Anthropic | `opus-4`         | `ANTHROPIC_API_KEY` |
+All models are accessed through OpenRouter using a single API key. Set your OpenRouter API key:
+
+```bash
+export OPENROUTER_API_KEY="your-openrouter-key"
+```
+
+| CLI Name      | OpenRouter Model ID        | Description                     |
+|---------------|----------------------------|---------------------------------|
+| `grok3`       | `xai/grok-3`              | xAI Grok-3                      |
+| `grok4`       | `xai/grok-4`              | xAI Grok-4                      |
+| `o3`          | `openai/o3`               | OpenAI o3                       |
+| `o4-mini`     | `openai/o4-mini`          | OpenAI o4-mini                  |
+| `gpt4`        | `openai/gpt-4`            | OpenAI GPT-4                    |
+| `gpt4-turbo`  | `openai/gpt-4-turbo`      | OpenAI GPT-4 Turbo              |
+| `gemini`      | `google/gemini-2.5-pro`   | Google Gemini 2.5 Pro           |
+| `sonnet`      | `anthropic/claude-3.5-sonnet` | Anthropic Claude 3.5 Sonnet |
+| `opus`        | `anthropic/claude-3-opus` | Anthropic Claude 3 Opus         |
 
 ## Game Rules
 
@@ -190,10 +196,7 @@ src/connections_eval/
 ├── cli.py              # Typer CLI interface
 ├── core.py             # Game logic & metrics
 ├── adapters/           # AI model adapters
-│   ├── openai_adapter.py
-│   ├── anthropic_adapter.py
-│   ├── xai_adapter.py
-│   └── gemini_adapter.py
+│   └── openrouter_adapter.py  # OpenRouter unified adapter
 └── utils/              # Utilities
     ├── timing.py       # Timer utilities
     ├── tokens.py       # Token counting
@@ -204,10 +207,10 @@ src/connections_eval/
 ## Error Handling
 
 - **API Failures**: Automatic retry with exponential backoff (3 attempts)
-- **Missing API Keys**: Fail fast with clear error message
+- **Missing API Keys**: Fail fast with clear error message for `OPENROUTER_API_KEY`
 - **Invalid Responses**: Track and limit (max 3 per puzzle)
 - **Network Issues**: Graceful degradation with detailed logging
-- **Reasoning Models**: Special parameter handling for OpenAI reasoning models (o1, o3, o4) that don't support `max_tokens` or `temperature`
+- **Reasoning Models**: Special parameter handling for reasoning models (o1, o3, o4) that don't support `max_tokens` or `temperature`
 
 ## Metrics
 
