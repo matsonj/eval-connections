@@ -42,6 +42,9 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     # Check if this is a Grok-4 reasoning model (doesn't support max_tokens, temperature, etc.)
     is_grok4_reasoning_model = openrouter_model == 'x-ai/grok-4'
     
+    # Check if this is a GPT OSS reasoning model (doesn't support max_tokens, temperature, etc.)
+    is_gpt_oss_reasoning_model = any(openrouter_model.endswith(m) for m in ['gpt-oss-120b', 'gpt-oss-20b'])
+    
     # Check if this is a Gemini model with reasoning capabilities
     is_gemini_reasoning_model = openrouter_model.startswith('google/gemini-2.5')
     
@@ -54,8 +57,8 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     }
     
     # Handle different model types
-    if is_openai_reasoning_model or is_grok4_reasoning_model:
-        # OpenAI and Grok-4 reasoning models don't support max_tokens or temperature
+    if is_openai_reasoning_model or is_grok4_reasoning_model or is_gpt_oss_reasoning_model:
+        # OpenAI, Grok-4, and GPT OSS reasoning models don't support max_tokens or temperature
         pass
     elif is_gemini_reasoning_model:
         # Gemini reasoning models: no max_tokens limit (let them use what they need)
