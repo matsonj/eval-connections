@@ -37,7 +37,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     }
     
     # Check if this is a reasoning model that doesn't support certain parameters
-    is_openai_reasoning_model = any(openrouter_model.endswith(m) for m in ['o1', 'o3', 'o4', 'o1-mini', 'o3-mini', 'o4-mini'])
+    is_openai_reasoning_model = any(openrouter_model.endswith(m) for m in ['o1', 'o3', 'o4', 'o1-mini', 'o3-mini', 'o4-mini', 'gpt-5', 'gpt-5-chat', 'gpt-5-mini', 'gpt-5-nano'])
     
     # Check if this is a Grok-4 reasoning model (doesn't support max_tokens, temperature, etc.)
     is_grok4_reasoning_model = openrouter_model == 'x-ai/grok-4'
