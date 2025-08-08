@@ -4,12 +4,16 @@ Evaluate AI models (or humans) on New York Times *Connections* puzzles.
 
 ## Overview
 
-This project provides a comprehensive evaluation framework for testing linguistic reasoning capabilities using *Connections* puzzles. It supports multiple AI model vendors and includes both batch evaluation and interactive modes.
+This project provides a comprehensive evaluation framework for testing linguistic reasoning capabilities using *Connections* puzzles. It supports 200+ AI models through a unified OpenRouter integration and includes both batch evaluation and interactive modes.
 
 ## Features
 
 - **Multi-model support**: Access 200+ AI models through OpenRouter (OpenAI, Anthropic, xAI, Google Gemini, and more)
+- **Reasoning model support**: Full support for reasoning models (GPT-5, o3, Grok-4, etc.) with proper parameter handling
 - **Interactive mode**: Human players can test their skills
+- **Cost tracking**: Separate tracking of OpenRouter and upstream provider costs
+- **Detailed token metrics**: Breakdown of prompt vs completion tokens
+- **Verbose logging**: Real-time exchange logging with `--verbose` flag
 - **Comprehensive metrics**: Track guesses, errors, time, and token usage
 - **Reproducible**: Controlled randomization with optional seeds
 - **Detailed logging**: JSONL format for analysis
@@ -38,8 +42,11 @@ uv run connections_eval list-models
 # Set OpenRouter API key
 export OPENROUTER_API_KEY="your-key-here"
 
-# Run evaluation
-uv run connections_eval run --model o3 --puzzles 5
+# Run evaluation with verbose logging
+uv run connections_eval run --model gpt5 --puzzles 5 --verbose
+
+# Run with reasoning model (automatically handled)
+uv run connections_eval run --model grok4 --puzzles 3
 ```
 
 ### Interactive Mode
@@ -67,17 +74,27 @@ All models are accessed through OpenRouter using a single API key. Set your Open
 export OPENROUTER_API_KEY="your-openrouter-key"
 ```
 
-| CLI Name      | OpenRouter Model ID        | Description                     |
-|---------------|----------------------------|---------------------------------|
-| `grok3`       | `xai/grok-3`              | xAI Grok-3                      |
-| `grok4`       | `xai/grok-4`              | xAI Grok-4                      |
-| `o3`          | `openai/o3`               | OpenAI o3                       |
-| `o4-mini`     | `openai/o4-mini`          | OpenAI o4-mini                  |
-| `gpt4`        | `openai/gpt-4`            | OpenAI GPT-4                    |
-| `gpt4-turbo`  | `openai/gpt-4-turbo`      | OpenAI GPT-4 Turbo              |
-| `gemini`      | `google/gemini-2.5-pro`   | Google Gemini 2.5 Pro           |
-| `sonnet`      | `anthropic/claude-3.5-sonnet` | Anthropic Claude 3.5 Sonnet |
-| `opus`        | `anthropic/claude-3-opus` | Anthropic Claude 3 Opus         |
+### Available Models
+
+Models are configured in `inputs/model_mappings.yml`. Here are some popular options:
+
+| CLI Name      | OpenRouter Model ID           | Type                   | Description                     |
+|---------------|-------------------------------|------------------------|---------------------------------|
+| `gpt5`        | `openai/gpt-5`               | Reasoning              | OpenAI GPT-5 (latest)          |
+| `gpt5-mini`   | `openai/gpt-5-mini`          | Reasoning              | OpenAI GPT-5 Mini               |
+| `gpt5-nano`   | `openai/gpt-5-nano`          | Reasoning              | OpenAI GPT-5 Nano               |
+| `gpt-oss-120b`| `openai/gpt-oss-120b`        | Reasoning              | OpenAI GPT OSS 120B             |
+| `gpt-oss-20b` | `openai/gpt-oss-20b`         | Reasoning              | OpenAI GPT OSS 20B              |
+| `o3`          | `openai/o3`                  | Reasoning              | OpenAI o3                       |
+| `o3-mini`     | `openai/o3-mini`             | Reasoning              | OpenAI o3-mini                  |
+| `grok4`       | `x-ai/grok-4`                | Reasoning              | xAI Grok-4                      |
+| `grok3`       | `x-ai/grok-3`                | Standard               | xAI Grok-3                      |
+| `grok3-mini`  | `x-ai/grok-3-mini`           | Reasoning              | xAI Grok-3 Mini                 |
+| `opus-4.1`    | `anthropic/claude-opus-4.1`  | Standard               | Anthropic Claude Opus 4.1       |
+| `sonnet`      | `anthropic/claude-3.5-sonnet`| Standard               | Anthropic Claude 3.5 Sonnet     |
+| `gemini`      | `google/gemini-2.5-pro`      | Reasoning              | Google Gemini 2.5 Pro           |
+
+**Reasoning Models**: Automatically handled with special parameter configurations (no `max_tokens`, `temperature`, etc.)
 
 ## Game Rules
 
@@ -131,9 +148,27 @@ Respond with EXACTLY four words, ALL CAPS, comma-separated.
 ### Console Output
 
 Results are displayed in a formatted table showing:
-- Solve rate and guess accuracy
-- Time and token usage
-- Detailed breakdown by puzzle
+- Solve rate and guess accuracy  
+- Performance metrics (time, tokens)
+- Detailed token breakdown (prompt vs completion tokens)
+- Cost tracking (OpenRouter cost vs upstream provider cost)
+- Comprehensive evaluation statistics
+
+Example output:
+```
+📊 Evaluation Results
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric            ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ Puzzles Solved    │ 4          │
+│ Solve Rate        │ 80.0%      │
+│ Total Tokens      │ 12847      │
+│ Prompt Tokens     │ 1203       │
+│ Completion Tokens │ 11644      │
+│ OpenRouter Cost   │ $0.001354  │
+│ OpenAI Cost       │ $0.027087  │
+└───────────────────┴────────────┘
+```
 
 ### JSONL Logs
 
@@ -160,6 +195,7 @@ uv run connections_eval run [OPTIONS]
 | `--model` | str | None | Model to evaluate (required unless `--interactive`) |
 | `--interactive` | flag | False | Run in interactive mode |
 | `--puzzles` | int | All | Maximum puzzles to run |
+| `--verbose` | flag | False | Enable real-time exchange logging |
 | `--seed` | int | Random | Random seed for reproducibility |
 | `--inputs-path` | path | `inputs/` | Input files directory |
 | `--log-path` | path | `logs/` | Log output directory |
@@ -169,16 +205,19 @@ uv run connections_eval run [OPTIONS]
 
 ```bash
 # Basic evaluation
-uv run connections_eval run --model o3
+uv run connections_eval run --model gpt5
 
-# Limited run with seed
-uv run connections_eval run --model gemini --puzzles 3 --seed 42
+# Limited run with verbose logging
+uv run connections_eval run --model gemini --puzzles 3 --verbose
+
+# Reasoning model evaluation
+uv run connections_eval run --model grok4 --puzzles 5 --seed 42
 
 # Interactive play
 uv run connections_eval run --interactive
 
-# Custom paths
-uv run connections_eval run --model sonnet --inputs-path ./my-puzzles
+# Custom paths with verbose mode
+uv run connections_eval run --model sonnet --inputs-path ./my-puzzles --verbose
 ```
 
 ## Development
@@ -196,12 +235,17 @@ src/connections_eval/
 ├── cli.py              # Typer CLI interface
 ├── core.py             # Game logic & metrics
 ├── adapters/           # AI model adapters
-│   └── openrouter_adapter.py  # OpenRouter unified adapter
+│   └── openrouter_adapter.py  # Unified OpenRouter adapter (200+ models)
 └── utils/              # Utilities
     ├── timing.py       # Timer utilities
-    ├── tokens.py       # Token counting
+    ├── tokens.py       # Token counting & cost extraction
     ├── logging.py      # JSON logging
     └── retry.py        # Retry with backoff
+
+inputs/
+├── connections_puzzles.yml    # Puzzle database
+├── model_mappings.yml         # Model configuration
+└── prompt_template.xml        # Prompt template
 ```
 
 ## Error Handling
@@ -220,7 +264,15 @@ The evaluation tracks comprehensive metrics:
 - **Guess Accuracy**: Correct guesses / total guesses  
 - **Response Validity**: Invalid responses per puzzle
 - **Performance**: Average time per puzzle
-- **Token Usage**: Total tokens (when available from API)
+- **Token Usage**: 
+  - Total tokens consumed
+  - Prompt tokens (input to model)
+  - Completion tokens (generated by model)
+  - Token counting method (API vs approximate)
+- **Cost Tracking**:
+  - OpenRouter cost (what you pay)
+  - Upstream cost (what OpenRouter pays the provider)
+  - Per-exchange cost breakdown in logs
 
 ## License
 
