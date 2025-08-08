@@ -5,6 +5,8 @@
 - **Run app**: `uv run connections_eval run --model MODEL_NAME` or `uv run connections_eval run --interactive`
 - **List models**: `uv run connections_eval list-models`
 - **Install deps**: `uv sync`
+- **Extract data**: `uv run python scripts/extract_summaries.py` (creates results/run_summaries.csv)
+- **Generate table**: `uv run python scripts/create_results_table_gt.py` (creates results/results_table_gt.html)
 
 ## Architecture
 - **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics
@@ -13,6 +15,8 @@
 - **Utils**: `src/connections_eval/utils/` - Timing, tokens, logging, retry utilities
 - **Data**: `inputs/connections_puzzles.yml` (puzzles), `inputs/prompt_template.xml` (prompts)
 - **Logs**: JSONL format in `logs/` directory with detailed exchange and summary data
+- **Scripts**: `scripts/` - Analysis and visualization tools for processing evaluation results
+- **Results**: `results/` - Generated CSV data and HTML reports
 
 ## Code Style
 - **Imports**: Standard library first, then third-party, then local imports

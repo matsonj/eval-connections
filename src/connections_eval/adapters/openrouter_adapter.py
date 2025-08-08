@@ -48,6 +48,9 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     # Check if this is a Gemini model with reasoning capabilities
     is_gemini_reasoning_model = openrouter_model.startswith('google/gemini-2.5')
     
+    # Check if this is a Qwen3 reasoning model (thinking variant)
+    is_qwen_reasoning_model = openrouter_model.startswith('qwen/qwen3')
+    
     payload = {
         "model": openrouter_model,
         "messages": messages,
@@ -57,8 +60,8 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     }
     
     # Handle different model types
-    if is_openai_reasoning_model or is_grok_reasoning_model or is_gpt_oss_reasoning_model:
-        # OpenAI, Grok, and GPT OSS reasoning models don't support max_tokens or temperature
+    if is_openai_reasoning_model or is_grok_reasoning_model or is_gpt_oss_reasoning_model or is_qwen_reasoning_model:
+        # OpenAI, Grok, GPT OSS, and Qwen reasoning models don't support max_tokens or temperature
         pass
     elif is_gemini_reasoning_model:
         # Gemini reasoning models: no max_tokens limit (let them use what they need)
