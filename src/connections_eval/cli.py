@@ -165,13 +165,17 @@ def _display_summary(summary: dict, interactive: bool):
     
     if not interactive:
         table.add_row("Total Tokens", str(summary["total_tokens"]))
+        if summary.get("total_prompt_tokens", 0) > 0:
+            table.add_row("Prompt Tokens", str(summary["total_prompt_tokens"]))
+        if summary.get("total_completion_tokens", 0) > 0:
+            table.add_row("Completion Tokens", str(summary["total_completion_tokens"]))
         table.add_row("Token Method", summary["token_count_method"])
         
         # Add cost information
         if summary.get("total_cost", 0) > 0:
-            table.add_row("Total Cost", f"${summary['total_cost']:.6f}")
+            table.add_row("OpenRouter Cost", f"${summary['total_cost']:.6f}")
         if summary.get("total_upstream_cost", 0) > 0:
-            table.add_row("Upstream Cost", f"${summary['total_upstream_cost']:.6f}")
+            table.add_row("OpenAI Cost", f"${summary['total_upstream_cost']:.6f}")
     
     table.add_row("Seed", str(summary["seed"]))
     

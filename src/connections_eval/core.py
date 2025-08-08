@@ -159,6 +159,8 @@ class ConnectionsGame:
             "invalid_responses": 0,
             "total_time_sec": 0.0,
             "total_tokens": 0,
+            "total_prompt_tokens": 0,
+            "total_completion_tokens": 0,
             "token_count_method": "APPROXIMATE",
             "total_cost": 0.0,
             "total_upstream_cost": 0.0,
@@ -181,6 +183,8 @@ class ConnectionsGame:
                 total_stats["invalid_responses"] += stats["invalid_count"]
                 total_stats["total_time_sec"] += stats["time_sec"]
                 total_stats["total_tokens"] += stats["total_tokens"]
+                total_stats["total_prompt_tokens"] += stats.get("total_prompt_tokens", 0)
+                total_stats["total_completion_tokens"] += stats.get("total_completion_tokens", 0)
                 total_stats["total_cost"] += stats.get("total_cost", 0.0)
                 total_stats["total_upstream_cost"] += stats.get("total_upstream_cost", 0.0)
                 
@@ -228,6 +232,8 @@ class ConnectionsGame:
         
         messages = []
         total_tokens = 0
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
         token_method = "APPROXIMATE"
         total_cost = 0.0
         total_upstream_cost = 0.0
@@ -264,12 +270,18 @@ class ConnectionsGame:
                     # Track tokens
                     prompt_tokens, completion_tokens, method = extract_token_usage(response)
                     if prompt_tokens and completion_tokens:
+                        total_prompt_tokens += prompt_tokens
+                        total_completion_tokens += completion_tokens
                         total_tokens += prompt_tokens + completion_tokens
                         token_method = method
                     else:
                         # Approximate
                         prompt_text = " ".join([msg["content"] for msg in messages])
-                        total_tokens += count_tokens(prompt_text) + count_tokens(content)
+                        approx_prompt = count_tokens(prompt_text)
+                        approx_completion = count_tokens(content)
+                        total_prompt_tokens += approx_prompt
+                        total_completion_tokens += approx_completion
+                        total_tokens += approx_prompt + approx_completion
                     
                     # Track costs
                     cost, upstream_cost = extract_cost_info(response)
@@ -341,6 +353,8 @@ class ConnectionsGame:
             "solved_groups": list(state.solved_groups),
             "time_sec": time_sec,
             "total_tokens": total_tokens,
+            "total_prompt_tokens": total_prompt_tokens,
+            "total_completion_tokens": total_completion_tokens,
             "token_count_method": token_method,
             "total_cost": total_cost,
             "total_upstream_cost": total_upstream_cost

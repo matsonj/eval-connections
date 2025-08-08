@@ -39,8 +39,8 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     # Check if this is a reasoning model that doesn't support certain parameters
     is_openai_reasoning_model = any(openrouter_model.endswith(m) for m in ['o1', 'o3', 'o4', 'o1-mini', 'o3-mini', 'o4-mini', 'gpt-5', 'gpt-5-chat', 'gpt-5-mini', 'gpt-5-nano'])
     
-    # Check if this is a Grok-4 reasoning model (doesn't support max_tokens, temperature, etc.)
-    is_grok4_reasoning_model = openrouter_model == 'x-ai/grok-4'
+    # Check if this is a Grok reasoning model (doesn't support max_tokens, temperature, etc.)
+    is_grok_reasoning_model = openrouter_model in ['x-ai/grok-4', 'x-ai/grok-3-mini']
     
     # Check if this is a GPT OSS reasoning model (doesn't support max_tokens, temperature, etc.)
     is_gpt_oss_reasoning_model = any(openrouter_model.endswith(m) for m in ['gpt-oss-120b', 'gpt-oss-20b'])
@@ -57,8 +57,8 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     }
     
     # Handle different model types
-    if is_openai_reasoning_model or is_grok4_reasoning_model or is_gpt_oss_reasoning_model:
-        # OpenAI, Grok-4, and GPT OSS reasoning models don't support max_tokens or temperature
+    if is_openai_reasoning_model or is_grok_reasoning_model or is_gpt_oss_reasoning_model:
+        # OpenAI, Grok, and GPT OSS reasoning models don't support max_tokens or temperature
         pass
     elif is_gemini_reasoning_model:
         # Gemini reasoning models: no max_tokens limit (let them use what they need)
