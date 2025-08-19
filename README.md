@@ -276,7 +276,7 @@ The evaluation tracks comprehensive metrics:
 
 ## Latest Results
 
-[📊 View Interactive Results Table](results/results_table_gt.html) - Sports-style box score showing latest model performance
+[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/results_table_gt.html) - Sports-style box score showing latest model performance
 
 *Table includes solve rates, costs, token usage, and timing metrics formatted like sports statistics.*
 

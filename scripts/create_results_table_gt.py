@@ -270,16 +270,23 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         )
     )
     
-    # Save as HTML first
-    html_path = save_path.replace('.png', '.html')
+    # Save as HTML to both results/ and docs/ directories
+    results_html_path = save_path.replace('.png', '.html')
+    docs_html_path = "docs/results_table_gt.html"
     
     # Use the show() method to generate HTML and save it
     html_content = gt_table._render_as_html()
     
-    with open(html_path, 'w', encoding='utf-8') as f:
+    # Save to results directory (for local use)
+    with open(results_html_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f"Great Tables HTML saved to {html_path}")
+    # Save to docs directory (for GitHub Pages)
+    with open(docs_html_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    print(f"Great Tables HTML saved to {results_html_path}")
+    print(f"Great Tables HTML also saved to {docs_html_path} for GitHub Pages")
     print("Open the HTML file in a browser to view the table!")
     
     # Note: PNG export requires webdriver setup which can be complex
@@ -298,7 +305,7 @@ def inject_table_link_into_readme(readme_path: str = "README.md"):
     # Define the results section content
     results_section = """## Latest Results
 
-[📊 View Interactive Results Table](results/results_table_gt.html) - Sports-style box score showing latest model performance
+[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/results_table_gt.html) - Sports-style box score showing latest model performance
 
 *Table includes solve rates, costs, token usage, and timing metrics formatted like sports statistics.*
 
