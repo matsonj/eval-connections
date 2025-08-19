@@ -274,6 +274,12 @@ The evaluation tracks comprehensive metrics:
   - Upstream cost (what OpenRouter pays the provider)
   - Per-exchange cost breakdown in logs
 
+## Latest Results
+
+[📊 View Interactive Results Table](results/results_table_gt.html) - Sports-style box score showing latest model performance
+
+*Table includes solve rates, costs, token usage, and timing metrics formatted like sports statistics.*
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file.

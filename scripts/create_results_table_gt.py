@@ -5,6 +5,7 @@ import pandas as pd
 from great_tables import GT, md, html
 from great_tables import style, loc
 import numpy as np
+import os
 
 
 def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.DataFrame:
@@ -64,16 +65,51 @@ def interpolate_color(value, min_val, max_val, color1, color2):
 def prepare_table_data(df: pd.DataFrame) -> pd.DataFrame:
     """Prepare data for the Great Tables display."""
     
-    # Create display dataframe with formatted values
+    def format_percentage(rate):
+        """Format percentage in sports box score style."""
+        if rate >= 1.0:
+            return "1.000"
+        else:
+            return f".{int(rate*1000):03d}"
+    
+    def format_time(seconds):
+        """Format time as XmYs."""
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        if minutes > 0:
+            return f"{minutes}m{secs}s"
+        else:
+            return f"{secs}s"
+    
+    def format_tokens(tokens):
+        """Format tokens as X.Xk."""
+        return f"{tokens/1000:.1f}k"
+    
+    # Calculate derived values
+    avg_tokens = df['total_tokens'] / df['puzzles_attempted']
+    avg_cost = df['eval_cost'] / df['puzzles_attempted']
+    
+    # Create display dataframe with formatted values (sports box score style)
     table_df = pd.DataFrame({
         'Model': df['model'].values,
-        'Solve Rate': [f"{rate:.1%}" for rate in df['solve_rate'].values],
-        'Cost': [f"${cost:.3f}" for cost in df['eval_cost'].values],
-        'Command': [f"--model {model}" for model in df['model'].values],
-        'Guess Accuracy': [f"{acc:.1%}" for acc in df['guess_accuracy'].values],
+        'Date': [pd.to_datetime(ts).strftime('%Y-%m-%d') for ts in df['start_timestamp'].values],
+        'Puzzles': df['puzzles_attempted'].astype(int).values,
+        'Solved': df['puzzles_solved'].astype(int).values,
+        'Pct Solved': [format_percentage(rate) for rate in df['solve_rate'].values],
+        'Guesses': df['total_guesses'].astype(int).values,
+        'Correct': df['correct_guesses'].astype(int).values,
+        'Incorrect': df['incorrect_guesses'].astype(int).values,
+        'Invalid': df['invalid_responses'].astype(int).values,
+        'Pct Correct': [format_percentage(acc) for acc in df['guess_accuracy'].values],
+        'Run Time': [format_time(time) for time in df['total_time_sec'].values],
+        'Avg Time': [format_time(time) for time in df['avg_time_sec'].values],
+        'Tokens': [format_tokens(tokens) for tokens in df['total_tokens'].values],
+        'Avg Tokens': [format_tokens(tokens) for tokens in avg_tokens.values],
+        'Total Cost': [f"${cost:.2f}" for cost in df['eval_cost'].values],
+        'Avg Cost': [f"${cost:.3f}" for cost in avg_cost.values],
     })
     
-    # Add background colors based on values
+    # Add background colors based on key metrics
     solve_rate_values = df['solve_rate'].values
     cost_values = df['eval_cost'].values
     accuracy_values = df['guess_accuracy'].values
@@ -108,35 +144,46 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
     gt_table = (
         GT(table_df)
         .tab_header(
-            title="Connections Evaluation Results - All Models",
-            subtitle=f"Showing all {len(df)} models (11 puzzles, >40 guesses, sorted by solve rate)"
+            title="Connections Evaluation Box Score",
+            subtitle=f"Latest runs for {len(df)} models (11 puzzles, >40 guesses, sorted by solve rate)"
         )
         .cols_hide(columns=["solve_bg", "cost_bg", "accuracy_bg"])  # Hide background color columns
         .cols_label(
             Model="Model",
-            **{"Solve Rate": "Puzzles Solved"},
-            Cost="Total Eval Cost",
-            Command="Command", 
-            **{"Guess Accuracy": "Correct Answers"}
+            Date="Date",
+            Puzzles="GP",  # Games Played
+            Solved="W",    # Wins
+            **{"Pct Solved": "PCT"},
+            Guesses="ATT", # Attempts
+            Correct="HIT",
+            Incorrect="MISS",
+            Invalid="ERR",
+            **{"Pct Correct": "AVG"},
+            **{"Run Time": "TIME"},
+            **{"Avg Time": "AVG/G"},
+            Tokens="TOK",
+            **{"Avg Tokens": "TOK/G"},
+            **{"Total Cost": "COST"},
+            **{"Avg Cost": "$/G"}
         )
     )
     
     # Apply background colors manually
     for i, row in table_df.iterrows():
-        # Apply background color to Solve Rate column
+        # Apply background color to Pct Solved column
         gt_table = gt_table.tab_style(
             style=style.fill(color=row['solve_bg']),
-            locations=loc.body(columns=["Solve Rate"], rows=[i])
+            locations=loc.body(columns=["Pct Solved"], rows=[i])
         )
-        # Apply background color to Cost column  
+        # Apply background color to Total Cost column  
         gt_table = gt_table.tab_style(
             style=style.fill(color=row['cost_bg']),
-            locations=loc.body(columns=["Cost"], rows=[i])
+            locations=loc.body(columns=["Total Cost"], rows=[i])
         )
-        # Apply background color to Guess Accuracy column
+        # Apply background color to Pct Correct column
         gt_table = gt_table.tab_style(
             style=style.fill(color=row['accuracy_bg']),
-            locations=loc.body(columns=["Guess Accuracy"], rows=[i])
+            locations=loc.body(columns=["Pct Correct"], rows=[i])
         )
     
     # Continue with other styling
@@ -144,15 +191,15 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         gt_table
         .tab_style(
             style=style.text(
-                font="Helvetica",
-                size="14px",
-                weight="600"
+                font="Arial",
+                size="16px",
+                weight="bold"
             ),
             locations=loc.title()
         )
         .tab_style(
             style=style.text(
-                font="Helvetica",
+                font="Arial",
                 size="12px",
                 color="#666666"
             ),
@@ -160,33 +207,45 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         )
         .tab_style(
             style=style.text(
-                font="Helvetica",
-                size="11px",
+                font="Arial",
+                size="10px",
                 weight="bold",
-                color="#333333"
+                color="#000000"
             ),
             locations=loc.column_labels()
         )
         .tab_style(
             style=style.text(
-                font="Helvetica",
-                size="10px",
-                color="#333333"
+                font="Arial",
+                size="9px",
+                color="#000000"
             ),
             locations=loc.body()
         )
+        # Monospace font for percentages and stats
         .tab_style(
             style=style.text(
-                font="Monaco",
+                font="Courier New",
                 size="9px",
-                color="#666666"
+                color="#000000",
+                weight="bold"
             ),
-            locations=loc.body(columns=["Command"])
+            locations=loc.body(columns=["Pct Solved", "Pct Correct"])
+        )
+        # Right-align numeric columns
+        .tab_style(
+            style=style.text(align="right"),
+            locations=loc.body(columns=["GP", "W", "ATT", "HIT", "MISS", "ERR", "TIME", "AVG/G", "TOK", "TOK/G", "COST", "$/G"])
+        )
+        # Center-align percentage columns
+        .tab_style(
+            style=style.text(align="center"),
+            locations=loc.body(columns=["PCT", "AVG"])
         )
         .tab_style(
             style=style.borders(
                 sides=["bottom"],
-                color="#cccccc",
+                color="#dddddd",
                 weight="1px"
             ),
             locations=loc.body()
@@ -194,18 +253,20 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .tab_style(
             style=style.borders(
                 sides=["top", "bottom"],
-                color="#666666",
+                color="#000000",
                 weight="2px"
             ),
             locations=loc.column_labels()
         )
         .tab_options(
-            table_font_size="10px",
+            table_font_size="9px",
             heading_align="center",
             column_labels_border_bottom_width="2px",
-            column_labels_border_bottom_color="#666666",
-            table_border_top_style="none",
-            table_border_bottom_style="none"
+            column_labels_border_bottom_color="#000000",
+            table_border_top_style="solid",
+            table_border_bottom_style="solid",
+            table_border_top_width="1px",
+            table_border_bottom_width="1px"
         )
     )
     
@@ -227,6 +288,58 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
     return gt_table
 
 
+def inject_table_link_into_readme(readme_path: str = "README.md"):
+    """Inject a link to the HTML table into README.md instead of the full HTML."""
+    
+    # Read current README
+    with open(readme_path, 'r', encoding='utf-8') as f:
+        readme_content = f.read()
+    
+    # Define the results section content
+    results_section = """## Latest Results
+
+[📊 View Interactive Results Table](results/results_table_gt.html) - Sports-style box score showing latest model performance
+
+*Table includes solve rates, costs, token usage, and timing metrics formatted like sports statistics.*
+
+"""
+    
+    # Check if we already have a results section
+    if "## Latest Results" in readme_content:
+        # Replace existing results section
+        start_idx = readme_content.find("## Latest Results")
+        end_idx = readme_content.find("## License", start_idx)
+        if end_idx != -1:
+            # Replace the section
+            new_readme = (
+                readme_content[:start_idx] + 
+                results_section +
+                readme_content[end_idx:]
+            )
+        else:
+            print("❌ Could not find License section to place results before")
+            return False
+    else:
+        # Add new results section before License
+        license_idx = readme_content.find("## License")
+        if license_idx != -1:
+            new_readme = (
+                readme_content[:license_idx] +
+                results_section +
+                readme_content[license_idx:]
+            )
+        else:
+            # Append at the end if no License section found
+            new_readme = readme_content + "\n\n" + results_section
+    
+    # Write updated README
+    with open(readme_path, 'w', encoding='utf-8') as f:
+        f.write(new_readme)
+    
+    print(f"✅ HTML table link injected into {readme_path}")
+    return True
+
+
 def main():
     """Main function to create the results table."""
     print("📊 Creating Great Tables results table...")
@@ -245,6 +358,9 @@ def main():
     
     # Create the table
     gt_table = create_great_table(df, "results/results_table_gt.png")
+    
+    # Also inject link into README.md
+    inject_table_link_into_readme("README.md")
     
     return gt_table
 
