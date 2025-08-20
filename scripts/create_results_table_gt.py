@@ -192,7 +192,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .tab_style(
             style=style.text(
                 font="Arial",
-                size="16px",
+                size="30px",
                 weight="bold"
             ),
             locations=loc.title()
@@ -200,7 +200,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .tab_style(
             style=style.text(
                 font="Arial",
-                size="12px",
+                size="21px",
                 color="#666666"
             ),
             locations=loc.subtitle()
@@ -208,7 +208,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .tab_style(
             style=style.text(
                 font="Arial",
-                size="10px",
+                size="18px",
                 weight="bold",
                 color="#000000"
             ),
@@ -217,7 +217,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .tab_style(
             style=style.text(
                 font="Arial",
-                size="9px",
+                size="16px",
                 color="#000000"
             ),
             locations=loc.body()
@@ -226,7 +226,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .tab_style(
             style=style.text(
                 font="Courier New",
-                size="9px",
+                size="16px",
                 color="#000000",
                 weight="bold"
             ),
@@ -259,7 +259,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
             locations=loc.column_labels()
         )
         .tab_options(
-            table_font_size="9px",
+            table_font_size="16px",
             heading_align="center",
             column_labels_border_bottom_width="2px",
             column_labels_border_bottom_color="#000000",
@@ -270,24 +270,18 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         )
     )
     
-    # Save as HTML to both results/ and docs/ directories
-    results_html_path = save_path.replace('.png', '.html')
-    docs_html_path = "docs/results_table_gt.html"
+    # Save as HTML to docs directory for GitHub Pages
+    docs_html_path = "docs/index.html"
     
     # Use the show() method to generate HTML and save it
     html_content = gt_table._render_as_html()
     
-    # Save to results directory (for local use)
-    with open(results_html_path, 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
-    # Save to docs directory (for GitHub Pages)
+    # Save to docs directory (for both local viewing and GitHub Pages)
     with open(docs_html_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f"Great Tables HTML saved to {results_html_path}")
-    print(f"Great Tables HTML also saved to {docs_html_path} for GitHub Pages")
-    print("Open the HTML file in a browser to view the table!")
+    print(f"Great Tables HTML saved to {docs_html_path}")
+    print("View locally: open docs/index.html in browser")
     
     # Note: PNG export requires webdriver setup which can be complex
     print("PNG export skipped - HTML version provides the same visual output")
@@ -305,7 +299,7 @@ def inject_table_link_into_readme(readme_path: str = "README.md"):
     # Define the results section content
     results_section = """## Latest Results
 
-[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/results_table_gt.html) - Sports-style box score showing latest model performance
+[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/) - Sports-style box score showing latest model performance
 
 *Table includes solve rates, costs, token usage, and timing metrics formatted like sports statistics.*
 
