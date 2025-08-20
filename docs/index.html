@@ -44,7 +44,109 @@
  #umhyttaobu .gt_super { font-size: 65%; }
  #umhyttaobu .gt_footnote_marks { font-size: 75%; vertical-align: 0.4em; position: initial; }
  #umhyttaobu .gt_asterisk { font-size: 100%; vertical-align: 0; }
- 
+#umhyttaobu {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding: 10px 0;
+}
+
+/* Make the table fluid and readable on small viewports */
+#umhyttaobu .gt_table {
+  width: 100% !important;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: auto; /* let columns size themselves */
+}
+
+/* Override hardcoded font sizes from inline styles */
+#umhyttaobu .gt_table,
+#umhyttaobu .gt_table th,
+#umhyttaobu .gt_table td {
+  font-size: clamp(12px, 1.2vw + 10px, 16px) !important;
+  line-height: 1.25;
+  white-space: nowrap; /* reduce tall rows; allow scroll instead of wrap */
+}
+
+/* Allow wrapping for long titles/subtitles only */
+#umhyttaobu .gt_title,
+#umhyttaobu .gt_subtitle {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Sticky header for usability on small screens */
+#umhyttaobu .gt_col_headings,
+#umhyttaobu .gt_heading {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fff;
+}
+
+/* Sticky first column (Model) so you keep context while scrolling horizontally) */
+#umhyttaobu table tr > *:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2; /* sit above body cells but under header row */
+  background: #fff;
+  box-shadow: 1px 0 0 #e5e7eb; /* subtle divider when scrolled */
+}
+
+/* Improve touch targets and spacing slightly on narrow screens */
+@media (max-width: 768px) {
+  #umhyttaobu .gt_table th,
+  #umhyttaobu .gt_table td {
+    padding: 6px 8px !important;
+  }
+}
+
+/* Progressive column pruning by viewport width (keeps the essentials) */
+/* Column order (1-indexed):
+   1 Model, 2 Date, 3 GP, 4 W, 5 PCT, 6 ATT, 7 HIT, 8 MISS, 9 ERR,
+   10 AVG, 11 TIME, 12 AVG/G, 13 TOK, 14 TOK/G, 15 COST, 16 $/G
+*/
+
+/* <= 1200px: hide super-verbose metrics first */
+@media (max-width: 1200px) {
+  #umhyttaobu th:nth-child(13), #umhyttaobu td:nth-child(13) { display: none; } /* TOK */
+  #umhyttaobu th:nth-child(14), #umhyttaobu td:nth-child(14) { display: none; } /* TOK/G */
+  #umhyttaobu th:nth-child(16), #umhyttaobu td:nth-child(16) { display: none; } /* $/G */
+  #umhyttaobu th:nth-child(9),  #umhyttaobu td:nth-child(9)  { display: none; } /* ERR */
+}
+
+/* <= 992px: trim more second-order diagnostics */
+@media (max-width: 992px) {
+  #umhyttaobu th:nth-child(7),  #umhyttaobu td:nth-child(7)  { display: none; } /* HIT */
+  #umhyttaobu th:nth-child(8),  #umhyttaobu td:nth-child(8)  { display: none; } /* MISS */
+  #umhyttaobu th:nth-child(12), #umhyttaobu td:nth-child(12) { display: none; } /* AVG/G */
+}
+
+/* <= 768px: keep headline stats */
+@media (max-width: 768px) {
+  #umhyttaobu th:nth-child(11), #umhyttaobu td:nth-child(11) { display: none; } /* TIME */
+  #umhyttaobu th:nth-child(6),  #umhyttaobu td:nth-child(6)  { display: none; } /* ATT */
+}
+
+/* <= 600px: minimal set for mobile: Model, GP, W, PCT, AVG, COST */
+@media (max-width: 600px) {
+  #umhyttaobu th:nth-child(2),  #umhyttaobu td:nth-child(2)  { display: none; } /* Date */
+  #umhyttaobu th:nth-child(10), #umhyttaobu td:nth-child(10) { display: none; } /* AVG */
+  /* If you prefer AVG over COST on tiny screens, swap which of 10 or 15 is hidden */
+}
+
+/* <= 480px: ultra-compact — Model, GP, W, PCT, COST */
+@media (max-width: 480px) {
+  /* hide AVG so we keep COST as business-facing metric */
+  #umhyttaobu th:nth-child(10), #umhyttaobu td:nth-child(10) { display: none; } /* AVG */
+}
+
+/* Optional: softer borders on mobile */
+@media (max-width: 768px) {
+  #umhyttaobu .gt_row { border-top-color: #eee; }
+  #umhyttaobu .gt_col_headings { border-bottom-color: #ddd; }
+}
 </style>
 <table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
 <thead>
