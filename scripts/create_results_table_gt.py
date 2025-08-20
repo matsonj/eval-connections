@@ -276,6 +276,135 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
     # Use the show() method to generate HTML and save it
     html_content = gt_table._render_as_html()
     
+    # Extract the actual ID from the generated HTML
+    import re
+    id_match = re.search(r'<div id="([^"]+)"', html_content)
+    if id_match:
+        actual_id = id_match.group(1)
+    else:
+        actual_id = "gt_table"  # fallback
+    
+    # Add responsive CSS to the HTML content with the correct ID
+    responsive_css = f"""
+#{actual_id} {{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding: 10px 0;
+}}
+
+/* Make the table fluid and readable on small viewports */
+#{actual_id} .gt_table {{
+  width: 100% !important;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: auto; /* let columns size themselves */
+}}
+
+/* Override hardcoded font sizes from inline styles */
+#{actual_id} .gt_table,
+#{actual_id} .gt_table th,
+#{actual_id} .gt_table td {{
+  font-size: clamp(12px, 1.2vw + 10px, 16px) !important;
+  line-height: 1.25;
+  white-space: nowrap; /* reduce tall rows; allow scroll instead of wrap */
+}}
+
+/* Allow wrapping for long titles/subtitles only */
+#{actual_id} .gt_title,
+#{actual_id} .gt_subtitle {{
+  white-space: normal;
+  word-break: break-word;
+}}
+
+/* Sticky header for usability on small screens */
+#{actual_id} .gt_col_headings,
+#{actual_id} .gt_heading {{
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fff;
+}}
+
+/* Sticky first column (Model) so you keep context while scrolling horizontally) */
+#{actual_id} table tr > *:first-child {{
+  position: sticky;
+  left: 0;
+  z-index: 2; /* sit above body cells but under header row */
+  background: #fff;
+  box-shadow: 1px 0 0 #e5e7eb; /* subtle divider when scrolled */
+}}
+
+/* Improve touch targets and spacing slightly on narrow screens */
+@media (max-width: 768px) {{
+  #{actual_id} .gt_table th,
+  #{actual_id} .gt_table td {{
+    padding: 6px 8px !important;
+  }}
+}}
+
+/* Progressive column pruning by viewport width (keeps the essentials) */
+/* Column order (1-indexed):
+   1 Model, 2 Date, 3 GP, 4 W, 5 PCT, 6 ATT, 7 HIT, 8 MISS, 9 ERR,
+   10 AVG, 11 TIME, 12 AVG/G, 13 TOK, 14 TOK/G, 15 COST, 16 $/G
+*/
+
+/* <= 1200px: hide super-verbose metrics first */
+@media (max-width: 1200px) {{
+  #{actual_id} th:nth-child(13), #{actual_id} td:nth-child(13) {{ display: none; }} /* TOK */
+  #{actual_id} th:nth-child(14), #{actual_id} td:nth-child(14) {{ display: none; }} /* TOK/G */
+  #{actual_id} th:nth-child(16), #{actual_id} td:nth-child(16) {{ display: none; }} /* $/G */
+  #{actual_id} th:nth-child(9),  #{actual_id} td:nth-child(9)  {{ display: none; }} /* ERR */
+}}
+
+/* <= 992px: trim more second-order diagnostics */
+@media (max-width: 992px) {{
+  #{actual_id} th:nth-child(7),  #{actual_id} td:nth-child(7)  {{ display: none; }} /* HIT */
+  #{actual_id} th:nth-child(8),  #{actual_id} td:nth-child(8)  {{ display: none; }} /* MISS */
+  #{actual_id} th:nth-child(12), #{actual_id} td:nth-child(12) {{ display: none; }} /* AVG/G */
+}}
+
+/* <= 768px: keep headline stats */
+@media (max-width: 768px) {{
+  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* TIME */
+  #{actual_id} th:nth-child(6),  #{actual_id} td:nth-child(6)  {{ display: none; }} /* ATT */
+}}
+
+/* <= 600px: minimal set for mobile: Model, GP, W, PCT, AVG, COST */
+@media (max-width: 600px) {{
+  #{actual_id} th:nth-child(2),  #{actual_id} td:nth-child(2)  {{ display: none; }} /* Date */
+  #{actual_id} th:nth-child(10), #{actual_id} td:nth-child(10) {{ display: none; }} /* AVG */
+  /* If you prefer AVG over COST on tiny screens, swap which of 10 or 15 is hidden */
+}}
+
+/* <= 480px: ultra-compact — Model, GP, W, PCT, COST */
+@media (max-width: 480px) {{
+  /* hide AVG so we keep COST as business-facing metric */
+  #{actual_id} th:nth-child(10), #{actual_id} td:nth-child(10) {{ display: none; }} /* AVG */
+}}
+
+/* Optional: softer borders on mobile */
+@media (max-width: 768px) {{
+  #{actual_id} .gt_row {{ border-top-color: #eee; }}
+  #{actual_id} .gt_col_headings {{ border-bottom-color: #ddd; }}
+}}
+"""
+    
+    # Insert the responsive CSS into the HTML
+    if '<style>' in html_content:
+        # Insert after the existing style block
+        style_end = html_content.find('</style>')
+        html_content = html_content[:style_end] + responsive_css + html_content[style_end:]
+    else:
+        # Create a new style block if none exists
+        head_end = html_content.find('</head>')
+        if head_end != -1:
+            html_content = html_content[:head_end] + f'<style>{responsive_css}</style>' + html_content[head_end:]
+        else:
+            # If no head tag, insert at the beginning
+            html_content = f'<style>{responsive_css}</style>' + html_content
+    
     # Save to docs directory (for both local viewing and GitHub Pages)
     with open(docs_html_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
