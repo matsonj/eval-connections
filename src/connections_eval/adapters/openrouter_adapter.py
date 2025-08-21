@@ -52,7 +52,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     is_qwen_reasoning_model = openrouter_model.startswith('qwen/qwen3')
 
     # Check if this is a DeepSeek model with reasoning capabilities
-    is_deepseek_reasoning_model = openrouter_model.startswith('deepseek/deepseek-chat-v3.1')
+    is_deepseek_reasoning_model = openrouter_model.startswith('deepseek/deepseek-chat-v3.1','deepseek/deepseek/deepseek-chat-v3-0324','deepseek/deepseek-r1-0528')
     
     payload = {
         "model": openrouter_model,
