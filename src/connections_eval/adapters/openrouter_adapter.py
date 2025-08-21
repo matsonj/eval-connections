@@ -1,15 +1,35 @@
 """OpenRouter API adapter."""
 
 import requests
-from typing import Dict, List
+import yaml
+import os
+from typing import Dict, List, Set
 from ..utils.retry import retry_with_backoff
 
 
-# Model mappings are now loaded from inputs/model_mappings.yml
+def _load_thinking_models() -> Set[str]:
+    """Load the set of thinking model IDs from model_mappings.yml."""
+    # Get the path to the yaml file relative to this module
+    current_dir = os.path.dirname(__file__)
+    yaml_path = os.path.join(current_dir, '../../../inputs/model_mappings.yml')
+    yaml_path = os.path.abspath(yaml_path)
+    
+    try:
+        with open(yaml_path, 'r') as f:
+            config = yaml.safe_load(f)
+            thinking_models = config['models']['thinking']
+            return set(thinking_models.values())
+    except (FileNotFoundError, KeyError, yaml.YAMLError):
+        # Fallback to empty set if config loading fails
+        return set()
+
+
+# Cache the thinking models set
+_THINKING_MODELS = _load_thinking_models()
 
 
 @retry_with_backoff(max_retries=3, base_delay=2.0, exceptions=(requests.RequestException,))
-def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
+def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
     """
     Call OpenRouter Chat Completions API.
     
@@ -36,23 +56,11 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
         "X-Title": "Connections Eval"
     }
     
-    # Check if this is a reasoning model that doesn't support certain parameters
-    is_openai_reasoning_model = any(openrouter_model.endswith(m) for m in ['o1', 'o3', 'o4', 'o1-mini', 'o3-mini', 'o4-mini', 'gpt-5', 'gpt-5-chat', 'gpt-5-mini', 'gpt-5-nano'])
+    # Check if this is a thinking model
+    is_thinking_model = openrouter_model in _THINKING_MODELS
     
-    # Check if this is a Grok reasoning model (doesn't support max_tokens, temperature, etc.)
-    is_grok_reasoning_model = openrouter_model in ['x-ai/grok-4', 'x-ai/grok-3-mini']
-    
-    # Check if this is a GPT OSS reasoning model (doesn't support max_tokens, temperature, etc.)
-    is_gpt_oss_reasoning_model = any(openrouter_model.endswith(m) for m in ['gpt-oss-120b', 'gpt-oss-20b'])
-    
-    # Check if this is a Gemini model with reasoning capabilities
-    is_gemini_reasoning_model = openrouter_model.startswith('google/gemini-2.5')
-    
-    # Check if this is a Qwen3 reasoning model (thinking variant)
-    is_qwen_reasoning_model = openrouter_model.startswith('qwen/qwen3')
-
-    # Check if this is a DeepSeek model with reasoning capabilities
-    is_deepseek_reasoning_model = openrouter_model in ['deepseek/deepseek-chat-v3.1','deepseek/deepseek/deepseek-chat-v3-0324','deepseek/deepseek-r1-0528']
+    # Special handling for Gemini reasoning models (keeps temperature)
+    is_gemini_thinking_model = openrouter_model == 'google/gemini-2.5-pro'
     
     payload = {
         "model": openrouter_model,
@@ -63,18 +71,20 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     }
     
     # Handle different model types
-    if is_openai_reasoning_model or is_grok_reasoning_model or is_gpt_oss_reasoning_model or is_qwen_reasoning_model or is_deepseek_reasoning_model:
-        # OpenAI, Grok, GPT OSS, and Qwen reasoning models don't support max_tokens or temperature
-        pass
-    elif is_gemini_reasoning_model:
-        # Gemini reasoning models: no max_tokens limit (let them use what they need)
-        payload.update({
-            "temperature": 0.0,
-        })
+    if is_thinking_model:
+        # Thinking models don't support max_tokens or temperature and need longer timeout
+        if timeout < 600:
+            timeout = 600
+            
+        # Special case: Gemini thinking models keep temperature
+        if is_gemini_thinking_model:
+            payload.update({
+                "temperature": 0.0,
+            })
     else:
         # Standard models
         payload.update({
-            "max_tokens": 100,
+            "max_tokens": 1000,
             "temperature": 0.0,
         })
     

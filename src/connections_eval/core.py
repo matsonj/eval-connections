@@ -117,9 +117,17 @@ class ConnectionsGame:
     def _load_model_mappings(self) -> Dict[str, str]:
         """Load model mappings from YAML file."""
         mappings_file = self.inputs_path / "model_mappings.yml"
-        with open(mappings_file, 'r') as f:
-            data = yaml.safe_load(f)
-        return data["models"]
+        try:
+            with open(mappings_file, 'r') as f:
+                data = yaml.safe_load(f)
+            
+            # Flatten the nested structure (thinking + non_thinking)
+            models = {}
+            models.update(data["models"]["thinking"])
+            models.update(data["models"]["non_thinking"])
+            return models
+        except (FileNotFoundError, KeyError, yaml.YAMLError) as e:
+            raise FileNotFoundError(f"Could not load model mappings from {mappings_file}: {e}")
     
     def run_evaluation(
         self,

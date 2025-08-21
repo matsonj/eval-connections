@@ -47,7 +47,8 @@ class TestConnectionsGame:
     def mock_game(self):
         """Create a mock game with proper initialization."""
         with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
-             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""):
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
             return ConnectionsGame(Path("."), Path("."), verbose=False)
     
     def test_parse_response(self, mock_game):

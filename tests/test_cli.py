@@ -68,6 +68,15 @@ class TestCLI:
         # Mock the game instance
         mock_game = MagicMock()
         mock_game.seed = 12345
+        mock_game.MODEL_CONFIG = {
+            "grok3": "x-ai/grok-3",
+            "grok4": "x-ai/grok-4", 
+            "o3": "openai/o3",
+            "o4-mini": "openai/o4-mini",
+            "gemini": "google/gemini-2.5-pro",
+            "sonnet": "anthropic/claude-3.5-sonnet",
+            "opus": "anthropic/claude-3-opus",
+        }
         mock_game.run_evaluation.return_value = {
             "run_id": "test-run",
             "model": "grok3",
@@ -87,16 +96,7 @@ class TestCLI:
         # Mock path checks and file operations
         with patch('pathlib.Path.exists', return_value=True), \
              patch('pathlib.Path.mkdir'), \
-             patch('builtins.open', MagicMock()), \
-             patch('connections_eval.cli.ConnectionsGame.MODEL_CONFIG', {
-                 "grok3": "grok3",
-                 "grok4": "grok4", 
-                 "o3": "o3",
-                 "o4-mini": "o4-mini",
-                 "gemini": "gemini",
-                 "sonnet": "sonnet",
-                 "opus": "opus",
-             }):
+             patch('builtins.open', MagicMock()):
             result = self.runner.invoke(app, [
                 "run",
                 "--model", "grok3",

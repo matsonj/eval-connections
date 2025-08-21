@@ -72,9 +72,19 @@ def run(
         console.print("❌ Cannot specify both --model and --interactive", style="red") 
         raise typer.Exit(1)
     
+    # Validate inputs path first
+    if not inputs_path.exists():
+        console.print(f"❌ Inputs path does not exist: {inputs_path}", style="red")
+        raise typer.Exit(1)
+    
     # Validate model (create temporary instance to load model config)
     if model:
-        temp_game = ConnectionsGame(inputs_path, log_path)
+        try:
+            temp_game = ConnectionsGame(inputs_path, log_path)
+        except FileNotFoundError as e:
+            console.print(f"❌ Error loading model config: {e}", style="red")
+            raise typer.Exit(1)
+        
         if model not in temp_game.MODEL_CONFIG:
             console.print(f"❌ Unknown model: {model}", style="red")
             console.print("Available models:", style="yellow")
@@ -87,11 +97,6 @@ def run(
         if not os.getenv("OPENROUTER_API_KEY"):
             console.print("❌ OPENROUTER_API_KEY environment variable not set", style="red")
             raise typer.Exit(1)
-    
-    # Validate inputs path
-    if not inputs_path.exists():
-        console.print(f"❌ Inputs path does not exist: {inputs_path}", style="red")
-        raise typer.Exit(1)
     
     puzzles_file = inputs_path / "connections_puzzles.yml"
     template_file = inputs_path / prompt_file
