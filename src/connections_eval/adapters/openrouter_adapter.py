@@ -50,6 +50,9 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     
     # Check if this is a Qwen3 reasoning model (thinking variant)
     is_qwen_reasoning_model = openrouter_model.startswith('qwen/qwen3')
+
+    # Check if this is a DeepSeek model with reasoning capabilities
+    is_deepseek_reasoning_model = openrouter_model.startswith('deepseek/deepseek-chat-v3.1')
     
     payload = {
         "model": openrouter_model,
@@ -60,7 +63,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 60) -> Dict:
     }
     
     # Handle different model types
-    if is_openai_reasoning_model or is_grok_reasoning_model or is_gpt_oss_reasoning_model or is_qwen_reasoning_model:
+    if is_openai_reasoning_model or is_grok_reasoning_model or is_gpt_oss_reasoning_model or is_qwen_reasoning_model or is_deepseek_reasoning_model:
         # OpenAI, Grok, GPT OSS, and Qwen reasoning models don't support max_tokens or temperature
         pass
     elif is_gemini_reasoning_model:
