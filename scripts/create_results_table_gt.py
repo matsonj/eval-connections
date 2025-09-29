@@ -92,6 +92,7 @@ def prepare_table_data(df: pd.DataFrame) -> pd.DataFrame:
     # Create display dataframe with formatted values (sports box score style)
     table_df = pd.DataFrame({
         'Model': df['model'].values,
+        'Version': df['version'].values,
         'Date': [pd.to_datetime(ts).strftime('%Y-%m-%d') for ts in df['start_timestamp'].values],
         'Puzzles': df['puzzles_attempted'].astype(int).values,
         'Solved': df['puzzles_solved'].astype(int).values,
@@ -150,6 +151,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .cols_hide(columns=["solve_bg", "cost_bg", "accuracy_bg"])  # Hide background color columns
         .cols_label(
             Model="Model",
+            Version="Ver",
             Date="Date",
             Puzzles="GP",  # Games Played
             Solved="W",    # Wins
@@ -346,42 +348,42 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
 
 /* Progressive column pruning by viewport width (keeps the essentials) */
 /* Column order (1-indexed):
-   1 Model, 2 Date, 3 GP, 4 W, 5 PCT, 6 ATT, 7 HIT, 8 MISS, 9 ERR,
-   10 AVG, 11 TIME, 12 AVG/G, 13 TOK, 14 TOK/G, 15 COST, 16 $/G
+   1 Model, 2 Version, 3 Date, 4 GP, 5 W, 6 PCT, 7 ATT, 8 HIT, 9 MISS, 10 ERR,
+   11 AVG, 12 TIME, 13 AVG/G, 14 TOK, 15 TOK/G, 16 COST, 17 $/G
 */
 
 /* <= 1200px: hide super-verbose metrics first */
 @media (max-width: 1200px) {{
-  #{actual_id} th:nth-child(13), #{actual_id} td:nth-child(13) {{ display: none; }} /* TOK */
-  #{actual_id} th:nth-child(14), #{actual_id} td:nth-child(14) {{ display: none; }} /* TOK/G */
-  #{actual_id} th:nth-child(16), #{actual_id} td:nth-child(16) {{ display: none; }} /* $/G */
-  #{actual_id} th:nth-child(9),  #{actual_id} td:nth-child(9)  {{ display: none; }} /* ERR */
+  #{actual_id} th:nth-child(14), #{actual_id} td:nth-child(14) {{ display: none; }} /* TOK */
+  #{actual_id} th:nth-child(15), #{actual_id} td:nth-child(15) {{ display: none; }} /* TOK/G */
+  #{actual_id} th:nth-child(17), #{actual_id} td:nth-child(17) {{ display: none; }} /* $/G */
+  #{actual_id} th:nth-child(10), #{actual_id} td:nth-child(10) {{ display: none; }} /* ERR */
 }}
 
 /* <= 992px: trim more second-order diagnostics */
 @media (max-width: 992px) {{
-  #{actual_id} th:nth-child(7),  #{actual_id} td:nth-child(7)  {{ display: none; }} /* HIT */
-  #{actual_id} th:nth-child(8),  #{actual_id} td:nth-child(8)  {{ display: none; }} /* MISS */
-  #{actual_id} th:nth-child(12), #{actual_id} td:nth-child(12) {{ display: none; }} /* AVG/G */
+  #{actual_id} th:nth-child(8),  #{actual_id} td:nth-child(8)  {{ display: none; }} /* HIT */
+  #{actual_id} th:nth-child(9),  #{actual_id} td:nth-child(9)  {{ display: none; }} /* MISS */
+  #{actual_id} th:nth-child(13), #{actual_id} td:nth-child(13) {{ display: none; }} /* AVG/G */
 }}
 
 /* <= 768px: keep headline stats */
 @media (max-width: 768px) {{
-  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* TIME */
-  #{actual_id} th:nth-child(6),  #{actual_id} td:nth-child(6)  {{ display: none; }} /* ATT */
+  #{actual_id} th:nth-child(12), #{actual_id} td:nth-child(12) {{ display: none; }} /* TIME */
+  #{actual_id} th:nth-child(7),  #{actual_id} td:nth-child(7)  {{ display: none; }} /* ATT */
 }}
 
-/* <= 600px: minimal set for mobile: Model, GP, W, PCT, AVG, COST */
+/* <= 600px: minimal set for mobile: Model, Version, GP, W, PCT, COST */
 @media (max-width: 600px) {{
-  #{actual_id} th:nth-child(2),  #{actual_id} td:nth-child(2)  {{ display: none; }} /* Date */
-  #{actual_id} th:nth-child(10), #{actual_id} td:nth-child(10) {{ display: none; }} /* AVG */
-  /* If you prefer AVG over COST on tiny screens, swap which of 10 or 15 is hidden */
+  #{actual_id} th:nth-child(3),  #{actual_id} td:nth-child(3)  {{ display: none; }} /* Date */
+  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* AVG */
+  /* If you prefer AVG over COST on tiny screens, swap which of 11 or 16 is hidden */
 }}
 
-/* <= 480px: ultra-compact — Model, GP, W, PCT, COST */
+/* <= 480px: ultra-compact — Model, Version, GP, W, PCT, COST */
 @media (max-width: 480px) {{
   /* hide AVG so we keep COST as business-facing metric */
-  #{actual_id} th:nth-child(10), #{actual_id} td:nth-child(10) {{ display: none; }} /* AVG */
+  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* AVG */
 }}
 
 /* Optional: softer borders on mobile */

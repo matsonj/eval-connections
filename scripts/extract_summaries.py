@@ -35,8 +35,13 @@ def extract_run_summaries(logs_dir: str = "logs") -> List[Dict[str, Any]]:
                         if record.get("message") == "Run summary":
                             # Add the source file for reference
                             record["log_file"] = os.path.basename(log_file)
+                            
+                            # Add version with fallback to 1.0.0 for older logs
+                            if "version" not in record:
+                                record["version"] = "1.0.0"
+                            
                             summaries.append(record)
-                            print(f"  Found run summary: {record.get('run_id', 'unknown')}")
+                            print(f"  Found run summary: {record.get('run_id', 'unknown')} (v{record['version']})")
                             
                     except json.JSONDecodeError as e:
                         print(f"  Warning: Invalid JSON on line {line_num}: {e}")
@@ -61,6 +66,7 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         "log_file",
         "run_id", 
         "model",
+        "version",
         "timestamp",
         "seed",
         "puzzles_attempted",
