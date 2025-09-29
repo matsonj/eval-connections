@@ -28,7 +28,7 @@ def _load_thinking_models() -> Set[str]:
 _THINKING_MODELS = _load_thinking_models()
 
 
-@retry_with_backoff(max_retries=3, base_delay=2.0, exceptions=(requests.RequestException,))
+@retry_with_backoff(max_retries=5, base_delay=2.0, exceptions=(requests.RequestException,))
 def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
     """
     Call OpenRouter Chat Completions API.
