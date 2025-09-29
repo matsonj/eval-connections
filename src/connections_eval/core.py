@@ -49,6 +49,9 @@ class GameState:
 class ConnectionsGame:
     """Main game engine for Connections puzzles."""
     
+    # Version for tracking evaluation framework changes
+    VERSION = "2.0.0"  # Structured prompts and response parsing
+    
     # Model configuration loaded from YAML file
     MODEL_CONFIG = {}
     
@@ -211,6 +214,7 @@ class ConnectionsGame:
         summary = {
             "run_id": self.run_id,
             "model": model_name,
+            "version": self.VERSION,
             "seed": self.seed,
             "avg_time_sec": round(avg_time, 1),
             "start_timestamp": start_timestamp,
@@ -275,6 +279,9 @@ class ConnectionsGame:
                     response = adapter.chat(messages, model_id)
                     content = response["choices"][0]["message"]["content"].strip()
                     
+                    # Parse structured response
+                    structured_response = self._parse_structured_response(content)
+                    
                     # Track tokens
                     prompt_tokens, completion_tokens, method = extract_token_usage(response)
                     if prompt_tokens and completion_tokens:
@@ -331,6 +338,9 @@ class ConnectionsGame:
                     "guess_index": state.guess_count,
                     "request": messages[-1]["content"] if len(messages) > 1 else first_prompt,
                     "response": content,
+                    "thinking": structured_response.get('thinking', ''),
+                    "guess": structured_response.get('guess', ''),
+                    "confidence": structured_response.get('confidence', ''),
                     "latency_ms": timer.elapsed_ms,
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
@@ -503,10 +513,58 @@ class ConnectionsGame:
         return f"INCORRECT. {remaining_guesses} INCORRECT GUESSES REMAINING"
     
     def _parse_response(self, response: str) -> List[str]:
-        """Parse response into list of words."""
-        # Remove extra whitespace and split by comma
+        """Parse response into list of words, handling structured XML format."""
+        import re
+        
+        # First try to extract from <guess> tags
+        guess_match = re.search(r'<guess>(.*?)</guess>', response, re.IGNORECASE | re.DOTALL)
+        if guess_match:
+            guess_text = guess_match.group(1).strip()
+            words = [word.strip().upper() for word in guess_text.split(',')]
+            return [word for word in words if word]
+        
+        # Fallback: try to find 4 comma-separated words in ALL CAPS
+        caps_pattern = r'\b[A-Z][A-Z\s]*\b(?:\s*,\s*[A-Z][A-Z\s]*\b){3}'
+        caps_match = re.search(caps_pattern, response)
+        if caps_match:
+            words = [word.strip().upper() for word in caps_match.group().split(',')]
+            return [word for word in words if word]
+        
+        # Final fallback: original comma-split logic
         words = [word.strip().upper() for word in response.split(',')]
-        return [word for word in words if word]  # Remove empty strings
+        return [word for word in words if word]
+    
+    def _parse_structured_response(self, response: str) -> Dict[str, str]:
+        """
+        Parse structured response into components.
+        
+        Returns:
+            Dict with 'thinking', 'guess', and 'confidence' keys
+        """
+        import re
+        
+        result = {
+            'thinking': '',
+            'guess': '',
+            'confidence': ''
+        }
+        
+        # Extract thinking section
+        thinking_match = re.search(r'<thinking>(.*?)</thinking>', response, re.IGNORECASE | re.DOTALL)
+        if thinking_match:
+            result['thinking'] = thinking_match.group(1).strip()
+        
+        # Extract guess section
+        guess_match = re.search(r'<guess>(.*?)</guess>', response, re.IGNORECASE | re.DOTALL)
+        if guess_match:
+            result['guess'] = guess_match.group(1).strip()
+        
+        # Extract confidence section
+        confidence_match = re.search(r'<confidence>(.*?)</confidence>', response, re.IGNORECASE | re.DOTALL)
+        if confidence_match:
+            result['confidence'] = confidence_match.group(1).strip()
+        
+        return result
     
     def _validate_guess(self, state: GameState, words: List[str]) -> Optional[str]:
         """
