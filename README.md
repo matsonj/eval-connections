@@ -18,6 +18,13 @@ This project provides a comprehensive evaluation framework for testing linguisti
 - **Reproducible**: Controlled randomization with optional seeds
 - **Detailed logging**: JSONL format for analysis
 
+## Changelog
+
+### 2.0.1 (2025-10-01)
+- Improved logging docs to reflect the current JSONL file naming and controllog outputs
+- Clarified CLI examples for reasoning models and verbose logging
+- Version bump; no breaking API changes
+
 ## Installation
 
 Requires Python ≥3.12 and [uv](https://github.com/astral-sh/uv).
