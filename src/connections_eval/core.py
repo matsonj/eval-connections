@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info
 from .utils.logging import log_exchange, log_summary, setup_logger
+import controllog as cl
 from .adapters import openrouter_adapter
 
 
@@ -152,6 +153,12 @@ class ConnectionsGame:
         start_timestamp = datetime.utcnow().isoformat() + "Z"
         self.run_id = f"{datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')}_{model_name}"
         self.logger = setup_logger(self.log_path, self.run_id, verbose=self.verbose)
+        # Initialize controllog SDK (JSONL transport under logs/controllog)
+        try:
+            cl.init(project_id="connections_eval", log_dir=self.log_path)
+        except Exception:
+            # Do not fail the run if telemetry init fails
+            pass
         
         # Randomize puzzle order
         puzzles_to_run = self.puzzles.copy()
@@ -249,6 +256,8 @@ class ConnectionsGame:
         token_method = "APPROXIMATE"
         total_cost = 0.0
         total_upstream_cost = 0.0
+        task_id = f"T{puzzle.id}:{self.run_id}"
+        final_state_emitted = False
         
         # Create first prompt
         shuffled_words = puzzle.words.copy()
@@ -272,6 +281,19 @@ class ConnectionsGame:
         messages.append({"role": "user", "content": user_content})
         
         state.start_time = time.time()
+        # Emit initial state NEW->WIP for this task
+        try:
+            cl.state_move(
+                task_id=task_id,
+                from_="NEW",
+                to="WIP",
+                project_id="connections_eval",
+                agent_id="agent:connections_eval",
+                run_id=self.run_id,
+                payload={"puzzle_id": puzzle.id},
+            )
+        except Exception:
+            pass
         
         while not state.finished:
             with Timer() as timer:
@@ -326,12 +348,33 @@ class ConnectionsGame:
                     
                     # Log the actual error for debugging
                     self.logger.error(f"API call failed: {str(e)}")
+                    # Emit controllog failure event (state move WIP->FAILED)
+                    try:
+                        cl.event(
+                            kind="model_response_error",
+                            actor={"agent_id": "agent:connections_eval", "task_id": task_id},
+                            run_id=self.run_id,
+                            payload={
+                                "model": model_name,
+                                "puzzle_id": puzzle.id,
+                                "error": str(e),
+                                "latency_ms": elapsed_ms,
+                            },
+                            postings=[
+                                cl.post("truth.state", f"task:{task_id}", "tasks", -1, {"from": "WIP"}),
+                                cl.post("truth.state", f"task:{task_id}", "tasks", +1, {"to": "FAILED"}),
+                            ],
+                            project_id="connections_eval",
+                            source="runtime",
+                        )
+                        final_state_emitted = True
+                    except Exception:
+                        pass
                     state.finished = True
                     break
             
-            # Log successful exchange AFTER timer context exits
-            if not state.finished:
-                exchange_data = {
+            # Log exchange and emit controllog model_response even if this guess finished the game
+            exchange_data = {
                     "run_id": self.run_id,
                     "model": model_name,
                     "puzzle_id": puzzle.id,
@@ -345,25 +388,61 @@ class ConnectionsGame:
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "result": result
-                }
+            }
+            
+            # Add cost information if available
+            if cost is not None:
+                exchange_data["cost"] = cost
+            if upstream_cost is not None:
+                exchange_data["upstream_cost"] = upstream_cost
                 
-                # Add cost information if available
-                if cost is not None:
-                    exchange_data["cost"] = cost
-                if upstream_cost is not None:
-                    exchange_data["upstream_cost"] = upstream_cost
+            log_exchange(self.logger, exchange_data)
+            # Emit controllog prompt and completion as separate events for auditability
+            try:
+                exchange_id = cl.new_id()
+                cl.model_prompt(
+                    task_id=task_id,
+                    agent_id="agent:connections_eval",
+                    run_id=self.run_id,
+                    project_id="connections_eval",
+                    provider="openrouter",
+                    model=model_id,
+                    prompt_tokens=prompt_tokens or 0,
+                    request_text=messages[-1]["content"] if len(messages) > 1 else first_prompt,
+                    payload={"puzzle_id": puzzle.id, "guess_index": state.guess_count},
+                    exchange_id=exchange_id,
+                )
+                cl.model_completion(
+                    task_id=task_id,
+                    agent_id="agent:connections_eval",
+                    run_id=self.run_id,
+                    project_id="connections_eval",
+                    provider="openrouter",
+                    model=model_id,
+                    completion_tokens=completion_tokens or 0,
+                    wall_ms=timer.elapsed_ms,
+                    response_text=content,
+                    cost_money=cost,
+                    upstream_cost_money=upstream_cost,
+                    payload={
+                        "puzzle_id": puzzle.id,
+                        "guess_index": state.guess_count,
+                        "result": result,
+                    },
+                    exchange_id=exchange_id,
+                )
+            except Exception:
+                pass
                 
-                log_exchange(self.logger, exchange_data)
-                
-                # Add response and result to conversation
-                messages.append({"role": "assistant", "content": content})
-                if not state.finished:
-                    messages.append({"role": "user", "content": result})
+            # Add response and result to conversation
+            messages.append({"role": "assistant", "content": content})
+            if not state.finished:
+                messages.append({"role": "user", "content": result})
         
         state.end_time = time.time()
         time_sec = state.end_time - state.start_time
         
-        return {
+        result_payload = {
             "won": state.won,
             "guess_count": state.guess_count,
             "mistake_count": state.mistake_count,
@@ -377,6 +456,22 @@ class ConnectionsGame:
             "total_cost": total_cost,
             "total_upstream_cost": total_upstream_cost
         }
+        # Emit final state transition event (WIP->DONE or WIP->FAILED) once per puzzle, unless already emitted on error
+        if not final_state_emitted:
+            final_state = "DONE" if state.won else "FAILED"
+            try:
+                cl.state_move(
+                    task_id=task_id,
+                    from_="WIP",
+                    to=final_state,
+                    project_id="connections_eval",
+                    agent_id="agent:connections_eval",
+                    run_id=self.run_id,
+                    payload={"puzzle_id": puzzle.id},
+                )
+            except Exception:
+                pass
+        return result_payload
     
     def _run_puzzle_interactive(self, puzzle: Puzzle) -> Dict[str, Any]:
         """Run a single puzzle in interactive mode."""
