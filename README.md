@@ -182,6 +182,57 @@ Each line contains either:
 - **Exchange log**: Individual guess with request/response/timing
 - **Summary log**: Final run statistics
 
+### Controllable Logging (controllog)
+
+This project also emits accounting-style telemetry as structured, balanced events:
+
+- Files: `logs/controllog/YYYY-MM-DD/events.jsonl` and `logs/controllog/YYYY-MM-DD/postings.jsonl`
+- IDs: UUIDv7 for `event_id` and `posting_id` (sortable by time)
+- Run/Task identifiers:
+  - `run_id`: e.g., `2025-10-01T12-30-00_grok3`
+  - `task_id`: `T{puzzle_id}:{run_id}` (one task per puzzle attempt)
+  - `agent_id`: `agent:connections_eval`
+- Accounts used (balanced per event):
+  - `resource.tokens` (provider ↔ project)
+  - `resource.time_ms` (agent ↔ project)
+  - `resource.money` (vendor ↔ project) for OpenRouter and optional upstream
+  - `truth.state` (task WIP→DONE/FAILED)
+  - `value.utility` (optional reward; task ↔ project)
+
+The SDK initializes automatically at run start; raw payloads are preserved.
+
+#### Load controllog JSONL into MotherDuck
+
+Requirements: DuckDB and a MotherDuck account/token (or use a local DuckDB file).
+
+```bash
+# Generate logs by running an evaluation first
+uv run connections_eval run --model grok3 --puzzles 2
+
+# Load JSONL into MotherDuck (set your token per MotherDuck docs)
+export MOTHERDUCK_DB="md:controllog"
+export CTRL_LOG_DIR="logs"
+uv run python scripts/load_controllog_to_motherduck.py
+
+# Alternatively, load into a local DuckDB file
+export MOTHERDUCK_DB="controllog.duckdb"
+uv run python scripts/load_controllog_to_motherduck.py
+```
+
+#### Reports and Trial Balance
+
+Run a fast trial balance check (double-entry invariants) and example reports:
+
+```bash
+export MOTHERDUCK_DB="md:controllog"   # or a local .duckdb path
+uv run python scripts/reports_controllog.py
+```
+
+Outputs include:
+- Trial balance PASS/FAIL
+- Cost and utility flows per project
+- Average wall latency by model
+
 ## CLI Reference
 
 ```bash
