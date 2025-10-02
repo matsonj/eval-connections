@@ -51,7 +51,7 @@ class ConnectionsGame:
     """Main game engine for Connections puzzles."""
     
     # Version for tracking evaluation framework changes
-    VERSION = "2.0.0"  # Structured prompts and response parsing
+    VERSION = "2.0.1"  # Structured prompts and response parsing
     
     # Model configuration loaded from YAML file
     MODEL_CONFIG = {}
