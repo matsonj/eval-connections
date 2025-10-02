@@ -109,6 +109,27 @@ def prepare_table_data(df: pd.DataFrame) -> pd.DataFrame:
         'Total Cost': [f"${cost:.2f}" for cost in df['eval_cost'].values],
         'Avg Cost': [f"${cost:.3f}" for cost in avg_cost.values],
     })
+
+    # Turn Model cell into hyperlink to per-run logs page
+    # Only for versions >= 2.0.1
+    if 'run_id' in df.columns and 'version' in df.columns:
+        def version_tuple(v: str):
+            try:
+                parts = [int(x) for x in str(v).split('.')[:3]]
+                while len(parts) < 3:
+                    parts.append(0)
+                return tuple(parts)
+            except Exception:
+                return (0, 0, 0)
+        links = []
+        for model_name, run_id, ver in zip(df['model'].values, df['run_id'].values, df['version'].values):
+            if version_tuple(ver) >= (2, 0, 1):
+                href = f"logs/{run_id}.html"
+                # Use Markdown link; Great Tables renders md() content
+                links.append(md(f'[{model_name}]({href})'))
+            else:
+                links.append(model_name)
+        table_df['Model'] = links
     
     # Add background colors based on key metrics
     solve_rate_values = df['solve_rate'].values
@@ -393,6 +414,16 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
 }}
 """
     
+    # Convert any markdown placeholders that leaked as object reprs (e.g., Md(text='[name](href)'))
+    try:
+        import re as _re_md
+        _pat_md = _re_md.compile(r"Md\(text='\[([^\]]+)\]\(([^\)]+)\)'\)")
+        html_content = _pat_md.sub(r'<a href="\2">\1</a>', html_content)
+        _pat_html = _re_md.compile(r"Html\(text='(.*?)'\)")
+        html_content = _pat_html.sub(r'\1', html_content)
+    except Exception:
+        pass
+
     # Insert the responsive CSS into the HTML
     if '<style>' in html_content:
         # Insert after the existing style block
