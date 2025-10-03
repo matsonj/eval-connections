@@ -622,7 +622,7 @@ def main():
             for r in reader:
                 try:
                     # Filters matching create_results_table_gt.py
-                    if int(r.get("puzzles_attempted", "0") or 0) != 11:
+                    if int(r.get("puzzles_attempted", "0") or 0) < 11:
                         continue
                     if int(r.get("total_guesses", "0") or 0) <= 40:
                         continue

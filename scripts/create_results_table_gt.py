@@ -14,7 +14,7 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
     
     # Apply filters similar to the SQL query
     filtered_df = df[
-        (df['puzzles_attempted'] == 11) &
+        (df['puzzles_attempted'] >= 11) &
         (df['total_guesses'] > 40) &
         (df['total_cost'].notna())
     ].copy()
@@ -167,7 +167,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         GT(table_df)
         .tab_header(
             title="Connections Evaluation Box Score",
-            subtitle=f"Latest runs for {len(df)} models (11 puzzles, >40 guesses, sorted by solve rate)"
+            subtitle=f"Latest runs for {len(df)} models (>=11 puzzles, >40 guesses, sorted by solve rate)"
         )
         .cols_hide(columns=["solve_bg", "cost_bg", "accuracy_bg"])  # Hide background color columns
         .cols_label(
