@@ -252,7 +252,7 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         ".stats{font-size:12px;color:#1f2a36;margin-top:6px;}"
         ".pill{display:inline-block;background:#f0f3f6;border:2px solid #2b3035;border-radius:0;padding:2px 8px;margin-right:6px;color:#1f2a36;}"
         ".endpill{display:inline-block;background:#e7f5ec;border:2px solid #2b3035;color:#1f3b2a;border-radius:0;padding:4px 10px;margin:10px 0;}") + (
-        "details{margin:8px 0;} details>summary{cursor:pointer;color:#0b63ce;list-style: disclosure-closed;padding-right:8px;}"
+        "details{margin:8px 0;} details>summary{cursor:pointer;color:#0b63ce;list-style: disclosure-closed;padding-right:16px;margin-right:4px;}"
         "details[open]>summary{list-style: disclosure-open;}"
         ".thinking{font-style:italic;font-size:12px;color:#2b333b;white-space:pre-wrap;}"
         ".footer{margin:24px;color:#48525c;font-size:12px;}"
