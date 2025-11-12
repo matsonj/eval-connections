@@ -51,7 +51,7 @@ class ConnectionsGame:
     """Main game engine for Connections puzzles."""
     
     # Version for tracking evaluation framework changes
-    VERSION = "2.0.1"  # Structured prompts and response parsing
+    VERSION = "2.0.2"  # Fixed reasoning field extraction for thinking models
     
     # Model configuration loaded from YAML file
     MODEL_CONFIG = {}
@@ -299,7 +299,34 @@ class ConnectionsGame:
             with Timer() as timer:
                 try:
                     response = adapter.chat(messages, model_id)
-                    content = response["choices"][0]["message"]["content"].strip()
+                    
+                    # DEBUG: Log raw response structure for debugging empty responses
+                    choice = response["choices"][0]
+                    message = choice["message"]
+                    content = message.get("content", "")
+                    finish_reason = choice.get("finish_reason", "unknown")
+                    
+                    # Check for extended reasoning in thinking models
+                    if not content or content.strip() == "":
+                        # Log the full message structure to debug
+                        self.logger.warning(f"Empty content field. finish_reason: {finish_reason}")
+                        self.logger.warning(f"Message keys: {list(message.keys())}")
+                        self.logger.warning(f"Full message: {message}")
+                        self.logger.warning(f"Full choice: {choice}")
+                        
+                        # Check if response was truncated
+                        if finish_reason == "length":
+                            self.logger.error("Response truncated due to token limit!")
+                        
+                        # Try to extract from reasoning field if it exists
+                        if "reasoning" in message:
+                            self.logger.info("Found reasoning field, using it as content")
+                            content = message["reasoning"]
+                        elif "extended_thinking" in message:
+                            self.logger.info("Found extended_thinking field, using it as content")
+                            content = message["extended_thinking"]
+                    
+                    content = content.strip() if content else ""
                     
                     # Parse structured response
                     structured_response = self._parse_structured_response(content)

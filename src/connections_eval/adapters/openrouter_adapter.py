@@ -91,7 +91,24 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
     response = requests.post(url, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()
     
-    return response.json()
+    response_data = response.json()
+    
+    # DEBUG: Log if content is missing but tokens were used
+    if response_data.get("choices") and len(response_data["choices"]) > 0:
+        choice = response_data["choices"][0]
+        message = choice.get("message", {})
+        content = message.get("content", "")
+        usage = response_data.get("usage", {})
+        completion_tokens = usage.get("completion_tokens", 0)
+        
+        if (not content or content.strip() == "") and completion_tokens > 0:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[OpenRouter] Model generated {completion_tokens} tokens but content is empty!")
+            logger.warning(f"[OpenRouter] finish_reason: {choice.get('finish_reason')}")
+            logger.warning(f"[OpenRouter] Message keys: {list(message.keys())}")
+    
+    return response_data
 
 
 def _get_api_key() -> str:
