@@ -28,10 +28,10 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
         filtered_df.groupby('model')['start_timestamp'].idxmax()
     ]
     
-    # Sort by solve_rate desc, eval_cost, guess_accuracy desc
+    # Sort by solve_rate desc, guess_accuracy desc, avg_time_sec asc, eval_cost asc
     latest_runs = latest_runs.sort_values([
-        'solve_rate', 'eval_cost', 'guess_accuracy'
-    ], ascending=[False, True, False])
+        'solve_rate', 'guess_accuracy', 'avg_time_sec', 'eval_cost'
+    ], ascending=[False, False, True, True])
     
     return latest_runs
 
@@ -167,7 +167,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         GT(table_df)
         .tab_header(
             title="Connections Evaluation Box Score",
-            subtitle=f"Latest runs for {len(df)} models (>=11 puzzles, >40 guesses, sorted by solve rate)"
+            subtitle=f"Latest runs for {len(df)} models (>=11 puzzles, >40 guesses, sorted by solve rate, accuracy, avg time, cost)"
         )
         .cols_hide(columns=["solve_bg", "cost_bg", "accuracy_bg"])  # Hide background color columns
         .cols_label(
@@ -176,12 +176,12 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
             Date="Date",
             Puzzles="GP",  # Games Played
             Solved="W",    # Wins
-            **{"Pct Solved": "PCT"},
+            **{"Pct Solved": "WIN PCT"},
             Guesses="ATT", # Attempts
             Correct="HIT",
             Incorrect="MISS",
             Invalid="ERR",
-            **{"Pct Correct": "AVG"},
+            **{"Pct Correct": "ACC PCT"},
             **{"Run Time": "TIME"},
             **{"Avg Time": "AVG/G"},
             Tokens="TOK",
@@ -263,7 +263,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         # Center-align percentage columns
         .tab_style(
             style=style.text(align="center"),
-            locations=loc.body(columns=["PCT", "AVG"])
+            locations=loc.body(columns=["WIN PCT", "ACC PCT"])
         )
         .tab_style(
             style=style.borders(
@@ -369,8 +369,8 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
 
 /* Progressive column pruning by viewport width (keeps the essentials) */
 /* Column order (1-indexed):
-   1 Model, 2 Version, 3 Date, 4 GP, 5 W, 6 PCT, 7 ATT, 8 HIT, 9 MISS, 10 ERR,
-   11 AVG, 12 TIME, 13 AVG/G, 14 TOK, 15 TOK/G, 16 COST, 17 $/G
+   1 Model, 2 Version, 3 Date, 4 GP, 5 W, 6 WIN PCT, 7 ATT, 8 HIT, 9 MISS, 10 ERR,
+   11 ACC PCT, 12 TIME, 13 AVG/G, 14 TOK, 15 TOK/G, 16 COST, 17 $/G
 */
 
 /* <= 1200px: hide super-verbose metrics first */
@@ -394,17 +394,17 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
   #{actual_id} th:nth-child(7),  #{actual_id} td:nth-child(7)  {{ display: none; }} /* ATT */
 }}
 
-/* <= 600px: minimal set for mobile: Model, Version, GP, W, PCT, COST */
+/* <= 600px: minimal set for mobile: Model, Version, GP, W, WIN PCT, COST */
 @media (max-width: 600px) {{
   #{actual_id} th:nth-child(3),  #{actual_id} td:nth-child(3)  {{ display: none; }} /* Date */
-  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* AVG */
-  /* If you prefer AVG over COST on tiny screens, swap which of 11 or 16 is hidden */
+  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* ACC PCT */
+  /* If you prefer ACC PCT over COST on tiny screens, swap which of 11 or 16 is hidden */
 }}
 
-/* <= 480px: ultra-compact — Model, Version, GP, W, PCT, COST */
+/* <= 480px: ultra-compact — Model, Version, GP, W, WIN PCT, COST */
 @media (max-width: 480px) {{
-  /* hide AVG so we keep COST as business-facing metric */
-  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* AVG */
+  /* hide ACC PCT so we keep COST as business-facing metric */
+  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* ACC PCT */
 }}
 
 /* Optional: softer borders on mobile */
