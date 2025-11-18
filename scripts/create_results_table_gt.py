@@ -28,9 +28,12 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
         filtered_df.groupby('model')['start_timestamp'].idxmax()
     ]
     
-    # Sort by solve_rate desc, guess_accuracy desc, avg_time_sec asc, eval_cost asc
+    # Calculate eval cost per game for sorting
+    latest_runs['eval_cost_per_game'] = latest_runs['eval_cost'] / latest_runs['puzzles_attempted']
+    
+    # Sort by solve_rate desc, guess_accuracy desc, avg_time_sec asc, eval_cost_per_game asc
     latest_runs = latest_runs.sort_values([
-        'solve_rate', 'guess_accuracy', 'avg_time_sec', 'eval_cost'
+        'solve_rate', 'guess_accuracy', 'avg_time_sec', 'eval_cost_per_game'
     ], ascending=[False, False, True, True])
     
     return latest_runs
@@ -167,7 +170,7 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         GT(table_df)
         .tab_header(
             title="Connections Evaluation Box Score",
-            subtitle=f"Latest runs for {len(df)} models (>=11 puzzles, >40 guesses, sorted by solve rate, accuracy, avg time, cost)"
+            subtitle=f"Latest runs for {len(df)} models (>=11 puzzles, >40 guesses, sorted by solve rate, accuracy, avg time, cost per game)"
         )
         .cols_hide(columns=["solve_bg", "cost_bg", "accuracy_bg"])  # Hide background color columns
         .cols_label(
