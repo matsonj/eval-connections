@@ -84,7 +84,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
     else:
         # Standard models
         payload.update({
-            "max_tokens": 1000,
+            "max_tokens": 25000,
             "temperature": 0.0,
         })
     
