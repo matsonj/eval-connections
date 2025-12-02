@@ -3,8 +3,11 @@
 import requests
 import yaml
 import os
+import logging
 from typing import Dict, List, Set
 from ..utils.retry import retry_with_backoff
+
+logger = logging.getLogger(__name__)
 
 
 def _load_thinking_models() -> Set[str]:
@@ -62,6 +65,12 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
     # Special handling for Gemini reasoning models (keeps temperature)
     is_gemini_thinking_model = openrouter_model == 'google/gemini-2.5-pro'
     
+    # Check if this is a DeepSeek model that supports reasoning parameter
+    is_deepseek_reasoning_model = (
+        openrouter_model.startswith('deepseek/') and 
+        is_thinking_model
+    )
+    
     payload = {
         "model": openrouter_model,
         "messages": messages,
@@ -81,6 +90,14 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
             payload.update({
                 "temperature": 0.0,
             })
+        
+        # Special case: DeepSeek models support reasoning parameter
+        if is_deepseek_reasoning_model:
+            payload.update({
+                "reasoning": {
+                    "enabled": True
+                }
+            })
     else:
         # Standard models
         payload.update({
@@ -89,6 +106,31 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
         })
     
     response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+    
+    # Check for OpenRouter-specific errors before raising
+    if not response.ok:
+        try:
+            error_data = response.json()
+            error_msg = error_data.get("error", {}).get("message", "")
+            
+            # Check for data policy configuration error
+            if "data policy" in error_msg.lower() and response.status_code == 404:
+                logger.error(f"[OpenRouter] Data policy configuration required for model: {openrouter_model}")
+                logger.error(f"[OpenRouter] Error details: {error_msg}")
+                detailed_msg = (
+                    f"OpenRouter data policy error for model '{openrouter_model}': {error_msg}\n"
+                    f"Configure your data policy settings at: https://openrouter.ai/settings/privacy"
+                )
+                error = requests.HTTPError(detailed_msg)
+                error.response = response
+                raise error
+        except requests.HTTPError:
+            # Re-raise our custom error
+            raise
+        except (ValueError, KeyError):
+            # If we can't parse the error JSON, fall through to default handling
+            pass
+    
     response.raise_for_status()
     
     response_data = response.json()
@@ -102,8 +144,6 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
         completion_tokens = usage.get("completion_tokens", 0)
         
         if (not content or content.strip() == "") and completion_tokens > 0:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"[OpenRouter] Model generated {completion_tokens} tokens but content is empty!")
             logger.warning(f"[OpenRouter] finish_reason: {choice.get('finish_reason')}")
             logger.warning(f"[OpenRouter] Message keys: {list(message.keys())}")
@@ -113,7 +153,6 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
 
 def _get_api_key() -> str:
     """Get OpenRouter API key from environment."""
-    import os
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
