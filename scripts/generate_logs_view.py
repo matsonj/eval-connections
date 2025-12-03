@@ -1,32 +1,33 @@
 #!/usr/bin/env python3
 """
-Generate chat-style HTML logs per run from controllog JSONL files.
+Generate chat-style HTML logs per run from MotherDuck controllog tables.
 
 Outputs to docs/logs/<run_id>.html and an optional docs/logs/index.html.
 
 Requirements/assumptions (v2.0.1+ controllog):
-- events.jsonl contains kinds: model_prompt, model_completion, model_response, state_move
+- controllog.events table contains kinds: model_prompt, model_completion, model_response, state_move
 - Each event includes run_id and (for puzzle steps) puzzle_id, guess_index, result, request_text, response_text
-- postings.jsonl contains resource.tokens and resource.money postings keyed by event_id
+- controllog.postings table contains resource.tokens and resource.money postings keyed by event_id
 
 This script:
-- Scans logs/controllog/<date>/events.jsonl and postings.jsonl (all dates)
+- Queries controllog.events and controllog.postings from MotherDuck (or local DuckDB)
 - Groups events by run_id, then by puzzle_id, ordered by event_time
 - Renders a chat-like transcript with: prompt/thinking (left), response/guess (right), game state line, token/cost sidebar
+
+Environment:
+- MOTHERDUCK_DB: MotherDuck database connection string (default: "md:")
 """
 
 import os
-import glob
-import json
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from pathlib import Path
 import re
+import duckdb  # type: ignore
 
 
 DOCS_LOG_DIR = Path("docs/logs")
-CONTROLLOG_ROOT = Path("logs/controllog")
 RUN_SUMMARIES_CSV = Path("results/run_summaries.csv")
 
 
@@ -57,67 +58,129 @@ class Event:
             return datetime.min
 
 
-def read_jsonl(path: Path) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    if not path.exists():
-        return rows
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    return rows
+def struct_to_dict(struct_value: Any) -> Dict[str, Any]:
+    """Convert a DuckDB STRUCT to a Python dict.
+    
+    DuckDB STRUCTs are already returned as dicts when using .df(),
+    but we handle None and ensure it's a dict.
+    """
+    if struct_value is None:
+        return {}
+    if isinstance(struct_value, dict):
+        return struct_value
+    # Fallback: try to convert if it's not already a dict
+    try:
+        return dict(struct_value) if hasattr(struct_value, '__iter__') and not isinstance(struct_value, str) else {}
+    except Exception:
+        return {}
 
 
-def collect_controllog_files(root: Path) -> List[Tuple[Path, Path]]:
-    pairs: List[Tuple[Path, Path]] = []
-    if not root.exists():
-        return pairs
-    for day_dir in sorted(root.iterdir()):
-        if not day_dir.is_dir():
-            continue
-        events = day_dir / "events.jsonl"
-        postings = day_dir / "postings.jsonl"
-        if events.exists() and postings.exists():
-            pairs.append((events, postings))
-    return pairs
-
-
-def load_events_and_postings() -> Dict[str, Event]:
+def load_events_and_postings(db: str = "md:") -> Dict[str, Event]:
+    """Load events and postings from MotherDuck controllog tables."""
     event_by_id: Dict[str, Event] = {}
-    for events_path, postings_path in collect_controllog_files(CONTROLLOG_ROOT):
-        for rec in read_jsonl(events_path):
+    
+    print(f"Connecting to MotherDuck database: {db}")
+    con = duckdb.connect(db)
+    
+    try:
+        # Query all events
+        print("  Loading events...")
+        events_query = """
+        SELECT 
+            event_id,
+            event_time,
+            ingest_time,
+            kind,
+            actor_agent_id,
+            actor_task_id,
+            project_id,
+            run_id,
+            source,
+            idempotency_key,
+            payload_json
+        FROM controllog.events
+        ORDER BY event_time
+        """
+        events_df = con.execute(events_query).df()
+        
+        # Convert events to Event objects
+        for _, row in events_df.iterrows():
+            # Convert payload_json STRUCT to dict
+            payload = struct_to_dict(row.get("payload_json"))
+            
+            # Build raw record (all fields)
+            raw_rec = {
+                "event_id": str(row.get("event_id", "")),
+                "event_time": str(row.get("event_time", "")),
+                "ingest_time": str(row.get("ingest_time", "")),
+                "kind": str(row.get("kind", "")),
+                "actor_agent_id": str(row.get("actor_agent_id", "")) if row.get("actor_agent_id") else None,
+                "actor_task_id": str(row.get("actor_task_id", "")) if row.get("actor_task_id") else None,
+                "project_id": str(row.get("project_id", "")),
+                "run_id": str(row.get("run_id", "")) if row.get("run_id") else None,
+                "source": str(row.get("source", "")),
+                "idempotency_key": str(row.get("idempotency_key", "")),
+                "payload_json": payload,
+            }
+            
             ev = Event(
-                event_id=rec.get("event_id"),
-                event_time=rec.get("event_time"),
-                kind=rec.get("kind"),
-                run_id=rec.get("run_id"),
-                payload=rec.get("payload_json", {}) or rec.get("payload", {}) or {},
-                raw=rec,
+                event_id=raw_rec.get("event_id"),
+                event_time=raw_rec.get("event_time"),
+                kind=raw_rec.get("kind"),
+                run_id=raw_rec.get("run_id"),
+                payload=payload,
+                raw=raw_rec,
             )
             if ev.event_id:
                 event_by_id[ev.event_id] = ev
-        for rec in read_jsonl(postings_path):
-            eid = rec.get("event_id")
+        
+        print(f"  Loaded {len(event_by_id)} events")
+        
+        # Query all postings
+        print("  Loading postings...")
+        postings_query = """
+        SELECT 
+            posting_id,
+            event_id,
+            account_type,
+            account_id,
+            unit,
+            delta_numeric,
+            dims_json
+        FROM controllog.postings
+        """
+        postings_df = con.execute(postings_query).df()
+        
+        # Attach postings to events
+        posting_count = 0
+        for _, row in postings_df.iterrows():
+            eid = str(row.get("event_id", ""))
             if not eid:
                 continue
             ev = event_by_id.get(eid)
             if not ev:
-                # Postings might reference events across files; skip if missing
+                # Postings might reference events that don't exist; skip if missing
                 continue
+            
+            # Convert dims_json STRUCT to dict
+            dims = struct_to_dict(row.get("dims_json"))
+            
             ev.postings.append(
                 Posting(
                     event_id=eid,
-                    account_type=rec.get("account_type", ""),
-                    unit=rec.get("unit", ""),
-                    delta=float(rec.get("delta_numeric", 0)),
-                    dims=rec.get("dims_json", {}) or {},
+                    account_type=str(row.get("account_type", "")),
+                    unit=str(row.get("unit", "")),
+                    delta=float(row.get("delta_numeric", 0)),
+                    dims=dims,
                 )
             )
+            posting_count += 1
+        
+        print(f"  Loaded {posting_count} postings")
+        
+    finally:
+        con.close()
+    
     return event_by_id
 
 
@@ -604,7 +667,11 @@ def build_logs_index(pages: List[Tuple[str, Path]]) -> None:
 
 def main():
     print("🧭 Loading controllog events and postings…")
-    events_by_id = load_events_and_postings()
+    
+    # Get MotherDuck database connection string from environment
+    db = os.environ.get("MOTHERDUCK_DB", "md:")
+    
+    events_by_id = load_events_and_postings(db)
     print(f"  Loaded {len(events_by_id)} events")
 
     print("📚 Grouping by run…")

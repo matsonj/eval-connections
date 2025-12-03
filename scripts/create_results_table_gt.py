@@ -77,6 +77,15 @@ def prepare_table_data(df: pd.DataFrame) -> pd.DataFrame:
     
     def format_time(seconds):
         """Format time as XmYs."""
+        # Handle NaN, None, or invalid values
+        if pd.isna(seconds) or seconds is None:
+            return "0s"
+        try:
+            seconds = float(seconds)
+            if seconds < 0:
+                seconds = 0
+        except (ValueError, TypeError):
+            return "0s"
         minutes = int(seconds // 60)
         secs = int(seconds % 60)
         if minutes > 0:
