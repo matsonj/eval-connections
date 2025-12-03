@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       puzzles:
-        description: 'Number of puzzles to run (leave empty for all)'
+        description: 'Number of puzzles to run (defaults to 1)'
         required: false
         type: string
 
@@ -45,33 +45,38 @@ jobs:
         run: |
           # Set default MOTHERDUCK_DB if not provided (uses default MotherDuck database)
           export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
-          if [ -z "${{ inputs.puzzles }}" ]; then
-            uv run connections_eval run --model "${{ inputs.model }}"
-          else
-            uv run connections_eval run --model "${{ inputs.model }}" --puzzles "${{ inputs.puzzles }}"
+          # Set default puzzles to 1 if not provided
+          PUZZLES="${{ inputs.puzzles }}"
+          if [ -z "$PUZZLES" ]; then
+            PUZZLES="1"
           fi
+          uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES"
       
       - name: Update docs - Extract summaries
         env:
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
           MOTHERDUCK_DB: ${{ secrets.MOTHERDUCK_DB }}
         run: |
-          export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:controllog}"
+          export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
           uv run python scripts/extract_summaries.py
+      
+      - name: Update docs - Create results table
+        run: |
+          uv run python scripts/create_results_table_gt.py
       
       - name: Update docs - Generate logs view
         env:
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
           MOTHERDUCK_DB: ${{ secrets.MOTHERDUCK_DB }}
         run: |
-          export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:controllog}"
+          export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
           uv run python scripts/generate_logs_view.py
       
       - name: Commit and push docs changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add docs/ results/
+          git add docs/ results/ README.md
           git diff --staged --quiet || git commit -m "Update docs: ${{ inputs.model }} evaluation results"
           git push
 

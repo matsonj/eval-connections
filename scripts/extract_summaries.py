@@ -61,6 +61,10 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         print("No summaries to write")
         return
     
+    # Create output directory if it doesn't exist
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
     # Define the columns we want in the CSV (in order)
     columns = [
         "log_file",
