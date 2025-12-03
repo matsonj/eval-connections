@@ -10,6 +10,12 @@ from rich.console import Console
 from rich.table import Table
 
 from .core import ConnectionsGame
+from .utils.motherduck import (
+    upload_controllog_to_motherduck,
+    validate_upload,
+    run_trial_balance,
+    cleanup_local_files,
+)
 
 app = typer.Typer(help="Evaluate AI models on New York Times Connections puzzles")
 console = Console()
@@ -59,6 +65,11 @@ def run(
         False,
         "--verbose", "-v",
         help="Print logs to terminal for debugging"
+    ),
+    keep_local_files: bool = typer.Option(
+        False,
+        "--keep-local-files",
+        help="Keep local controllog files after uploading to MotherDuck (default: False, files are deleted)"
     )
 ):
     """Run connections evaluation."""
@@ -132,6 +143,47 @@ def run(
         
         # Display results
         _display_summary(summary, interactive)
+        
+        # Upload to MotherDuck if configured
+        motherduck_db = os.getenv("MOTHERDUCK_DB")
+        if motherduck_db:
+            console.print()
+            console.print("📤 Uploading controllog to MotherDuck...", style="bold blue")
+            
+            # Use CTRL_LOG_DIR if set, otherwise use log_path
+            ctrl_log_dir = Path(os.getenv("CTRL_LOG_DIR", str(log_path)))
+            
+            # Upload
+            upload_success = upload_controllog_to_motherduck(ctrl_log_dir, motherduck_db)
+            if upload_success:
+                console.print("✅ Upload successful", style="green")
+                
+                # Validate upload
+                console.print("🔍 Validating upload...", style="dim")
+                validation_success = validate_upload(summary["run_id"], motherduck_db)
+                if validation_success:
+                    console.print("✅ Validation passed", style="green")
+                else:
+                    console.print("⚠️  Validation failed: run_id not found in database", style="yellow")
+                
+                # Run trial balance
+                console.print("⚖️  Running trial balance check...", style="dim")
+                trial_balance_success = run_trial_balance(motherduck_db)
+                if trial_balance_success:
+                    console.print("✅ Trial balance passed", style="green")
+                else:
+                    console.print("⚠️  Trial balance check failed", style="yellow")
+                
+                # Cleanup local files if not keeping them
+                if not keep_local_files:
+                    console.print("🧹 Cleaning up local files...", style="dim")
+                    cleanup_local_files(ctrl_log_dir, summary["run_id"], keep_local_files)
+                    console.print("✅ Local files cleaned up", style="green")
+                else:
+                    console.print("📁 Keeping local files (--keep-local-files flag set)", style="dim")
+            else:
+                console.print("❌ Upload failed", style="red")
+                console.print("⚠️  Local files retained due to upload failure", style="yellow")
         
     except KeyboardInterrupt:
         console.print("\n❌ Evaluation interrupted", style="red")

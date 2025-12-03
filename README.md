@@ -208,16 +208,37 @@ This project also emits accounting-style telemetry as structured, balanced event
 
 The SDK initializes automatically at run start; raw payloads are preserved.
 
-#### Load controllog JSONL into MotherDuck
+#### Automatic Upload to MotherDuck
 
-Requirements: DuckDB and a MotherDuck account/token (or use a local DuckDB file).
+The evaluation automatically uploads controllog files to MotherDuck after each run (if configured). This includes validation and trial balance checks.
+
+**Setup:**
+1. Set your MotherDuck token in your environment (e.g., in a `.env` file):
+   ```bash
+   export MOTHERDUCK_TOKEN="your-token-here"
+   export MOTHERDUCK_DB="md:"  # Optional: "md:" for default database, or "md:database_name" for a specific database
+   ```
+
+   **Note:** If `MOTHERDUCK_DB` is not set, the upload step will be skipped. Use `"md:"` to connect to your default MotherDuck database, or `"md:database_name"` if you've created a specific database.
+
+2. Run an evaluation - upload happens automatically:
+   ```bash
+   uv run connections_eval run --model grok3 --puzzles 2
+   ```
+
+The upload process:
+- Uploads controllog events and postings to MotherDuck
+- Validates that the run's data exists in the database
+- Runs a trial balance check to ensure data integrity
+- Optionally deletes local controllog files (use `--keep-local-files` to retain them)
+
+**Manual Upload (if needed):**
+
+If you need to manually upload controllog files:
 
 ```bash
-# Generate logs by running an evaluation first
-uv run connections_eval run --model grok3 --puzzles 2
-
-# Load JSONL into MotherDuck (set your token per MotherDuck docs)
-export MOTHERDUCK_DB="md:controllog"
+# Set your token and database
+export MOTHERDUCK_DB="md:"  # or "md:database_name" for a specific database
 export CTRL_LOG_DIR="logs"
 uv run python scripts/load_controllog_to_motherduck.py
 
@@ -231,7 +252,7 @@ uv run python scripts/load_controllog_to_motherduck.py
 Run a fast trial balance check (double-entry invariants) and example reports:
 
 ```bash
-export MOTHERDUCK_DB="md:controllog"   # or a local .duckdb path
+export MOTHERDUCK_DB="md:"   # or "md:database_name" or a local .duckdb path
 uv run python scripts/reports_controllog.py
 ```
 
@@ -258,6 +279,7 @@ uv run connections_eval run [OPTIONS]
 | `--inputs-path` | path | `inputs/` | Input files directory |
 | `--log-path` | path | `logs/` | Log output directory |
 | `--prompt-file` | str | `prompt_template.xml` | Prompt template filename |
+| `--keep-local-files` | flag | False | Keep local controllog files after uploading to MotherDuck |
 
 ### Examples
 
@@ -276,6 +298,9 @@ uv run connections_eval run --interactive
 
 # Custom paths with verbose mode
 uv run connections_eval run --model sonnet --inputs-path ./my-puzzles --verbose
+
+# Keep local controllog files after upload (for inspection)
+uv run connections_eval run --model grok4 --keep-local-files
 ```
 
 ## Development
@@ -298,7 +323,8 @@ src/connections_eval/
     ├── timing.py       # Timer utilities
     ├── tokens.py       # Token counting & cost extraction
     ├── logging.py      # JSON logging
-    └── retry.py        # Retry with backoff
+    ├── retry.py        # Retry with backoff
+    └── motherduck.py   # MotherDuck upload and validation utilities
 
 inputs/
 ├── connections_puzzles.yml    # Puzzle database
@@ -331,6 +357,41 @@ The evaluation tracks comprehensive metrics:
   - OpenRouter cost (what you pay)
   - Upstream cost (what OpenRouter pays the provider)
   - Per-exchange cost breakdown in logs
+
+## GitHub Actions
+
+You can run evaluations automatically via GitHub Actions workflow dispatch. This is useful for testing new models and adding them to the result set.
+
+### Setup
+
+1. **Configure GitHub Secrets:**
+   - `OPENROUTER_API_KEY`: Your OpenRouter API key
+   - `MOTHERDUCK_TOKEN`: Your MotherDuck authentication token
+   - `MOTHERDUCK_DB`: (Optional) MotherDuck database connection string (defaults to `md:` if not set)
+
+2. **Run the Workflow:**
+   - Go to the "Actions" tab in your GitHub repository
+   - Select "Run Model Evaluation" workflow
+   - Click "Run workflow"
+   - Enter the model name (e.g., `gpt5`, `grok4`)
+   - Optionally specify the number of puzzles to run
+   - Click "Run workflow"
+
+The workflow will:
+- Run the evaluation with the specified model
+- Upload results to MotherDuck
+- Update the docs folder (run summaries and log views)
+- Commit and push the updated docs back to the repository
+
+### Example
+
+```yaml
+# Workflow dispatch with:
+# model: "gpt5"
+# puzzles: "10"
+```
+
+This will run 10 puzzles with the GPT-5 model and automatically update the documentation.
 
 ## Latest Results
 
