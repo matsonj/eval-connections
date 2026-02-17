@@ -11,6 +11,11 @@ on:
         description: 'Number of puzzles to run (defaults to 1)'
         required: false
         type: string
+      seed:
+        description: 'Random seed for reproducibility'
+        required: false
+        default: '1771295179'
+        type: string
 
 jobs:
   evaluate:
@@ -50,7 +55,7 @@ jobs:
           if [ -z "$PUZZLES" ]; then
             PUZZLES="1"
           fi
-          uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES"
+          uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES" --seed "${{ inputs.seed }}"
       
       - name: Update docs - Extract summaries
         env:

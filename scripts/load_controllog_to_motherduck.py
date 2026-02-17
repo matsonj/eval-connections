@@ -9,6 +9,17 @@ import os
 from pathlib import Path
 import duckdb  # type: ignore
 
+# Canonical column lists — must match dedupe_motherduck.py schemas.
+# JSONL may contain extra fields (e.g. ingest_time) that we skip.
+EVENTS_COLS = [
+    "event_id", "event_time", "kind", "actor_agent_id", "actor_task_id",
+    "project_id", "run_id", "source", "idempotency_key", "payload_json",
+]
+POSTINGS_COLS = [
+    "posting_id", "event_id", "account_type", "account_id",
+    "unit", "delta_numeric", "dims_json",
+]
+
 
 def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
     base = Path(base_log_dir) / "controllog"
@@ -28,20 +39,23 @@ def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
     con.execute("CREATE SCHEMA IF NOT EXISTS controllog")
 
     if events_files:
-        # Ensure table exists (schema inferred from a sample file)
+        ecols = ", ".join(EVENTS_COLS)
+
+        # Ensure table exists with canonical schema
         con.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS controllog.events AS
-            SELECT * FROM read_json_auto(?, format='newline_delimited') WHERE 0;
+            SELECT {ecols}
+            FROM read_json_auto(?, format='newline_delimited') WHERE 0;
             """,
             [events_files[0]],
         )
 
         # Deduplicate using idempotency_key (falls back to event_id for legacy rows)
         con.execute(
-            """
+            f"""
             INSERT INTO controllog.events
-            SELECT src.*
+            SELECT {ecols}
             FROM read_json_auto(?, format='newline_delimited') src
             WHERE NOT EXISTS (
                 SELECT 1 FROM controllog.events tgt
@@ -58,20 +72,23 @@ def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
         )
 
     if postings_files:
-        # Ensure table exists (schema inferred from a sample file)
+        pcols = ", ".join(POSTINGS_COLS)
+
+        # Ensure table exists with canonical schema
         con.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS controllog.postings AS
-            SELECT * FROM read_json_auto(?, format='newline_delimited') WHERE 0;
+            SELECT {pcols}
+            FROM read_json_auto(?, format='newline_delimited') WHERE 0;
             """,
             [postings_files[0]],
         )
 
         # Deduplicate using posting_id
         con.execute(
-            """
+            f"""
             INSERT INTO controllog.postings
-            SELECT src.*
+            SELECT {pcols}
             FROM read_json_auto(?, format='newline_delimited') src
             WHERE NOT EXISTS (
                 SELECT 1 FROM controllog.postings tgt
