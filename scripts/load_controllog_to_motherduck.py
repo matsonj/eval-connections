@@ -37,32 +37,25 @@ def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
             [events_files[0]],
         )
 
-        # Compute threshold BEFORE inserting new rows
-        last_event_time_row = con.execute(
-            "SELECT max(event_time) FROM controllog.events"
-        ).fetchone()
-        last_event_time = last_event_time_row[0] if last_event_time_row else None
-
-        if last_event_time is None:
-            # No existing rows; load all
-            con.execute(
-                """
-                INSERT INTO controllog.events
-                SELECT * FROM read_json_auto(?, format='newline_delimited');
-                """,
-                [events_files],
+        # Deduplicate using idempotency_key (falls back to event_id for legacy rows)
+        con.execute(
+            """
+            INSERT INTO controllog.events
+            SELECT src.*
+            FROM read_json_auto(?, format='newline_delimited') src
+            WHERE NOT EXISTS (
+                SELECT 1 FROM controllog.events tgt
+                WHERE tgt.idempotency_key IS NOT NULL
+                  AND src.idempotency_key IS NOT NULL
+                  AND tgt.idempotency_key = src.idempotency_key
             )
-        else:
-            # Incremental load: only rows strictly after the last seen timestamp
-            con.execute(
-                """
-                INSERT INTO controllog.events
-                SELECT *
-                FROM read_json_auto(?, format='newline_delimited')
-                WHERE event_time > ?;
-                """,
-                [events_files, last_event_time],
-            )
+            AND NOT EXISTS (
+                SELECT 1 FROM controllog.events tgt
+                WHERE tgt.event_id = src.event_id
+            );
+            """,
+            [events_files],
+        )
 
     if postings_files:
         # Ensure table exists (schema inferred from a sample file)
@@ -74,37 +67,19 @@ def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
             [postings_files[0]],
         )
 
-        # Use the same threshold captured before events were inserted in this run, if available.
-        # If not computed (no events_files), derive it now from the table.
-        try:
-            last_event_time  # type: ignore[name-defined]
-        except NameError:
-            last_event_time_row = con.execute(
-                "SELECT max(event_time) FROM controllog.events"
-            ).fetchone()
-            last_event_time = last_event_time_row[0] if last_event_time_row else None
-
-        if last_event_time is None:
-            # No existing events; load all postings
-            con.execute(
-                """
-                INSERT INTO controllog.postings
-                SELECT * FROM read_json_auto(?, format='newline_delimited');
-                """,
-                [postings_files],
-            )
-        else:
-            # Incremental load: only postings whose event belongs to newly inserted events
-            con.execute(
-                """
-                INSERT INTO controllog.postings
-                SELECT p.*
-                FROM read_json_auto(?, format='newline_delimited') p
-                JOIN controllog.events e ON p.event_id = e.event_id
-                WHERE e.event_time > ?;
-                """,
-                [postings_files, last_event_time],
-            )
+        # Deduplicate using posting_id
+        con.execute(
+            """
+            INSERT INTO controllog.postings
+            SELECT src.*
+            FROM read_json_auto(?, format='newline_delimited') src
+            WHERE NOT EXISTS (
+                SELECT 1 FROM controllog.postings tgt
+                WHERE tgt.posting_id = src.posting_id
+            );
+            """,
+            [postings_files],
+        )
 
     con.close()
 

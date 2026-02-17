@@ -25,7 +25,7 @@ def upload_controllog_to_motherduck(log_path: Path, db: str) -> bool:
     
     Args:
         log_path: Base log directory containing controllog subdirectory
-        db: MotherDuck database connection string (e.g., "md:controllog")
+        db: MotherDuck database connection string (e.g., "md:my_db")
         
     Returns:
         True if upload succeeded, False otherwise

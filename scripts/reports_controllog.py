@@ -69,7 +69,7 @@ def ops_latency_by_model(con):
 
 
 if __name__ == "__main__":
-    db = os.environ.get("MOTHERDUCK_DB", "md:controllog")
+    db = os.environ.get("MOTHERDUCK_DB", "md:my_db")
     con = duckdb.connect(db)
     trial_balance(con)
     print("Trial balance PASS")
