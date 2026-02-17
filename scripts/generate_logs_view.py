@@ -89,7 +89,6 @@ def load_events_and_postings(db: str = "md:") -> Dict[str, Event]:
         SELECT 
             event_id,
             event_time,
-            ingest_time,
             kind,
             actor_agent_id,
             actor_task_id,
@@ -112,7 +111,7 @@ def load_events_and_postings(db: str = "md:") -> Dict[str, Event]:
             raw_rec = {
                 "event_id": str(row.get("event_id", "")),
                 "event_time": str(row.get("event_time", "")),
-                "ingest_time": str(row.get("ingest_time", "")),
+                "ingest_time": "",
                 "kind": str(row.get("kind", "")),
                 "actor_agent_id": str(row.get("actor_agent_id", "")) if row.get("actor_agent_id") else None,
                 "actor_task_id": str(row.get("actor_task_id", "")) if row.get("actor_task_id") else None,

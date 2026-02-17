@@ -58,12 +58,20 @@ def extract_cost_info(response_data: dict) -> tuple[Optional[float], Optional[fl
         Costs are in USD or None if not available
     """
     usage = response_data.get("usage", {})
-    
+
     # Total cost charged by OpenRouter
     total_cost = usage.get("cost")
-    
-    # Upstream cost (for BYOK requests)
+
+    # Upstream cost and BYOK flag
     cost_details = usage.get("cost_details", {})
     upstream_cost = cost_details.get("upstream_inference_cost")
-    
+    is_byok = usage.get("is_byok", False)
+
+    # Only record upstream_cost for BYOK requests. For BYOK, cost is
+    # OpenRouter's routing fee and upstream_inference_cost is the provider
+    # charge (additive). For non-BYOK, cost already includes the upstream
+    # charge so upstream_inference_cost is informational only.
+    if not is_byok:
+        upstream_cost = None
+
     return total_cost, upstream_cost
