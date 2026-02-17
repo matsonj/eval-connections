@@ -31,6 +31,7 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
                 MAX(e.event_time) AS end_timestamp
             FROM controllog.events e
             WHERE e.run_id IS NOT NULL
+              AND e.run_id NOT LIKE '%sherlock%'
             GROUP BY e.run_id
         ),
         puzzle_stats AS (
