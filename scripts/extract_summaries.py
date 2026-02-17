@@ -65,9 +65,9 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
         ),
         token_stats AS (
             -- Aggregate token and cost statistics from postings
-            -- Tokens: unit is "+tokens", account_type is "resource.tokens", phase in dims_json.phase
-            -- Money: unit is "$", account_type is "resource.money", account_id contains "vendor:openrouter" or "vendor:upstream"
-            SELECT 
+            -- Tokens: filter to provider: account_id to avoid double-counting (project: has identical values)
+            -- Money: already filtered by specific vendor: prefixes, no duplication risk
+            SELECT
                 e.run_id,
                 -- Total tokens: sum of all token postings (both prompt and completion phases)
                 SUM(CASE WHEN p.account_type = 'resource.tokens' AND p.unit = '+tokens' AND p.dims_json.phase = 'prompt' THEN ABS(p.delta_numeric) ELSE 0 END) +
@@ -83,16 +83,19 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             FROM controllog.postings p
             JOIN controllog.events e ON p.event_id = e.event_id
             WHERE e.run_id IS NOT NULL
+              AND (p.account_id LIKE 'vendor:%' OR p.account_id LIKE 'provider:%')
             GROUP BY e.run_id
         ),
         time_stats AS (
             -- Aggregate time statistics from postings
-            SELECT 
+            -- Filter to project: account_id to avoid double-counting (agent: has identical values)
+            SELECT
                 e.run_id,
                 SUM(CASE WHEN p.account_type = 'resource.time_ms' AND p.unit = 'ms' THEN ABS(p.delta_numeric) ELSE 0 END) / 1000.0 AS total_time_sec
             FROM controllog.postings p
             JOIN controllog.events e ON p.event_id = e.event_id
             WHERE e.run_id IS NOT NULL
+              AND p.account_id LIKE 'project:%'
             GROUP BY e.run_id
         )
         SELECT 
