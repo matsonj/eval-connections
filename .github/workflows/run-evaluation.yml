@@ -8,13 +8,13 @@ on:
         required: true
         type: string
       puzzles:
-        description: 'Number of puzzles to run (defaults to 1)'
+        description: 'Number of puzzles to run (ignored when canonical is true)'
         required: false
         type: string
-      seed:
-        description: 'Random seed for reproducibility'
+      canonical:
+        description: 'Run canonical puzzle set (default: true). Set to false for random puzzles.'
         required: false
-        default: '1771107460'
+        default: 'true'
         type: string
 
 jobs:
@@ -48,14 +48,17 @@ jobs:
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
           MOTHERDUCK_DB: ${{ secrets.MOTHERDUCK_DB }}
         run: |
-          # Set default MOTHERDUCK_DB if not provided (uses default MotherDuck database)
           export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
-          # Set default puzzles to 1 if not provided
-          PUZZLES="${{ inputs.puzzles }}"
-          if [ -z "$PUZZLES" ]; then
-            PUZZLES="1"
+          CANONICAL="${{ inputs.canonical }}"
+          if [ "$CANONICAL" = "true" ]; then
+            uv run connections_eval run --model "${{ inputs.model }}" --canonical
+          else
+            PUZZLES="${{ inputs.puzzles }}"
+            if [ -z "$PUZZLES" ]; then
+              PUZZLES="1"
+            fi
+            uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES"
           fi
-          uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES" --seed "${{ inputs.seed }}"
       
       - name: Update docs - Extract summaries
         env:
