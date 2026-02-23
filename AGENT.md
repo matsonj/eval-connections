@@ -1,9 +1,15 @@
 # AGENT.md - Connections Eval Project
 
 ## Commands
-- **Run tests**: `uv run pytest` (all tests) or `uv run pytest tests/test_cli.py::test_specific` (single test)  
+- **Run tests**: `uv run pytest` (all tests) or `uv run pytest tests/test_cli.py::test_specific` (single test)
 - **Run app**: `uv run connections_eval run --model MODEL_NAME` or `uv run connections_eval run --interactive`
+- **Run parallel**: `uv run connections_eval run --model MODEL_NAME --puzzles 10 --threads 8`
+- **Run specific puzzles**: `uv run connections_eval run --model MODEL_NAME --puzzle-ids 246,283,477`
+- **Run canonical set**: `uv run connections_eval run --model MODEL_NAME --canonical`
 - **List models**: `uv run connections_eval list-models`
+- **List puzzles**: `uv run connections_eval list-puzzles` (add `--difficulty` for ratings)
+- **Rank puzzles**: `uv run connections_eval rank --model MODEL_NAME --runs 5 --threads 4`
+- **Rank single puzzle**: `uv run connections_eval rank --puzzle-id 246 --runs 10`
 - **Install deps**: `uv sync`
 - **Extract data**: `uv run python scripts/extract_summaries.py` (creates results/run_summaries.csv)
 - **Generate table**: `uv run python scripts/create_results_table_gt.py` (creates results/results_table_gt.html)

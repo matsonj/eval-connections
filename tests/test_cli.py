@@ -109,4 +109,6 @@ class TestCLI:
         assert "Evaluation Results" in result.stdout
         
         # Verify game was called correctly
-        mock_game.run_evaluation.assert_called_once_with("grok3", 2, False)
+        mock_game.run_evaluation.assert_called_once_with(
+            "grok3", max_puzzles=2, is_interactive=False, threads=8, puzzle_ids=None
+        )

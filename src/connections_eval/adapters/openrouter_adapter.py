@@ -4,7 +4,7 @@ import requests
 import yaml
 import os
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 from ..utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -30,20 +30,51 @@ def _load_thinking_models() -> Set[str]:
 # Cache the thinking models set
 _THINKING_MODELS = _load_thinking_models()
 
+# Mapping from OpenRouter model ID prefix to provider slug for pinning.
+# Only includes providers where the slug is known and prompt caching benefits.
+# Provider slugs do NOT always match model ID prefixes (e.g. x-ai/ -> "xai").
+# Models hosted by third parties (deepseek, meta-llama, qwen) are omitted
+# because their provider slug varies by hosting provider.
+_PROVIDER_SLUG_MAP = {
+    "anthropic/": "anthropic",
+    "openai/": "openai",
+    "google/": "google-ai-studio",
+    "x-ai/": "xai",
+}
+
+
+def extract_provider_slug(model: str) -> Optional[str]:
+    """
+    Extract the OpenRouter provider slug from a model ID.
+
+    Args:
+        model: OpenRouter model ID (e.g., 'anthropic/claude-sonnet-4')
+
+    Returns:
+        Provider slug (e.g., 'anthropic') or None for unrecognized prefixes
+    """
+    for prefix, slug in _PROVIDER_SLUG_MAP.items():
+        if model.startswith(prefix):
+            return slug
+    return None
+
 
 @retry_with_backoff(max_retries=5, base_delay=2.0, exceptions=(requests.RequestException,))
-def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
+def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.
-    
+
     Args:
         messages: List of message objects with 'role' and 'content'
         model: OpenRouter model ID (e.g., 'openai/o3', 'x-ai/grok-3')
         timeout: Request timeout in seconds
-        
+        provider: Optional provider slug to pin requests to (e.g., 'anthropic').
+            When set, forces OpenRouter to route to this provider with no fallbacks,
+            enabling prompt caching across calls.
+
     Returns:
         Raw API response JSON
-        
+
     Raises:
         requests.RequestException: On API errors
     """
@@ -78,7 +109,14 @@ def chat(messages: List[Dict], model: str, timeout: int = 300) -> Dict:
             "include": True  # Request cost and usage information
         }
     }
-    
+
+    # Pin to a specific provider for prompt caching
+    if provider:
+        payload["provider"] = {
+            "order": [provider],
+            "allow_fallbacks": False,
+        }
+
     # Handle different model types
     if is_thinking_model:
         # Thinking models don't support max_tokens or temperature and need longer timeout
