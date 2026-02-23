@@ -10,15 +10,28 @@ This project provides a comprehensive evaluation framework for testing linguisti
 
 - **Multi-model support**: Access 200+ AI models through OpenRouter (OpenAI, Anthropic, xAI, Google Gemini, and more)
 - **Reasoning model support**: Full support for reasoning models (GPT-5, o3, Grok-4, etc.) with proper parameter handling
+- **Parallel execution**: Run puzzles concurrently with configurable thread count (default 8)
+- **Provider pinning**: Automatic prompt caching by pinning to native providers on multi-turn calls
+- **Canonical puzzle sets**: Define consistent puzzle sets for reproducible model comparisons
+- **Difficulty ranking**: Rank puzzle difficulty by running puzzles multiple times
 - **Interactive mode**: Human players can test their skills
-- **Cost tracking**: Separate tracking of OpenRouter and upstream provider costs
-- **Detailed token metrics**: Breakdown of prompt vs completion tokens
+- **Cost tracking**: Separate tracking of OpenRouter and upstream provider costs, with cache discount visibility
+- **Detailed token metrics**: Breakdown of prompt vs completion tokens with cache hit tracking
 - **Verbose logging**: Real-time exchange logging with `--verbose` flag
-- **Comprehensive metrics**: Track guesses, errors, time, and token usage
-- **Reproducible**: Controlled randomization with optional seeds
+- **Reproducible**: Controlled randomization with optional seeds and deterministic puzzle selection
 - **Detailed logging**: JSONL format for analysis
 
 ## Changelog
+
+### 3.0.0 (2026-02-23)
+- **Provider pinning** for prompt caching — pins OpenRouter requests to the native provider (Anthropic, OpenAI, Google, xAI) on calls 2+, enabling prompt cache hits across multi-turn puzzle conversations
+- **Parallel execution** — run puzzles concurrently with `--threads N` (default 8); thread-safe RNG per puzzle
+- **Canonical puzzle sets** — mark puzzles with `canonical: true` in YAML; run with `--canonical` for consistent model comparisons
+- **Puzzle selection** — `--puzzle-ids 246,283,477` for specific puzzles in order
+- **Difficulty ranking** — `rank` command to measure puzzle difficulty across multiple runs
+- **`list-puzzles` command** — browse puzzles with optional difficulty ratings
+- **Typed internals** — `PuzzleResult` and `EvalStats` dataclasses replace raw dicts; thread-safe architecture
+- **Cache visibility** — logs `cached_tokens` and `cache_discount` when providers report cache hits
 
 ### 2.0.1 (2025-10-01)
 - Improved logging docs to reflect the current JSONL file naming and controllog outputs
@@ -49,11 +62,24 @@ uv run connections_eval list-models
 # Set OpenRouter API key
 export OPENROUTER_API_KEY="your-key-here"
 
-# Run evaluation with verbose logging
+# Run evaluation with verbose logging (8 threads by default)
 uv run connections_eval run --model gpt5 --puzzles 5 --verbose
 
-# Run with reasoning model (automatically handled)
-uv run connections_eval run --model grok4 --puzzles 3
+# Run specific puzzles for consistent comparison
+uv run connections_eval run --model grok4 --puzzle-ids 246,283,477
+
+# Run canonical puzzle set
+uv run connections_eval run --model gemini --canonical
+```
+
+### List and Rank Puzzles
+
+```bash
+# Browse available puzzles with difficulty ratings
+uv run connections_eval list-puzzles --difficulty
+
+# Rank puzzle difficulty (5 runs per puzzle)
+uv run connections_eval rank --model sonnet-4 --runs 5 --threads 4
 ```
 
 ### Interactive Mode
@@ -68,6 +94,7 @@ uv run connections_eval run --interactive
 uv run connections_eval run \
   --model gemini \
   --puzzles 3 \
+  --threads 4 \
   --seed 42 \
   --inputs-path ./custom-inputs \
   --log-path ./custom-logs
@@ -122,6 +149,7 @@ puzzles:
   - id: 476
     date: 2024-09-29
     difficulty: 4.5
+    canonical: true        # Include in canonical puzzle set (optional)
     words: [BLANKET, SHAM, SHEET, THROW, ...]
     groups:
       - name: Bedding
@@ -263,44 +291,78 @@ Outputs include:
 
 ## CLI Reference
 
+### `run` — Run evaluation
+
 ```bash
 uv run connections_eval run [OPTIONS]
 ```
-
-### Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--model` | str | None | Model to evaluate (required unless `--interactive`) |
 | `--interactive` | flag | False | Run in interactive mode |
-| `--puzzles` | int | All | Maximum puzzles to run |
-| `--verbose` | flag | False | Enable real-time exchange logging |
+| `--puzzles` | int | All | Maximum puzzles to run (random subset) |
+| `--puzzle-ids` | str | None | Comma-separated puzzle IDs to run (e.g. `246,283,477`) |
+| `--canonical` | flag | False | Run only puzzles marked `canonical: true` |
+| `--threads` | int | 8 | Number of parallel threads (forced to 1 for interactive) |
 | `--seed` | int | Random | Random seed for reproducibility |
+| `--verbose` | flag | False | Enable real-time exchange logging |
 | `--inputs-path` | path | `inputs/` | Input files directory |
 | `--log-path` | path | `logs/` | Log output directory |
 | `--prompt-file` | str | `prompt_template.xml` | Prompt template filename |
-| `--keep-local-files` | flag | False | Keep local controllog files after uploading to MotherDuck |
+| `--keep-local-files` | flag | False | Keep local controllog files after MotherDuck upload |
+
+`--puzzles`, `--puzzle-ids`, and `--canonical` are mutually exclusive.
+
+### `rank` — Rank puzzle difficulty
+
+```bash
+uv run connections_eval rank [OPTIONS]
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--puzzle-id` | int | None | Rank a single puzzle (omit to rank all) |
+| `--runs` | int | 5 | Number of evaluation runs per puzzle |
+| `--model` | str | `sonnet-4` | Model to use for ranking |
+| `--threads` | int | 4 | Number of parallel threads |
+| `--output` | path | None | Save results to YAML file |
+
+### `list-puzzles` — Browse puzzles
+
+```bash
+uv run connections_eval list-puzzles [--difficulty]
+```
+
+### `list-models` — Show available models
+
+```bash
+uv run connections_eval list-models
+```
 
 ### Examples
 
 ```bash
-# Basic evaluation
+# Basic evaluation (8 threads, all puzzles)
 uv run connections_eval run --model gpt5
 
 # Limited run with verbose logging
 uv run connections_eval run --model gemini --puzzles 3 --verbose
 
-# Reasoning model evaluation
-uv run connections_eval run --model grok4 --puzzles 5 --seed 42
+# Specific puzzles for model comparison
+uv run connections_eval run --model grok4 --puzzle-ids 246,283,477,826
+
+# Canonical puzzle set
+uv run connections_eval run --model sonnet-4 --canonical
+
+# Single-threaded with fixed seed (fully reproducible)
+uv run connections_eval run --model o3 --puzzles 5 --threads 1 --seed 42
 
 # Interactive play
 uv run connections_eval run --interactive
 
-# Custom paths with verbose mode
-uv run connections_eval run --model sonnet --inputs-path ./my-puzzles --verbose
-
-# Keep local controllog files after upload (for inspection)
-uv run connections_eval run --model grok4 --keep-local-files
+# Rank all puzzles and save results
+uv run connections_eval rank --model sonnet-4 --runs 10 --output rankings.yml
 ```
 
 ## Development

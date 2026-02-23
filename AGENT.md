@@ -24,10 +24,18 @@
 - **Scripts**: `scripts/` - Analysis and visualization tools for processing evaluation results
 - **Results**: `results/` - Generated CSV data and HTML reports
 
+## Key Data Types
+- **`PuzzleResult`**: Dataclass returned by `_run_puzzle_ai()` — per-puzzle outcome (won, guesses, tokens, cost)
+- **`EvalStats`**: Dataclass with `accumulate(result)` method — aggregates `PuzzleResult`s across a run
+- **`PuzzleDifficultyResult`**: Dataclass returned by `rank_puzzle()` — solve rate, avg guesses/mistakes
+- **`GameState`**: Mutable dataclass tracking in-progress game state
+
 ## Code Style
 - **Imports**: Standard library first, then third-party, then local imports
 - **Types**: Use `typing` annotations (Dict, List, Optional, etc.) with dataclasses for structured data
 - **Naming**: Snake_case for functions/variables, PascalCase for classes
-- **Strings**: Use f-strings for formatting, XML templates for prompts  
+- **Strings**: Use f-strings for formatting, XML templates for prompts
 - **Error handling**: Retry with exponential backoff for API calls, fail-fast for missing API keys
-- **CLI**: Use Typer with rich console output, structured options with type hints
+- **CLI**: Use Typer with rich console output; validation logic in `_validate_run_args()`
+- **Thread safety**: `_run_puzzle_ai()` takes an explicit `rng: random.Random` parameter — never mutate `self.rng` from threads
+- **Provider pinning**: `extract_provider_slug()` maps model ID prefix to OpenRouter provider slug; only known first-party providers are pinned (anthropic, openai, google-ai-studio, xai)
