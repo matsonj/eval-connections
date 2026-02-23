@@ -1,7 +1,7 @@
 """Token counting utilities."""
 
 import tiktoken
-from typing import Optional
+from typing import Dict, Optional
 
 
 def count_tokens(text: str, model_name: str = "gpt-4") -> int:
@@ -44,6 +44,28 @@ def extract_token_usage(response_data: dict) -> tuple[Optional[int], Optional[in
         return prompt_tokens, completion_tokens, "API"
     
     return None, None, "APPROXIMATE"
+
+
+def extract_cache_info(response_data: dict) -> Dict[str, Optional[int]]:
+    """
+    Extract prompt cache information from API response.
+
+    Args:
+        response_data: Raw API response data
+
+    Returns:
+        Dict with 'cached_tokens' and 'cache_discount' keys (values may be None)
+    """
+    usage = response_data.get("usage", {})
+    prompt_details = usage.get("prompt_tokens_details", {})
+
+    cached_tokens = prompt_details.get("cached_tokens")
+    cache_discount = usage.get("cache_discount")
+
+    return {
+        "cached_tokens": cached_tokens,
+        "cache_discount": cache_discount,
+    }
 
 
 def extract_cost_info(response_data: dict) -> tuple[Optional[float], Optional[float]]:
