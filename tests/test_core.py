@@ -4,9 +4,25 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from connections_eval.core import ConnectionsGame, GameState, Puzzle, PuzzleGroup
+from connections_eval.core import ConnectionsGame, GameState, Puzzle, PuzzleGroup, PuzzleResult, EvalStats
 from connections_eval.adapters.openrouter_adapter import extract_provider_slug
 from connections_eval.utils.tokens import extract_cache_info
+
+
+def _make_test_groups():
+    """Shared test fixture: four puzzle groups."""
+    return [
+        PuzzleGroup("Fruits", "green", ["APPLE", "BANANA", "CHERRY", "GRAPE"]),
+        PuzzleGroup("Colors", "yellow", ["BLUE", "GREEN", "RED", "YELLOW"]),
+        PuzzleGroup("Speed", "blue", ["FAST", "QUICK", "RAPID", "SWIFT"]),
+        PuzzleGroup("Smart", "purple", ["BRIGHT", "CLEVER", "SMART", "WISE"]),
+    ]
+
+
+_TEST_WORDS = [
+    "APPLE", "BANANA", "CHERRY", "GRAPE", "BLUE", "GREEN", "RED", "YELLOW",
+    "FAST", "QUICK", "RAPID", "SWIFT", "BRIGHT", "CLEVER", "SMART", "WISE",
+]
 
 
 class TestConnectionsGame:
@@ -15,37 +31,17 @@ class TestConnectionsGame:
     @pytest.fixture
     def sample_puzzle(self):
         """Create a sample puzzle for testing."""
-        groups = [
-            PuzzleGroup("Fruits", "green", ["APPLE", "BANANA", "CHERRY", "GRAPE"]),
-            PuzzleGroup("Colors", "yellow", ["BLUE", "GREEN", "RED", "YELLOW"]),
-            PuzzleGroup("Speed", "blue", ["FAST", "QUICK", "RAPID", "SWIFT"]),
-            PuzzleGroup("Smart", "purple", ["BRIGHT", "CLEVER", "SMART", "WISE"])
-        ]
         return Puzzle(
-            id=477,
-            date="2024-09-30",
-            difficulty=3.8,
-            words=["APPLE", "BANANA", "CHERRY", "GRAPE", "BLUE", "GREEN", "RED", "YELLOW",
-                   "FAST", "QUICK", "RAPID", "SWIFT", "BRIGHT", "CLEVER", "SMART", "WISE"],
-            groups=groups
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
         )
 
     @pytest.fixture
     def canonical_puzzle(self):
         """Create a sample canonical puzzle for testing."""
-        groups = [
-            PuzzleGroup("Fruits", "green", ["APPLE", "BANANA", "CHERRY", "GRAPE"]),
-            PuzzleGroup("Colors", "yellow", ["BLUE", "GREEN", "RED", "YELLOW"]),
-            PuzzleGroup("Speed", "blue", ["FAST", "QUICK", "RAPID", "SWIFT"]),
-            PuzzleGroup("Smart", "purple", ["BRIGHT", "CLEVER", "SMART", "WISE"])
-        ]
         return Puzzle(
-            id=999,
-            date="2024-12-01",
-            difficulty=2.0,
-            words=["APPLE", "BANANA", "CHERRY", "GRAPE", "BLUE", "GREEN", "RED", "YELLOW",
-                   "FAST", "QUICK", "RAPID", "SWIFT", "BRIGHT", "CLEVER", "SMART", "WISE"],
-            groups=groups,
+            id=999, date="2024-12-01", difficulty=2.0,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
             canonical=True,
         )
 
@@ -237,44 +233,30 @@ class TestConnectionsGame:
         assert canonical_ids == []
 
     def test_accumulate_stats(self):
-        """Test stats accumulation."""
-        total = {
-            "puzzles_attempted": 0,
-            "puzzles_solved": 0,
-            "total_guesses": 0,
-            "correct_guesses": 0,
-            "incorrect_guesses": 0,
-            "invalid_responses": 0,
-            "total_time_sec": 0.0,
-            "total_tokens": 0,
-            "total_prompt_tokens": 0,
-            "total_completion_tokens": 0,
-            "token_count_method": "APPROXIMATE",
-            "total_cost": 0.0,
-            "total_upstream_cost": 0.0,
-        }
-        stats = {
-            "won": True,
-            "guess_count": 4,
-            "solved_groups": ["green", "yellow", "blue", "purple"],
-            "mistake_count": 0,
-            "invalid_count": 0,
-            "time_sec": 10.5,
-            "total_tokens": 1000,
-            "total_prompt_tokens": 800,
-            "total_completion_tokens": 200,
-            "token_count_method": "API",
-            "total_cost": 0.01,
-            "total_upstream_cost": 0.005,
-        }
-        ConnectionsGame._accumulate_stats(total, stats)
+        """Test EvalStats accumulation from PuzzleResult."""
+        stats = EvalStats()
+        result = PuzzleResult(
+            won=True,
+            guess_count=4,
+            mistake_count=0,
+            invalid_count=0,
+            solved_groups=["green", "yellow", "blue", "purple"],
+            time_sec=10.5,
+            total_tokens=1000,
+            total_prompt_tokens=800,
+            total_completion_tokens=200,
+            token_count_method="API",
+            total_cost=0.01,
+            total_upstream_cost=0.005,
+        )
+        stats.accumulate(result)
 
-        assert total["puzzles_attempted"] == 1
-        assert total["puzzles_solved"] == 1
-        assert total["total_guesses"] == 4
-        assert total["correct_guesses"] == 4
-        assert total["total_tokens"] == 1000
-        assert total["token_count_method"] == "API"
+        assert stats.puzzles_attempted == 1
+        assert stats.puzzles_solved == 1
+        assert stats.total_guesses == 4
+        assert stats.correct_guesses == 4
+        assert stats.total_tokens == 1000
+        assert stats.token_count_method == "API"
 
 
 class TestProviderPinning:

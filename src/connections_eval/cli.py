@@ -1,7 +1,6 @@
 """CLI interface for connections_eval."""
 
 import os
-import sys
 import yaml
 from pathlib import Path
 from typing import List, Optional
@@ -24,6 +23,75 @@ console = Console()
 def main():
     """Entry point for CLI."""
     app()
+
+
+def _validate_run_args(
+    model: Optional[str], interactive: bool, puzzles: Optional[int],
+    puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
+    prompt_file: str,
+) -> Optional[List[int]]:
+    """
+    Validate run command arguments and return parsed puzzle IDs.
+
+    Raises typer.Exit on validation failure.
+    """
+    if not interactive and not model:
+        console.print("Either --model or --interactive must be specified", style="red")
+        raise typer.Exit(1)
+
+    if interactive and model:
+        console.print("Cannot specify both --model and --interactive", style="red")
+        raise typer.Exit(1)
+
+    selection_count = sum([
+        puzzles is not None,
+        puzzle_ids is not None,
+        canonical,
+    ])
+    if selection_count > 1:
+        console.print("--puzzles, --puzzle-ids, and --canonical are mutually exclusive", style="red")
+        raise typer.Exit(1)
+
+    if not inputs_path.exists():
+        console.print(f"Inputs path does not exist: {inputs_path}", style="red")
+        raise typer.Exit(1)
+
+    if model:
+        try:
+            temp_game = ConnectionsGame(inputs_path, Path("logs"))
+        except FileNotFoundError as e:
+            console.print(f"Error loading model config: {e}", style="red")
+            raise typer.Exit(1)
+        if model not in temp_game.MODEL_CONFIG:
+            console.print(f"Unknown model: {model}", style="red")
+            console.print("Available models:", style="yellow")
+            for model_name in temp_game.MODEL_CONFIG.keys():
+                console.print(f"  - {model_name}")
+            raise typer.Exit(2)
+
+    if not interactive and not os.getenv("OPENROUTER_API_KEY"):
+        console.print("OPENROUTER_API_KEY environment variable not set", style="red")
+        raise typer.Exit(1)
+
+    puzzles_file = inputs_path / "connections_puzzles.yml"
+    template_file = inputs_path / prompt_file
+    if not puzzles_file.exists():
+        console.print(f"Puzzles file not found: {puzzles_file}", style="red")
+        raise typer.Exit(1)
+    if not template_file.exists():
+        console.print(f"Prompt template not found: {template_file}", style="red")
+        raise typer.Exit(1)
+
+    # Parse puzzle IDs
+    parsed_puzzle_ids: Optional[List[int]] = None
+    if puzzle_ids is not None:
+        try:
+            parsed_puzzle_ids = [int(x.strip()) for x in puzzle_ids.split(",")]
+        except ValueError:
+            console.print("--puzzle-ids must be comma-separated integers", style="red")
+            raise typer.Exit(1)
+
+    return parsed_puzzle_ids
 
 @app.command()
 def run(
@@ -89,75 +157,9 @@ def run(
     )
 ):
     """Run connections evaluation."""
-
-    # Validate arguments
-    if not interactive and not model:
-        console.print("Either --model or --interactive must be specified", style="red")
-        raise typer.Exit(1)
-
-    if interactive and model:
-        console.print("Cannot specify both --model and --interactive", style="red")
-        raise typer.Exit(1)
-
-    # Validate mutually exclusive puzzle selection options
-    selection_count = sum([
-        puzzles is not None,
-        puzzle_ids is not None,
-        canonical,
-    ])
-    if selection_count > 1:
-        console.print("--puzzles, --puzzle-ids, and --canonical are mutually exclusive", style="red")
-        raise typer.Exit(1)
-
-    # Force single thread for interactive mode
-    if interactive:
-        threads = 1
-
-    # Validate inputs path first
-    if not inputs_path.exists():
-        console.print(f"Inputs path does not exist: {inputs_path}", style="red")
-        raise typer.Exit(1)
-
-    # Validate model (create temporary instance to load model config)
-    if model:
-        try:
-            temp_game = ConnectionsGame(inputs_path, log_path)
-        except FileNotFoundError as e:
-            console.print(f"Error loading model config: {e}", style="red")
-            raise typer.Exit(1)
-
-        if model not in temp_game.MODEL_CONFIG:
-            console.print(f"Unknown model: {model}", style="red")
-            console.print("Available models:", style="yellow")
-            for model_name in temp_game.MODEL_CONFIG.keys():
-                console.print(f"  - {model_name}")
-            raise typer.Exit(2)
-
-    # Check OpenRouter API key for non-interactive mode
-    if not interactive:
-        if not os.getenv("OPENROUTER_API_KEY"):
-            console.print("OPENROUTER_API_KEY environment variable not set", style="red")
-            raise typer.Exit(1)
-
-    puzzles_file = inputs_path / "connections_puzzles.yml"
-    template_file = inputs_path / prompt_file
-
-    if not puzzles_file.exists():
-        console.print(f"Puzzles file not found: {puzzles_file}", style="red")
-        raise typer.Exit(1)
-
-    if not template_file.exists():
-        console.print(f"Prompt template not found: {template_file}", style="red")
-        raise typer.Exit(1)
-
-    # Parse puzzle IDs
-    parsed_puzzle_ids: Optional[List[int]] = None
-    if puzzle_ids is not None:
-        try:
-            parsed_puzzle_ids = [int(x.strip()) for x in puzzle_ids.split(",")]
-        except ValueError:
-            console.print("--puzzle-ids must be comma-separated integers", style="red")
-            raise typer.Exit(1)
+    parsed_puzzle_ids = _validate_run_args(
+        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file,
+    )
 
     # Get model name for interactive mode
     if interactive:
@@ -405,10 +407,6 @@ def rank(
     if model not in game.MODEL_CONFIG:
         console.print(f"Unknown model: {model}", style="red")
         raise typer.Exit(2)
-
-    # Set up logger for the ranking run
-    game.run_id = f"rank_{model}"
-    game.logger = game._setup_ranking_logger()
 
     if puzzle_id is not None:
         console.print(f"Ranking puzzle {puzzle_id} ({runs} runs with {model})...", style="bold blue")
