@@ -286,6 +286,8 @@ def _display_summary(summary: dict, interactive: bool):
             table.add_row("Prompt Tokens", str(summary["total_prompt_tokens"]))
         if summary.get("total_completion_tokens", 0) > 0:
             table.add_row("Completion Tokens", str(summary["total_completion_tokens"]))
+        if summary.get("total_cached_tokens", 0) > 0:
+            table.add_row("Cached Tokens", str(summary["total_cached_tokens"]))
         table.add_row("Token Method", summary["token_count_method"])
 
         # Add cost information

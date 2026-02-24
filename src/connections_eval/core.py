@@ -48,6 +48,7 @@ class PuzzleResult:
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     token_count_method: str = "APPROXIMATE"
+    total_cached_tokens: int = 0
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
 
@@ -66,6 +67,7 @@ class EvalStats:
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     token_count_method: str = "APPROXIMATE"
+    total_cached_tokens: int = 0
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
 
@@ -82,6 +84,7 @@ class EvalStats:
         self.total_tokens += result.total_tokens
         self.total_prompt_tokens += result.total_prompt_tokens
         self.total_completion_tokens += result.total_completion_tokens
+        self.total_cached_tokens += result.total_cached_tokens
         self.total_cost += result.total_cost
         self.total_upstream_cost += result.total_upstream_cost
         if result.token_count_method == "API":
@@ -401,11 +404,11 @@ class ConnectionsGame:
         total_prompt_tokens = 0
         total_completion_tokens = 0
         token_method = "APPROXIMATE"
+        total_cached_tokens = 0
         total_cost = 0.0
         total_upstream_cost = 0.0
         task_id = f"T{puzzle.id}:{self.run_id}"
         final_state_emitted = False
-        api_call_count = 0
 
         state.start_time = time.time()
         try:
@@ -422,10 +425,9 @@ class ConnectionsGame:
         while not state.finished:
             with Timer() as timer:
                 try:
-                    api_call_count += 1
-                    # Pin to provider on calls 2+ for prompt caching
-                    use_provider = pinned_provider if api_call_count > 1 else None
-                    response = adapter.chat(messages, model_id, provider=use_provider)
+                    # Pin to provider on all calls to enable prompt caching
+                    # (requires provider + cache_control + prefix >= 1024 tokens)
+                    response = adapter.chat(messages, model_id, provider=pinned_provider)
 
                     choice = response["choices"][0]
                     message = choice["message"]
@@ -475,6 +477,8 @@ class ConnectionsGame:
                         total_upstream_cost += upstream_cost
 
                     cache_info = extract_cache_info(response)
+                    if cache_info.get("cached_tokens"):
+                        total_cached_tokens += cache_info["cached_tokens"]
 
                     result = self._process_guess(state, content)
 
@@ -587,6 +591,7 @@ class ConnectionsGame:
             total_prompt_tokens=total_prompt_tokens,
             total_completion_tokens=total_completion_tokens,
             token_count_method=token_method,
+            total_cached_tokens=total_cached_tokens,
             total_cost=total_cost,
             total_upstream_cost=total_upstream_cost,
         )
@@ -736,8 +741,14 @@ class ConnectionsGame:
         """Parse response into list of words, handling structured XML format."""
         import re
 
+        # Strip <thinking> blocks first so that any <guess> examples
+        # inside reasoning don't get picked up by the guess regex.
+        # Also handle unclosed <thinking> tags (truncated responses).
+        cleaned = re.sub(r'<thinking>.*?</thinking>', '', response, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r'<thinking>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
+
         # First try to extract from <guess> tags
-        guess_match = re.search(r'<guess>(.*?)</guess>', response, re.IGNORECASE | re.DOTALL)
+        guess_match = re.search(r'<guess>(.*?)</guess>', cleaned, re.IGNORECASE | re.DOTALL)
         if guess_match:
             guess_text = guess_match.group(1).strip()
             words = [word.strip().upper() for word in guess_text.split(',')]
@@ -745,13 +756,13 @@ class ConnectionsGame:
 
         # Fallback: try to find 4 comma-separated words in ALL CAPS
         caps_pattern = r'\b[A-Z][A-Z\s]*\b(?:\s*,\s*[A-Z][A-Z\s]*\b){3}'
-        caps_match = re.search(caps_pattern, response)
+        caps_match = re.search(caps_pattern, cleaned)
         if caps_match:
             words = [word.strip().upper() for word in caps_match.group().split(',')]
             return [word for word in words if word]
 
         # Final fallback: original comma-split logic
-        words = [word.strip().upper() for word in response.split(',')]
+        words = [word.strip().upper() for word in cleaned.split(',')]
         return [word for word in words if word]
 
     def _parse_structured_response(self, response: str) -> Dict[str, str]:
