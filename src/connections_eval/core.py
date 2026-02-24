@@ -714,13 +714,23 @@ class ConnectionsGame:
                 else:
                     return "CORRECT. NEXT GUESS?"
 
-        # Incorrect guess
+        # Incorrect guess — check if one away from any unsolved group
+        one_away = False
+        for group in state.puzzle.groups:
+            if group.color not in state.solved_groups:
+                overlap = len(set(words) & set(w.upper() for w in group.words))
+                if overlap == 3:
+                    one_away = True
+                    break
+
         state.mistake_count += 1
         if state.mistake_count >= self.MAX_MISTAKES:
             state.finished = True
 
         remaining_guesses = self.MAX_MISTAKES - state.mistake_count
-        return f"INCORRECT. {remaining_guesses} INCORRECT GUESSES REMAINING"
+        if one_away:
+            return f"INCORRECT - ONE AWAY. {remaining_guesses} INCORRECT GUESSES REMAINING."
+        return f"INCORRECT. {remaining_guesses} INCORRECT GUESSES REMAINING."
 
     def _parse_response(self, response: str) -> List[str]:
         """Parse response into list of words, handling structured XML format."""
