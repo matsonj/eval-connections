@@ -104,7 +104,6 @@ def prepare_table_data(df: pd.DataFrame) -> pd.DataFrame:
     # Create display dataframe with formatted values (sports box score style)
     table_df = pd.DataFrame({
         'Model': df['model'].values,
-        'Version': df['version'].values,
         'Date': [pd.to_datetime(ts).strftime('%Y-%m-%d') for ts in df['start_timestamp'].values],
         'Puzzles': df['puzzles_attempted'].astype(int).values,
         'Solved': df['puzzles_solved'].astype(int).values,
@@ -123,24 +122,11 @@ def prepare_table_data(df: pd.DataFrame) -> pd.DataFrame:
     })
 
     # Turn Model cell into hyperlink to per-run logs page
-    # Only for versions >= 2.0.1
-    if 'run_id' in df.columns and 'version' in df.columns:
-        def version_tuple(v: str):
-            try:
-                parts = [int(x) for x in str(v).split('.')[:3]]
-                while len(parts) < 3:
-                    parts.append(0)
-                return tuple(parts)
-            except Exception:
-                return (0, 0, 0)
+    if 'run_id' in df.columns:
         links = []
-        for model_name, run_id, ver in zip(df['model'].values, df['run_id'].values, df['version'].values):
-            if version_tuple(ver) >= (2, 0, 1):
-                href = f"logs/{run_id}.html"
-                # Use Markdown link; Great Tables renders md() content
-                links.append(md(f'[{model_name}]({href})'))
-            else:
-                links.append(model_name)
+        for model_name, run_id in zip(df['model'].values, df['run_id'].values):
+            href = f"logs/{run_id}.html"
+            links.append(md(f'[{model_name}]({href})'))
         table_df['Model'] = links
     
     # Add background colors based on key metrics
@@ -184,7 +170,6 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
         .cols_hide(columns=["solve_bg", "cost_bg", "accuracy_bg"])  # Hide background color columns
         .cols_label(
             Model="Model",
-            Version="Ver",
             Date="Date",
             Puzzles="GP",  # Games Played
             Solved="W",    # Wins
@@ -381,42 +366,35 @@ def create_great_table(df: pd.DataFrame, save_path: str = "results/results_table
 
 /* Progressive column pruning by viewport width (keeps the essentials) */
 /* Column order (1-indexed):
-   1 Model, 2 Version, 3 Date, 4 GP, 5 W, 6 WIN PCT, 7 ATT, 8 HIT, 9 MISS, 10 ERR,
-   11 ACC PCT, 12 TIME, 13 AVG/G, 14 TOK, 15 TOK/G, 16 COST, 17 $/G
+   1 Model, 2 Date, 3 GP, 4 W, 5 WIN PCT, 6 ATT, 7 HIT, 8 MISS, 9 ERR,
+   10 ACC PCT, 11 TIME, 12 AVG/G, 13 TOK, 14 TOK/G, 15 COST, 16 $/G
 */
 
 /* <= 1200px: hide super-verbose metrics first */
 @media (max-width: 1200px) {{
-  #{actual_id} th:nth-child(14), #{actual_id} td:nth-child(14) {{ display: none; }} /* TOK */
-  #{actual_id} th:nth-child(15), #{actual_id} td:nth-child(15) {{ display: none; }} /* TOK/G */
-  #{actual_id} th:nth-child(17), #{actual_id} td:nth-child(17) {{ display: none; }} /* $/G */
-  #{actual_id} th:nth-child(10), #{actual_id} td:nth-child(10) {{ display: none; }} /* ERR */
+  #{actual_id} th:nth-child(13), #{actual_id} td:nth-child(13) {{ display: none; }} /* TOK */
+  #{actual_id} th:nth-child(14), #{actual_id} td:nth-child(14) {{ display: none; }} /* TOK/G */
+  #{actual_id} th:nth-child(16), #{actual_id} td:nth-child(16) {{ display: none; }} /* $/G */
+  #{actual_id} th:nth-child(9),  #{actual_id} td:nth-child(9)  {{ display: none; }} /* ERR */
 }}
 
 /* <= 992px: trim more second-order diagnostics */
 @media (max-width: 992px) {{
-  #{actual_id} th:nth-child(8),  #{actual_id} td:nth-child(8)  {{ display: none; }} /* HIT */
-  #{actual_id} th:nth-child(9),  #{actual_id} td:nth-child(9)  {{ display: none; }} /* MISS */
-  #{actual_id} th:nth-child(13), #{actual_id} td:nth-child(13) {{ display: none; }} /* AVG/G */
+  #{actual_id} th:nth-child(7),  #{actual_id} td:nth-child(7)  {{ display: none; }} /* HIT */
+  #{actual_id} th:nth-child(8),  #{actual_id} td:nth-child(8)  {{ display: none; }} /* MISS */
+  #{actual_id} th:nth-child(12), #{actual_id} td:nth-child(12) {{ display: none; }} /* AVG/G */
 }}
 
 /* <= 768px: keep headline stats */
 @media (max-width: 768px) {{
-  #{actual_id} th:nth-child(12), #{actual_id} td:nth-child(12) {{ display: none; }} /* TIME */
-  #{actual_id} th:nth-child(7),  #{actual_id} td:nth-child(7)  {{ display: none; }} /* ATT */
+  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* TIME */
+  #{actual_id} th:nth-child(6),  #{actual_id} td:nth-child(6)  {{ display: none; }} /* ATT */
 }}
 
-/* <= 600px: minimal set for mobile: Model, Version, GP, W, WIN PCT, COST */
+/* <= 600px: minimal set for mobile: Model, GP, W, WIN PCT, COST */
 @media (max-width: 600px) {{
-  #{actual_id} th:nth-child(3),  #{actual_id} td:nth-child(3)  {{ display: none; }} /* Date */
-  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* ACC PCT */
-  /* If you prefer ACC PCT over COST on tiny screens, swap which of 11 or 16 is hidden */
-}}
-
-/* <= 480px: ultra-compact — Model, Version, GP, W, WIN PCT, COST */
-@media (max-width: 480px) {{
-  /* hide ACC PCT so we keep COST as business-facing metric */
-  #{actual_id} th:nth-child(11), #{actual_id} td:nth-child(11) {{ display: none; }} /* ACC PCT */
+  #{actual_id} th:nth-child(2),  #{actual_id} td:nth-child(2)  {{ display: none; }} /* Date */
+  #{actual_id} th:nth-child(10), #{actual_id} td:nth-child(10) {{ display: none; }} /* ACC PCT */
 }}
 
 /* Optional: softer borders on mobile */

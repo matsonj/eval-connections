@@ -749,7 +749,7 @@ def main():
     runs = group_by_run(events_by_id)
     print(f"  Found {len(runs)} runs")
 
-    # Restrict to the same dataset as the results table, version >= 2.0.1, latest per model
+    # Restrict to the same dataset as the results table, latest per model
     allowed_run_ids: List[str] = []
     if RUN_SUMMARIES_CSV.exists():
         import csv
@@ -766,34 +766,23 @@ def main():
                         continue
                     if r.get("total_cost", "") in ("", None):
                         continue
-                    # Version filter >= 2.0.1
-                    def vtuple(v: str):
-                        parts = [int(x) for x in str(v).split('.')[:3]]
-                        while len(parts) < 3:
-                            parts.append(0)
-                        return tuple(parts)
-                    if vtuple(r.get("version", "0.0.0")) < (2, 0, 1):
-                        continue
-                    # Keep row
                     rows.append(r)
                 except Exception:
                     continue
-        # Select latest per (model, version) by start_timestamp
-        best_by_key: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        # Select latest per model by start_timestamp
+        best_by_key: Dict[str, Dict[str, Any]] = {}
         for r in rows:
             model = r.get("model", "")
-            ver = r.get("version", "")
             ts = r.get("start_timestamp", "")
             try:
                 dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except Exception:
                 dt = datetime.min
-            key = (model, ver)
-            existing = best_by_key.get(key)
+            existing = best_by_key.get(model)
             if existing is None or dt > existing["dt"]:
-                best_by_key[key] = {"row": r, "dt": dt}
+                best_by_key[model] = {"row": r, "dt": dt}
         allowed_run_ids = [val["row"].get("run_id") for val in best_by_key.values() if val["row"].get("run_id")]
-        print(f"  Filtered to {len(allowed_run_ids)} latest runs per model+version (v>=2.0.1)")
+        print(f"  Filtered to {len(allowed_run_ids)} latest runs per model")
 
     # Generate only for allowed runs; if none, do not emit per-run pages
     if allowed_run_ids:
