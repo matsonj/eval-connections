@@ -199,15 +199,15 @@ def summarize_tokens_and_cost(postings: List[Posting]) -> Dict[str, Any]:
     completion_tokens = 0
     money = 0.0
     for p in postings:
-        if p.account_type == "resource.tokens" and p.unit == "+tokens":
-            # project:+tokens is +N when consuming N tokens; provider:-N mirrors
-            # When dims has phase, we can split by prompt/completion
+        if p.account_type == "resource.tokens" and p.unit == "+tokens" and p.delta > 0:
+            # Only count project: side (positive delta); provider: side is negative mirror
             phase = str(p.dims.get("phase", "")).lower()
             if phase == "prompt":
-                prompt_tokens += int(abs(p.delta))
+                prompt_tokens += int(p.delta)
             elif phase == "completion":
-                completion_tokens += int(abs(p.delta))
-        if p.account_type == "resource.money" and p.unit == "$":
+                completion_tokens += int(p.delta)
+        if p.account_type == "resource.money" and p.unit == "$" and p.delta < 0:
+            # Cost postings: vendor: side is negative (money leaving); take abs
             money += abs(float(p.delta))
     return {
         "prompt_tokens": prompt_tokens,
@@ -225,6 +225,18 @@ def escape_html(text: Optional[str]) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
+
+
+def simple_markdown_to_html(text: str) -> str:
+    """Convert basic markdown (bold, italic, lists) to HTML after escaping."""
+    escaped = escape_html(text)
+    # Bold: **text** → <b>text</b>
+    escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
+    # Italic: *text* → <i>text</i>  (but not inside bold)
+    escaped = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', escaped)
+    # Lines starting with - as list items
+    escaped = re.sub(r'^- (.+)$', r'&bull; \1', escaped, flags=re.MULTILINE)
+    return escaped
 
 
 def extract_state_transition(ev: Event) -> Optional[Tuple[str, str, str, Optional[str]]]:
@@ -273,7 +285,7 @@ def split_thinking_blocks(text: str) -> Tuple[str, str]:
     return "", text.strip()
 
 
-_GUESS_RE = re.compile(r"<guess>\s*([A-Z ,\-]+)\s*</guess>")
+_GUESS_RE = re.compile(r"<guess>\s*(.+?)\s*</guess>", re.DOTALL)
 
 
 def extract_guess_words(text: str) -> Optional[List[str]]:
@@ -314,11 +326,22 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         ".stats{font-size:12px;color:#1f2a36;margin-top:6px;}"
         ".pill{display:inline-block;background:#f0f3f6;border:2px solid #2b3035;border-radius:0;padding:2px 8px;margin-right:6px;color:#1f2a36;}"
         ".endpill{display:inline-block;background:#e7f5ec;border:2px solid #2b3035;color:#1f3b2a;border-radius:0;padding:4px 10px;margin:10px 0;}") + (
-        "details{margin:8px 0;} details>summary{cursor:pointer;color:#0b63ce;list-style: disclosure-closed;padding-right:16px;margin-right:4px;}"
-        "details[open]>summary{list-style: disclosure-open;}"
-        ".thinking{font-style:italic;font-size:12px;color:#2b333b;white-space:pre-wrap;}"
+        "details{margin:8px 0;} details>summary{cursor:pointer;color:#0b63ce;list-style:none;display:flex;align-items:center;}"
+        "details>summary::before{content:'\\25B8';font-size:14px;margin-right:6px;flex-shrink:0;transition:transform 0.15s;line-height:1;}"
+        "details[open]>summary::before{transform:rotate(90deg);}"
+        ".thinking{font-style:italic;font-size:12px;color:#2b333b;white-space:pre-wrap;overflow-x:auto;}"
+        ".bubble .body{overflow:hidden;}"
+        ".bubble details{margin:4px 0;}"
         ".footer{margin:24px;color:#48525c;font-size:12px;}"
         "a{color:#0b63ce;text-decoration:none;}a:hover{text-decoration:underline;}"
+        ".puzzle-block{border:2px solid #2b3035;margin:10px 0;background:#fff;}"
+        ".puzzle-block>summary{cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;"
+        "background:#f2f5f8;border-bottom:2px solid #2b3035;list-style:none;font-size:13px;}"
+        ".puzzle-block>summary::before{content:'\\25B8';font-size:16px;flex-shrink:0;line-height:1;transition:transform 0.15s;}"
+        ".puzzle-block[open]>summary::before{transform:rotate(90deg);}"
+        ".puzzle-block>summary .puzzle-stats-inline{color:#48525c;font-size:12px;margin-left:auto;text-align:right;white-space:nowrap;}"
+        ".puzzle-mistakes>summary{background:#fff3f3;}"
+        ".puzzle-mistakes>summary .pill{border-color:#c0392b;color:#c0392b;}"
     )
 
     # Determine model/provider from first event with payload
@@ -330,26 +353,46 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         if model and provider:
             break
 
-    # Build steps grouped by puzzle_id and guess_index order
-    # We collect all events and also mark game end transitions
+    # Build steps grouped by puzzle_id, then ordered by timestamp within each puzzle.
+    # This keeps each puzzle's conversation as a coherent block even for parallel runs.
     steps: List[Dict[str, Any]] = []
-    current_puzzle = None
     state_increments = 0
     # Track last evaluation per puzzle (to show why a puzzle ended)
     last_eval_by_puzzle: Dict[str, Dict[str, Any]] = {}
     # Accumulate per-puzzle stats
     puzzle_stats: Dict[str, Dict[str, Any]] = {}
 
+    # Pre-group events by puzzle_id; events without a puzzle_id go into a separate list
+    puzzle_events: Dict[Any, List[Event]] = {}
+    non_puzzle_events: List[Event] = []
     for ev in events:
-        kind = ev.kind
-        p = ev.payload
-        if kind in ("model_prompt", "model_completion", "model_response"):
-            puzzle_id = p.get("puzzle_id")
-            guess_index = p.get("guess_index")
-            if current_puzzle != puzzle_id and puzzle_id is not None:
-                current_puzzle = puzzle_id
-                steps.append({"type": "puzzle_header", "puzzle_id": puzzle_id})
+        pid = ev.payload.get("puzzle_id") if ev.kind in ("model_prompt", "model_completion", "model_response") else None
+        if pid is None and ev.kind == "state_move":
+            # state_move events carry puzzle_id in payload
+            pid = ev.payload.get("puzzle_id")
+        if pid is not None:
+            puzzle_events.setdefault(pid, []).append(ev)
+        else:
+            non_puzzle_events.append(ev)
 
+    # Sort puzzle groups by puzzle_id (numeric if possible), then events within each by timestamp
+    def puzzle_sort_key(pid: Any) -> int:
+        try:
+            return int(pid)
+        except (ValueError, TypeError):
+            return 0
+
+    sorted_puzzle_ids = sorted(puzzle_events.keys(), key=puzzle_sort_key)
+
+    # Process each puzzle as a coherent block
+    for puzzle_id in sorted_puzzle_ids:
+        p_events = sorted(puzzle_events[puzzle_id], key=lambda e: e.dt)
+        steps.append({"type": "puzzle_header", "puzzle_id": puzzle_id})
+        for ev in p_events:
+            kind = ev.kind
+            p = ev.payload
+            guess_index = p.get("guess_index")
+            pid = str(puzzle_id)
             if kind == "model_prompt":
                 steps.append({
                     "type": "prompt",
@@ -357,17 +400,14 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                     "tokens": summarize_tokens_and_cost(ev.postings),
                     "ts": ev.event_time,
                 })
-                if puzzle_id is not None:
-                    pid = str(puzzle_id)
-                    ps = puzzle_stats.setdefault(pid, {"prompt": 0, "completion": 0, "cost": 0.0, "guesses": 0, "correct": 0, "start_dt": None})
-                    tok = summarize_tokens_and_cost(ev.postings)
-                    ps["prompt"] += int(tok.get("prompt_tokens") or 0)
-                    ps["completion"] += int(tok.get("completion_tokens") or 0)
-                    ps["cost"] += float(tok.get("cost") or 0.0)
-                    if ps["start_dt"] is None:
-                        ps["start_dt"] = ev.dt
+                ps = puzzle_stats.setdefault(pid, {"prompt": 0, "completion": 0, "cost": 0.0, "guesses": 0, "correct": 0, "start_dt": None})
+                tok = summarize_tokens_and_cost(ev.postings)
+                ps["prompt"] += int(tok.get("prompt_tokens") or 0)
+                ps["completion"] += int(tok.get("completion_tokens") or 0)
+                ps["cost"] += float(tok.get("cost") or 0.0)
+                if ps["start_dt"] is None:
+                    ps["start_dt"] = ev.dt
             elif kind == "model_completion":
-                # Completion is often the response chunk for some providers; capture text
                 steps.append({
                     "type": "response",
                     "text": p.get("response_text", ""),
@@ -375,43 +415,38 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                     "tokens": summarize_tokens_and_cost(ev.postings),
                     "ts": ev.event_time,
                 })
-                if puzzle_id is not None:
-                    pid = str(puzzle_id)
-                    ps = puzzle_stats.setdefault(pid, {"prompt": 0, "completion": 0, "cost": 0.0, "guesses": 0, "correct": 0, "start_dt": None})
-                    tok = summarize_tokens_and_cost(ev.postings)
-                    ps["prompt"] += int(tok.get("prompt_tokens") or 0)
-                    ps["completion"] += int(tok.get("completion_tokens") or 0)
-                    ps["cost"] += float(tok.get("cost") or 0.0)
-                    # Try to infer a guess from response_text
-                    gw = extract_guess_words(p.get("response_text", ""))
-                    if gw:
-                        ps["guesses"] += 1
-                    if ps["start_dt"] is None:
-                        ps["start_dt"] = ev.dt
+                ps = puzzle_stats.setdefault(pid, {"prompt": 0, "completion": 0, "cost": 0.0, "guesses": 0, "correct": 0, "start_dt": None})
+                tok = summarize_tokens_and_cost(ev.postings)
+                ps["prompt"] += int(tok.get("prompt_tokens") or 0)
+                ps["completion"] += int(tok.get("completion_tokens") or 0)
+                ps["cost"] += float(tok.get("cost") or 0.0)
+                gw = extract_guess_words(p.get("response_text", ""))
+                if gw:
+                    ps["guesses"] += 1
+                res = str(p.get("result", ""))
+                if "CORRECT" in res.upper() and "INCORRECT" not in res.upper():
+                    ps["correct"] += 1
+                if ps["start_dt"] is None:
+                    ps["start_dt"] = ev.dt
             elif kind == "model_response":
-                # Consolidated response with result/guess
-                # Update last eval by puzzle
                 eval_info = {
                     "guess_index": guess_index,
                     "result": p.get("result"),
                     "response_text": p.get("response_text"),
                     "ts": ev.event_time,
                 }
-                if puzzle_id is not None:
-                    last_eval_by_puzzle[str(puzzle_id)] = eval_info
-                    pid = str(puzzle_id)
-                    ps = puzzle_stats.setdefault(pid, {"prompt": 0, "completion": 0, "cost": 0.0, "guesses": 0, "correct": 0, "start_dt": None})
-                    tok = summarize_tokens_and_cost(ev.postings)
-                    ps["prompt"] += int(tok.get("prompt_tokens") or 0)
-                    ps["completion"] += int(tok.get("completion_tokens") or 0)
-                    ps["cost"] += float(tok.get("cost") or 0.0)
-                    # Count this as a guess attempt
-                    ps["guesses"] += 1
-                    res = str(p.get("result", ""))
-                    if "CORRECT" in res.upper():
-                        ps["correct"] += 1
-                    if ps["start_dt"] is None:
-                        ps["start_dt"] = ev.dt
+                last_eval_by_puzzle[pid] = eval_info
+                ps = puzzle_stats.setdefault(pid, {"prompt": 0, "completion": 0, "cost": 0.0, "guesses": 0, "correct": 0, "start_dt": None})
+                tok = summarize_tokens_and_cost(ev.postings)
+                ps["prompt"] += int(tok.get("prompt_tokens") or 0)
+                ps["completion"] += int(tok.get("completion_tokens") or 0)
+                ps["cost"] += float(tok.get("cost") or 0.0)
+                ps["guesses"] += 1
+                res = str(p.get("result", ""))
+                if "CORRECT" in res.upper():
+                    ps["correct"] += 1
+                if ps["start_dt"] is None:
+                    ps["start_dt"] = ev.dt
                 steps.append({
                     "type": "response",
                     "text": p.get("response_text") or p.get("result", ""),
@@ -421,55 +456,48 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                     "tokens": summarize_tokens_and_cost(ev.postings),
                     "ts": ev.event_time,
                 })
-        if kind == "state_move":
-            # Mark state transitions between puzzles
-            state_increments += 1
-            steps.append({"type": "state", "text": f"State advanced ({state_increments})", "ts": ev.event_time})
-
-        # Check for end transitions
-        st = extract_state_transition(ev)
-        if st:
-            task_id, frm, to, pid_str = st
-            # Derive puzzle id
-            puzzle_label = pid_str or task_id.split(":")[0].lstrip("task:")
-            reason = "SOLVED" if str(to).upper() == "DONE" else ("FAILED" if str(to).upper() == "ERROR" else str(to).upper())
-            final_eval = last_eval_by_puzzle.get(str(puzzle_label)) or {}
-            # Prepare summary for this puzzle
-            summary: Dict[str, Any] = {}
-            ps = puzzle_stats.get(str(puzzle_label))
-            if ps:
-                prompt_total = int(ps.get("prompt", 0))
-                completion_total = int(ps.get("completion", 0))
-                guesses_total = int(ps.get("guesses", 0))
-                correct_total = int(ps.get("correct", 0))
-                cost_total = float(ps.get("cost", 0.0))
-                # time delta
-                start_dt = ps.get("start_dt")
-                end_dt = ev.dt
-                if start_dt and end_dt:
-                    seconds = int((end_dt - start_dt).total_seconds())
-                    mm = seconds // 60
-                    ss = seconds % 60
-                    time_str = f"{mm:02d}:{ss:02d}"
-                else:
-                    time_str = "--:--"
-                summary = {
-                    "prompt_tokens": prompt_total,
-                    "completion_tokens": completion_total,
-                    "guesses": guesses_total,
-                    "correct": correct_total,
-                    "time": time_str,
-                    "cost": cost_total,
-                }
-            steps.append({
-                "type": "task_end",
-                "text": f"{puzzle_label} → {reason}",
-                "from": frm,
-                "to": to,
-                "final_eval": final_eval,
-                "summary": summary,
-                "ts": ev.event_time,
-            })
+            elif kind == "state_move":
+                state_increments += 1
+                st = extract_state_transition(ev)
+                if st:
+                    task_id, frm, to, pid_str = st
+                    puzzle_label = pid_str or pid
+                    reason = "SOLVED" if str(to).upper() == "DONE" else ("FAILED" if str(to).upper() == "ERROR" else str(to).upper())
+                    final_eval = last_eval_by_puzzle.get(str(puzzle_label)) or {}
+                    summary: Dict[str, Any] = {}
+                    ps = puzzle_stats.get(str(puzzle_label))
+                    if ps:
+                        prompt_total = int(ps.get("prompt", 0))
+                        completion_total = int(ps.get("completion", 0))
+                        guesses_total = int(ps.get("guesses", 0))
+                        correct_total = int(ps.get("correct", 0))
+                        cost_total = float(ps.get("cost", 0.0))
+                        start_dt = ps.get("start_dt")
+                        end_dt = ev.dt
+                        if start_dt and end_dt:
+                            seconds = int((end_dt - start_dt).total_seconds())
+                            mm = seconds // 60
+                            ss = seconds % 60
+                            time_str = f"{mm:02d}:{ss:02d}"
+                        else:
+                            time_str = "--:--"
+                        summary = {
+                            "prompt_tokens": prompt_total,
+                            "completion_tokens": completion_total,
+                            "guesses": guesses_total,
+                            "correct": correct_total,
+                            "time": time_str,
+                            "cost": cost_total,
+                        }
+                    steps.append({
+                        "type": "task_end",
+                        "text": f"{puzzle_label} → {reason}",
+                        "from": frm,
+                        "to": to,
+                        "final_eval": final_eval,
+                        "summary": summary,
+                        "ts": ev.event_time,
+                    })
 
     # Render HTML
     parts: List[str] = []
@@ -484,110 +512,154 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
     parts.append("</div>")
     parts.append("<div class=\"content\">")
 
+    # Group steps by puzzle for collapsible rendering
+    puzzle_step_groups: List[Tuple[Optional[Any], List[Dict[str, Any]]]] = []
+    current_group_pid: Optional[Any] = None
+    current_group_steps: List[Dict[str, Any]] = []
     for step in steps:
-        st = step.get("type")
-        if st == "puzzle_header":
-            parts.append(f"<div class=\"step\"><div class=\"pill\">Puzzle {escape_html(step.get('puzzle_id'))}</div></div>")
-            continue
-        if st == "state":
-            parts.append(f"<div class=\"state\">{escape_html(step.get('text'))}</div>")
-            continue
-        if st == "task_end":
-            parts.append(f"<div class=\"endpill\">{escape_html(step.get('text'))} <span class=\"meta\">({escape_html(step.get('from',''))} → {escape_html(step.get('to',''))})</span></div>")
-            fe = step.get("final_eval", {})
-            if fe:
-                gi = fe.get("guess_index")
-                res = fe.get("result")
-                rtxt = fe.get("response_text")
-                details_bits = []
-                if res:
-                    details_bits.append(f"Result: {escape_html(str(res))}")
-                if gi is not None:
-                    details_bits.append(f"Guess #: {escape_html(str(gi))}")
-                if rtxt:
-                    # Split and show thinking collapsed if present
-                    th, rr = split_thinking_blocks(rtxt)
-                    inner = []
-                    if th:
-                        inner.append(f"<details><summary>Show final thinking</summary><div class=\"thinking\">{escape_html(th)}</div></details>")
-                    if rr:
-                        inner.append(f"<div>{escape_html(rr)}</div>")
-                    else:
-                        inner.append(f"<div>{escape_html(rtxt)}</div>")
-                    details_bits.append(" ".join(inner))
-                parts.append(f"<div class=\"stats\">{' · '.join(details_bits)}</div>")
-            # Summary ledger (both sides)
-            summ = step.get("summary", {})
-            if summ:
-                pt = summ.get("prompt_tokens", 0)
-                ct = summ.get("completion_tokens", 0)
-                gs = summ.get("guesses", 0)
-                cg = summ.get("correct", 0)
-                tm = summ.get("time", "--:--")
-                cost = summ.get("cost", 0.0)
-                parts.append(
-                    "<div class=\"stats\">"
-                    f"prompt: {pt:,} · completion: {ct:,} · guesses: {gs} · correct: {cg} · time: {tm} · cost: ${cost:0.4f}"
-                    "</div>"
-                )
-            continue
-        if st == "prompt":
-            t = escape_html(step.get("text", ""))
-            tok = step.get("tokens", {})
-            parts.append("<div class=\"row\">")
-            parts.append("<div class=\"bubble left\">")
-            parts.append(f"<div class=\"metahead\"><span>PROMPT</span><span>{escape_html(step.get('ts',''))}</span></div>")
-            parts.append(f"<div class=\"body\">{t}</div>")
-            parts.append("</div>")
-            stats = []
-            if tok.get("prompt_tokens"):
-                stats.append(f"prompt: {tok['prompt_tokens']:,}")
-            if tok.get("completion_tokens"):
-                stats.append(f"completion: {tok['completion_tokens']:,}")
-            if tok.get("cost"):
-                stats.append(f"cost: ${tok['cost']:.6f}")
-            if stats:
-                parts.append(f"<div class=\"stats\">{' · '.join(stats)}</div>")
-            parts.append("</div>")
-            continue
-        if st == "response":
-            raw_text = step.get("text", "")
-            thinking, rest = split_thinking_blocks(raw_text)
-            tok = step.get("tokens", {})
-            parts.append("<div class=\"row\">")
-            bubble_inner: List[str] = []
-            if thinking:
-                bubble_inner.append(
-                    f"<details><summary>Show thinking</summary><div class=\"thinking\">{escape_html(thinking)}</div></details>"
-                )
-            if rest:
-                bubble_inner.append(f"<div>{escape_html(rest)}</div>")
-            else:
-                bubble_inner.append(f"<div>{escape_html(raw_text)}</div>")
-            parts.append("<div class=\"bubble right\">")
-            # Meta header: include guess index and result if present
-            gh = []
-            if step.get("guess_index") is not None:
-                gh.append(f"Guess {escape_html(str(step['guess_index']))}")
-            if step.get("result"):
-                gh.append(escape_html(str(step.get("result"))))
-            meta_right = " · ".join(gh) if gh else "RESPONSE"
-            parts.append(f"<div class=\"metahead\"><span>{meta_right}</span><span>{escape_html(step.get('ts',''))}</span></div>")
-            parts.append(f"<div class=\"body\">{''.join(bubble_inner)}</div>")
-            parts.append("</div>")
-            stats = []
-            if tok.get("prompt_tokens"):
-                stats.append(f"prompt: {tok['prompt_tokens']:,}")
-            if tok.get("completion_tokens"):
-                stats.append(f"completion: {tok['completion_tokens']:,}")
-            if tok.get("cost"):
-                stats.append(f"cost: ${tok['cost']:.6f}")
-            if step.get("result"):
-                stats.append(f"result: {escape_html(step['result'])}")
-            if stats:
-                parts.append(f"<div class=\"stats\">{' · '.join(stats)}</div>")
-            parts.append("</div>")
-            continue
+        if step.get("type") == "puzzle_header":
+            if current_group_steps:
+                puzzle_step_groups.append((current_group_pid, current_group_steps))
+            current_group_pid = step.get("puzzle_id")
+            current_group_steps = []
+        else:
+            current_group_steps.append(step)
+    if current_group_steps:
+        puzzle_step_groups.append((current_group_pid, current_group_steps))
+
+    # Sort puzzles: lowest correct rate first, tie-break by highest cost first
+    def puzzle_audit_sort_key(item: Tuple[Optional[Any], List[Dict[str, Any]]]) -> Tuple[float, float]:
+        pid = item[0]
+        ps = puzzle_stats.get(str(pid), {}) if pid is not None else {}
+        correct = int(ps.get("correct", 0))
+        guesses = int(ps.get("guesses", 0))
+        rate = correct / guesses if guesses > 0 else 0.0
+        cost = float(ps.get("cost", 0.0))
+        return (rate, -cost)  # ascending rate, descending cost
+
+    puzzle_step_groups.sort(key=puzzle_audit_sort_key)
+
+    for puzzle_pid, p_steps in puzzle_step_groups:
+        # Build summary stats for the collapsed header
+        ps = puzzle_stats.get(str(puzzle_pid), {}) if puzzle_pid is not None else {}
+        correct = int(ps.get("correct", 0))
+        guesses = int(ps.get("guesses", 0))
+        pct = f"{correct / guesses * 100:.0f}%" if guesses > 0 else "—"
+        cost = float(ps.get("cost", 0.0))
+        # Determine outcome for styling
+        has_mistakes = guesses > correct
+        outcome_class = " puzzle-mistakes" if has_mistakes else ""
+
+        parts.append(f"<details class=\"puzzle-block{outcome_class}\">")
+        parts.append(
+            f"<summary class=\"puzzle-summary\">"
+            f"<span class=\"pill\">Puzzle {escape_html(puzzle_pid)}</span>"
+            f"<span class=\"puzzle-stats-inline\">"
+            f"{correct}/{guesses} correct ({pct}) · ${cost:0.4f}"
+            f"</span>"
+            f"</summary>"
+        )
+
+        for step in p_steps:
+            st = step.get("type")
+            if st == "state":
+                parts.append(f"<div class=\"state\">{escape_html(step.get('text'))}</div>")
+                continue
+            if st == "task_end":
+                parts.append(f"<div class=\"endpill\">{escape_html(step.get('text'))} <span class=\"meta\">({escape_html(step.get('from',''))} → {escape_html(step.get('to',''))})</span></div>")
+                fe = step.get("final_eval", {})
+                if fe:
+                    gi = fe.get("guess_index")
+                    res = fe.get("result")
+                    rtxt = fe.get("response_text")
+                    details_bits = []
+                    if res:
+                        details_bits.append(f"Result: {escape_html(str(res))}")
+                    if gi is not None:
+                        details_bits.append(f"Guess #: {escape_html(str(gi))}")
+                    if rtxt:
+                        th, rr = split_thinking_blocks(rtxt)
+                        inner = []
+                        if th:
+                            inner.append(f"<details><summary>Show final thinking</summary><div class=\"thinking\">{simple_markdown_to_html(th)}</div></details>")
+                        if rr:
+                            inner.append(f"<div>{simple_markdown_to_html(rr)}</div>")
+                        else:
+                            inner.append(f"<div>{simple_markdown_to_html(rtxt)}</div>")
+                        details_bits.append(" ".join(inner))
+                    parts.append(f"<div class=\"stats\">{' · '.join(details_bits)}</div>")
+                summ = step.get("summary", {})
+                if summ:
+                    pt = summ.get("prompt_tokens", 0)
+                    ct = summ.get("completion_tokens", 0)
+                    gs = summ.get("guesses", 0)
+                    cg = summ.get("correct", 0)
+                    tm = summ.get("time", "--:--")
+                    sc = summ.get("cost", 0.0)
+                    parts.append(
+                        "<div class=\"stats\">"
+                        f"prompt: {pt:,} · completion: {ct:,} · guesses: {gs} · correct: {cg} · time: {tm} · cost: ${sc:0.4f}"
+                        "</div>"
+                    )
+                continue
+            if st == "prompt":
+                t = escape_html(step.get("text", ""))
+                tok = step.get("tokens", {})
+                parts.append("<div class=\"row\">")
+                parts.append("<div class=\"bubble left\">")
+                parts.append(f"<div class=\"metahead\"><span>PROMPT</span><span>{escape_html(step.get('ts',''))}</span></div>")
+                parts.append(f"<div class=\"body\">{t}</div>")
+                parts.append("</div>")
+                stats = []
+                if tok.get("prompt_tokens"):
+                    stats.append(f"prompt: {tok['prompt_tokens']:,}")
+                if tok.get("completion_tokens"):
+                    stats.append(f"completion: {tok['completion_tokens']:,}")
+                if tok.get("cost"):
+                    stats.append(f"cost: ${tok['cost']:.6f}")
+                if stats:
+                    parts.append(f"<div class=\"stats\">{' · '.join(stats)}</div>")
+                parts.append("</div>")
+                continue
+            if st == "response":
+                raw_text = step.get("text", "")
+                thinking, rest = split_thinking_blocks(raw_text)
+                tok = step.get("tokens", {})
+                parts.append("<div class=\"row\">")
+                bubble_inner: List[str] = []
+                if thinking:
+                    bubble_inner.append(
+                        f"<details><summary>Show thinking</summary><div class=\"thinking\">{simple_markdown_to_html(thinking)}</div></details>"
+                    )
+                if rest:
+                    bubble_inner.append(f"<div>{simple_markdown_to_html(rest)}</div>")
+                else:
+                    bubble_inner.append(f"<div>{simple_markdown_to_html(raw_text)}</div>")
+                parts.append("<div class=\"bubble right\">")
+                gh = []
+                if step.get("guess_index") is not None:
+                    gh.append(f"Guess {escape_html(str(step['guess_index']))}")
+                if step.get("result"):
+                    gh.append(escape_html(str(step.get("result"))))
+                meta_right = " · ".join(gh) if gh else "RESPONSE"
+                parts.append(f"<div class=\"metahead\"><span>{meta_right}</span><span>{escape_html(step.get('ts',''))}</span></div>")
+                parts.append(f"<div class=\"body\">{''.join(bubble_inner)}</div>")
+                parts.append("</div>")
+                stats = []
+                if tok.get("prompt_tokens"):
+                    stats.append(f"prompt: {tok['prompt_tokens']:,}")
+                if tok.get("completion_tokens"):
+                    stats.append(f"completion: {tok['completion_tokens']:,}")
+                if tok.get("cost"):
+                    stats.append(f"cost: ${tok['cost']:.6f}")
+                if step.get("result"):
+                    stats.append(f"result: {escape_html(step['result'])}")
+                if stats:
+                    parts.append(f"<div class=\"stats\">{' · '.join(stats)}</div>")
+                parts.append("</div>")
+                continue
+
+        parts.append("</details>")
 
     parts.append("<div class=\"footer\">Generated by generate_logs_view.py</div>")
     parts.append("</div></div></div></body></html>")
