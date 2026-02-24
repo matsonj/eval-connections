@@ -51,13 +51,13 @@ jobs:
           export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
           CANONICAL="${{ inputs.canonical }}"
           if [ "$CANONICAL" = "true" ]; then
-            uv run connections_eval run --model "${{ inputs.model }}" --canonical
+            uv run connections_eval run --model "${{ inputs.model }}" --canonical --threads 8
           else
             PUZZLES="${{ inputs.puzzles }}"
             if [ -z "$PUZZLES" ]; then
               PUZZLES="1"
             fi
-            uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES"
+            uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES" --threads 8
           fi
       
       - name: Update docs - Extract summaries
