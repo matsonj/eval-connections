@@ -102,9 +102,42 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         is_thinking_model
     )
     
+    # For Anthropic models, add cache_control breakpoints to enable prompt
+    # caching via OpenRouter.  We mark the last assistant message with
+    # cache_control so the entire conversation prefix up to that point is
+    # cached between turns.  Anthropic requires the prefix to be >= 1024
+    # tokens; after the first long thinking response this is easily met.
+    # Limited to 4 breakpoints per request.
+    request_messages = messages
+    if provider == "anthropic":
+        # Find the index of the last assistant message (the reusable prefix end)
+        last_assistant_idx = None
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i]["role"] == "assistant":
+                last_assistant_idx = i
+                break
+
+        request_messages = []
+        for i, msg in enumerate(messages):
+            content = msg.get("content", "")
+            # Add cache_control to the last assistant message
+            if i == last_assistant_idx and isinstance(content, str):
+                request_messages.append({
+                    "role": msg["role"],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": content,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                })
+            else:
+                request_messages.append(msg)
+
     payload = {
         "model": openrouter_model,
-        "messages": messages,
+        "messages": request_messages,
         "usage": {
             "include": True  # Request cost and usage information
         }
@@ -119,7 +152,6 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
 
     # Handle different model types
     if is_thinking_model:
-        # Thinking models don't support max_tokens or temperature and need longer timeout
         if timeout < 600:
             timeout = 600
             
