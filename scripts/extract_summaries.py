@@ -23,8 +23,7 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
         WITH run_metadata AS (
             -- Get run metadata (model, timestamps) from events
             -- Model is in payload_json.model for model_prompt/model_completion events
-            -- Version is not stored in controllog, will default to 2.0.2
-            SELECT 
+            SELECT
                 e.run_id,
                 MAX(CASE WHEN e.kind IN ('model_prompt', 'model_completion') THEN e.payload_json.model END) AS model,
                 MIN(e.event_time) AS start_timestamp,
@@ -102,7 +101,6 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
         SELECT 
             rm.run_id,
             COALESCE(rm.model, 'unknown') AS model,
-            '2.0.2' AS version,  -- Version not stored in controllog, defaulting to current version
             rm.start_timestamp,
             rm.end_timestamp,
             NULL AS seed,  -- Seed not stored in controllog events
@@ -146,7 +144,7 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
                     summary["model"] = "unknown"
             
             summaries.append(summary)
-            print(f"  Found run summary: {summary.get('run_id', 'unknown')} (v{summary.get('version', 'unknown')})")
+            print(f"  Found run summary: {summary.get('run_id', 'unknown')}")
         
     finally:
         con.close()
@@ -168,9 +166,8 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
     # Define the columns we want in the CSV (in order)
     columns = [
         "log_file",
-        "run_id", 
+        "run_id",
         "model",
-        "version",
         "timestamp",
         "seed",
         "puzzles_attempted",
