@@ -70,7 +70,7 @@ def _validate_run_args(
             raise typer.Exit(2)
 
     if not interactive and not os.getenv("OPENROUTER_API_KEY"):
-        console.print("OPENROUTER_API_KEY environment variable not set", style="red")
+        console.print("OPENROUTER_API_KEY environment variable not set. Run: source .env", style="red")
         raise typer.Exit(1)
 
     puzzles_file = inputs_path / "connections_puzzles.yml"
@@ -399,7 +399,7 @@ def rank(
 ):
     """Rank puzzle difficulty by running puzzles multiple times."""
     if not os.getenv("OPENROUTER_API_KEY"):
-        console.print("OPENROUTER_API_KEY environment variable not set", style="red")
+        console.print("OPENROUTER_API_KEY environment variable not set. Run: source .env", style="red")
         raise typer.Exit(1)
 
     game = ConnectionsGame(inputs_path, log_path, verbose=verbose)
