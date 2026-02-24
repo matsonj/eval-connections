@@ -35,8 +35,8 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
     )
 
     latest_runs = latest_runs.sort_values(
-        ["solve_rate", "guess_accuracy", "avg_time_sec", "eval_cost_per_game"],
-        ascending=[False, False, True, True],
+        ["solve_rate", "avg_time_sec", "eval_cost_per_game"],
+        ascending=[False, True, True],
     )
 
     return latest_runs
@@ -165,7 +165,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for {num_models} models (20 games each, sorted by solve rate, accuracy, time, cost)
+Latest runs for {num_models} models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table size=[15,auto]
 {table_spec}
