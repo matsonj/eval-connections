@@ -207,6 +207,23 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.177"
     },
     {
+      "model": "<a href=\"logs/2026-02-25T03-41-12_gpt5.2-pro.html\">openai/gpt-5.2-pro</a>",
+      "date": "2026-02-25",
+      "w": "20",
+      "win_pct": "1.000",
+      "att": "80",
+      "hit": "80",
+      "miss": "0",
+      "err": "0",
+      "acc_pct": "1.000",
+      "time": "62m33s",
+      "avg_time": "3m7s",
+      "tok": "78.3k",
+      "tok_per_game": "3.9k",
+      "cost": "$7.44",
+      "cost_per_game": "$0.372"
+    },
+    {
       "model": "<a href=\"logs/2025-10-18T23-08-46_grok4.html\">x-ai/grok-4</a>",
       "date": "2025-10-18",
       "w": "20",
@@ -222,23 +239,6 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "13.6k",
       "cost": "$2.53",
       "cost_per_game": "$0.127"
-    },
-    {
-      "model": "<a href=\"logs/2025-12-11T21-05-29_gpt5.2-pro.html\">openai/gpt-5.2-pro</a>",
-      "date": "2025-12-11",
-      "w": "20",
-      "win_pct": "1.000",
-      "att": "80",
-      "hit": "80",
-      "miss": "0",
-      "err": "0",
-      "acc_pct": "1.000",
-      "time": "74m10s",
-      "avg_time": "3m42s",
-      "tok": "82.2k",
-      "tok_per_game": "4.1k",
-      "cost": "$8.66",
-      "cost_per_game": "$0.433"
     },
     {
       "model": "<a href=\"logs/2026-02-24T22-12-30_kimi-k2.5.html\">moonshotai/kimi-k2.5</a>",
