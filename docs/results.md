@@ -105,23 +105,6 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.005"
     },
     {
-      "model": "<a href=\"logs/2025-11-18T16-59-04_gemini-3-preview.html\">google/gemini-3-pro-preview</a>",
-      "date": "2025-11-18",
-      "w": "20",
-      "win_pct": "1.000",
-      "att": "81",
-      "hit": "80",
-      "miss": "0",
-      "err": "1",
-      "acc_pct": ".987",
-      "time": "24m38s",
-      "avg_time": "1m13s",
-      "tok": "175.1k",
-      "tok_per_game": "8.8k",
-      "cost": "$1.55",
-      "cost_per_game": "$0.078"
-    },
-    {
       "model": "<a href=\"logs/2026-02-24T18-46-38_gemini-3.1.html\">google/gemini-3.1-pro-preview</a>",
       "date": "2026-02-24",
       "w": "20",
@@ -137,6 +120,23 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "7.8k",
       "cost": "$1.31",
       "cost_per_game": "$0.066"
+    },
+    {
+      "model": "<a href=\"logs/2026-02-25T03-14-44_gemini-3-preview.html\">google/gemini-3-pro-preview</a>",
+      "date": "2026-02-25",
+      "w": "20",
+      "win_pct": "1.000",
+      "att": "81",
+      "hit": "80",
+      "miss": "0",
+      "err": "1",
+      "acc_pct": ".987",
+      "time": "26m26s",
+      "avg_time": "1m19s",
+      "tok": "214.4k",
+      "tok_per_game": "10.7k",
+      "cost": "$1.94",
+      "cost_per_game": "$0.097"
     },
     {
       "model": "<a href=\"logs/2026-02-23T23-44-16_opus-4.6.html\">anthropic/claude-opus-4.6</a>",
