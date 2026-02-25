@@ -105,6 +105,23 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.005"
     },
     {
+      "model": "<a href=\"logs/2026-02-25T03-36-49_grok4-fast.html\">x-ai/grok-4-fast</a>",
+      "date": "2026-02-25",
+      "w": "20",
+      "win_pct": "1.000",
+      "att": "85",
+      "hit": "80",
+      "miss": "4",
+      "err": "1",
+      "acc_pct": ".941",
+      "time": "13m46s",
+      "avg_time": "41s",
+      "tok": "169.5k",
+      "tok_per_game": "8.5k",
+      "cost": "$0.06",
+      "cost_per_game": "$0.003"
+    },
+    {
       "model": "<a href=\"logs/2026-02-25T03-25-53_o3.html\">openai/o3</a>",
       "date": "2026-02-25",
       "w": "20",
@@ -188,23 +205,6 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "29.4k",
       "cost": "$3.53",
       "cost_per_game": "$0.177"
-    },
-    {
-      "model": "<a href=\"logs/2025-10-03T06-46-18_grok4-fast.html\">x-ai/grok-4-fast</a>",
-      "date": "2025-10-03",
-      "w": "20",
-      "win_pct": "1.000",
-      "att": "83",
-      "hit": "80",
-      "miss": "3",
-      "err": "0",
-      "acc_pct": ".963",
-      "time": "57m8s",
-      "avg_time": "2m51s",
-      "tok": "161.3k",
-      "tok_per_game": "8.1k",
-      "cost": "$0.06",
-      "cost_per_game": "$0.003"
     },
     {
       "model": "<a href=\"logs/2025-10-18T23-08-46_grok4.html\">x-ai/grok-4</a>",
