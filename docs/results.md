@@ -105,6 +105,23 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.005"
     },
     {
+      "model": "<a href=\"logs/2026-02-25T03-25-53_o3.html\">openai/o3</a>",
+      "date": "2026-02-25",
+      "w": "20",
+      "win_pct": "1.000",
+      "att": "82",
+      "hit": "80",
+      "miss": "2",
+      "err": "0",
+      "acc_pct": ".975",
+      "time": "22m32s",
+      "avg_time": "1m7s",
+      "tok": "163.1k",
+      "tok_per_game": "8.2k",
+      "cost": "$1.05",
+      "cost_per_game": "$0.052"
+    },
+    {
       "model": "<a href=\"logs/2026-02-24T18-46-38_gemini-3.1.html\">google/gemini-3.1-pro-preview</a>",
       "date": "2026-02-24",
       "w": "20",
@@ -171,23 +188,6 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "29.4k",
       "cost": "$3.53",
       "cost_per_game": "$0.177"
-    },
-    {
-      "model": "<a href=\"logs/2025-12-12T04-40-34_o3.html\">openai/o3</a>",
-      "date": "2025-12-12",
-      "w": "20",
-      "win_pct": "1.000",
-      "att": "81",
-      "hit": "80",
-      "miss": "1",
-      "err": "0",
-      "acc_pct": ".987",
-      "time": "44m33s",
-      "avg_time": "2m13s",
-      "tok": "230.8k",
-      "tok_per_game": "11.5k",
-      "cost": "$1.58",
-      "cost_per_game": "$0.079"
     },
     {
       "model": "<a href=\"logs/2025-10-03T06-46-18_grok4-fast.html\">x-ai/grok-4-fast</a>",
