@@ -4,7 +4,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for 37 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 38 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table size=[15,auto]
 {
@@ -494,6 +494,23 @@ Latest runs for 37 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "19.4k",
       "cost": "$0.12",
       "cost_per_game": "$0.006"
+    },
+    {
+      "model": "<a href=\"logs/2026-02-26T13-39-08_qwen3.5-35b-a3b.html\">qwen/qwen3.5-35b-a3b</a>",
+      "date": "2026-02-26",
+      "w": "14",
+      "win_pct": ".700",
+      "att": "89",
+      "hit": "63",
+      "miss": "26",
+      "err": "0",
+      "acc_pct": ".707",
+      "time": "63m35s",
+      "avg_time": "3m10s",
+      "tok": "486.5k",
+      "tok_per_game": "24.3k",
+      "cost": "$0.73",
+      "cost_per_game": "$0.037"
     },
     {
       "model": "<a href=\"logs/2025-12-19T01-20-54_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",
