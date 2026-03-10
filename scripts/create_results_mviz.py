@@ -166,6 +166,7 @@ def render_html(
         html = f.read()
 
     override_css = """
+    .dashboard { zoom: 1.5; }
     body.theme-dark .data-table a { color: #5cb8e6; }
     body.theme-dark .data-table a:visited { color: #b39ddb; }
 """
