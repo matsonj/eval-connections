@@ -169,6 +169,7 @@ def render_html(
     .dashboard { zoom: 1.5; }
     body.theme-dark .data-table a { color: #5cb8e6; }
     body.theme-dark .data-table a:visited { color: #b39ddb; }
+    .data-table td:nth-child(2) { white-space: nowrap; }
 """
     html = html.replace("</style>", override_css + "</style>", 1)
 
