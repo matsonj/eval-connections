@@ -4,7 +4,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 43 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -84,28 +84,52 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.005"
     },
     {
-      "model": "<a href=\"logs/2026-02-17T03-41-11_opus-4.5.html\">anthropic/claude-opus-4.5</a>",
-      "date": "2026-02-17",
+      "model": "<a href=\"logs/2026-03-10T02-52-45_gpt5.4.html\">openai/gpt-5.4</a>",
+      "date": "2026-03-10",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/101",
+      "acc_pct": 0.7921,
+      "avg_time": "13s",
+      "tok_per_game": "3.9k",
+      "cost": 0.32,
+      "cost_per_game": "$0.016"
+    },
+    {
+      "model": "<a href=\"logs/2026-02-26T13-30-03_gpt5.3-codex.html\">openai/gpt-5.3-codex</a>",
+      "date": "2026-02-26",
       "w": "20",
       "win_pct": 1.0,
       "hit_att": "80/84",
       "acc_pct": 0.9524,
-      "avg_time": "39s",
-      "tok_per_game": "7.9k",
-      "cost": 1.66,
-      "cost_per_game": "$0.083"
+      "avg_time": "36s",
+      "tok_per_game": "3.6k",
+      "cost": 0.5,
+      "cost_per_game": "$0.025"
     },
     {
-      "model": "<a href=\"logs/2025-11-18T16-59-04_gemini-3-preview.html\">google/gemini-3-pro-preview</a>",
-      "date": "2025-11-18",
+      "model": "<a href=\"logs/2026-02-25T03-36-49_grok4-fast.html\">x-ai/grok-4-fast</a>",
+      "date": "2026-02-25",
       "w": "20",
       "win_pct": 1.0,
-      "hit_att": "80/81",
-      "acc_pct": 0.9877,
-      "avg_time": "1m13s",
-      "tok_per_game": "8.8k",
-      "cost": 1.55,
-      "cost_per_game": "$0.078"
+      "hit_att": "80/85",
+      "acc_pct": 0.9412,
+      "avg_time": "41s",
+      "tok_per_game": "8.5k",
+      "cost": 0.06,
+      "cost_per_game": "$0.003"
+    },
+    {
+      "model": "<a href=\"logs/2026-02-25T03-25-53_o3.html\">openai/o3</a>",
+      "date": "2026-02-25",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/82",
+      "acc_pct": 0.9756,
+      "avg_time": "1m7s",
+      "tok_per_game": "8.2k",
+      "cost": 1.05,
+      "cost_per_game": "$0.052"
     },
     {
       "model": "<a href=\"logs/2026-02-24T18-46-38_gemini-3.1.html\">google/gemini-3.1-pro-preview</a>",
@@ -118,6 +142,18 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "7.8k",
       "cost": 1.31,
       "cost_per_game": "$0.066"
+    },
+    {
+      "model": "<a href=\"logs/2026-02-25T03-14-44_gemini-3-preview.html\">google/gemini-3-pro-preview</a>",
+      "date": "2026-02-25",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/81",
+      "acc_pct": 0.9877,
+      "avg_time": "1m19s",
+      "tok_per_game": "10.7k",
+      "cost": 1.94,
+      "cost_per_game": "$0.097"
     },
     {
       "model": "<a href=\"logs/2026-02-23T23-44-16_opus-4.6.html\">anthropic/claude-opus-4.6</a>",
@@ -144,28 +180,16 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.177"
     },
     {
-      "model": "<a href=\"logs/2025-12-12T04-40-34_o3.html\">openai/o3</a>",
-      "date": "2025-12-12",
+      "model": "<a href=\"logs/2026-02-25T03-41-12_gpt5.2-pro.html\">openai/gpt-5.2-pro</a>",
+      "date": "2026-02-25",
       "w": "20",
       "win_pct": 1.0,
-      "hit_att": "80/81",
-      "acc_pct": 0.9877,
-      "avg_time": "2m13s",
-      "tok_per_game": "11.5k",
-      "cost": 1.58,
-      "cost_per_game": "$0.079"
-    },
-    {
-      "model": "<a href=\"logs/2025-10-03T06-46-18_grok4-fast.html\">x-ai/grok-4-fast</a>",
-      "date": "2025-10-03",
-      "w": "20",
-      "win_pct": 1.0,
-      "hit_att": "80/83",
-      "acc_pct": 0.9639,
-      "avg_time": "2m51s",
-      "tok_per_game": "8.1k",
-      "cost": 0.06,
-      "cost_per_game": "$0.003"
+      "hit_att": "80/80",
+      "acc_pct": 1.0,
+      "avg_time": "3m7s",
+      "tok_per_game": "3.9k",
+      "cost": 7.44,
+      "cost_per_game": "$0.372"
     },
     {
       "model": "<a href=\"logs/2025-10-18T23-08-46_grok4.html\">x-ai/grok-4</a>",
@@ -180,18 +204,6 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.127"
     },
     {
-      "model": "<a href=\"logs/2025-12-11T21-05-29_gpt5.2-pro.html\">openai/gpt-5.2-pro</a>",
-      "date": "2025-12-11",
-      "w": "20",
-      "win_pct": 1.0,
-      "hit_att": "80/80",
-      "acc_pct": 1.0,
-      "avg_time": "3m42s",
-      "tok_per_game": "4.1k",
-      "cost": 8.66,
-      "cost_per_game": "$0.433"
-    },
-    {
       "model": "<a href=\"logs/2026-02-24T22-12-30_kimi-k2.5.html\">moonshotai/kimi-k2.5</a>",
       "date": "2026-02-24",
       "w": "20",
@@ -202,6 +214,30 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "13.4k",
       "cost": 0.51,
       "cost_per_game": "$0.026"
+    },
+    {
+      "model": "<a href=\"logs/2026-03-10T02-51-14_gpt5.3-chat.html\">openai/gpt-5.3-chat</a>",
+      "date": "2026-03-10",
+      "w": "19",
+      "win_pct": 0.95,
+      "hit_att": "78/86",
+      "acc_pct": 0.907,
+      "avg_time": "18s",
+      "tok_per_game": "3.6k",
+      "cost": 0.44,
+      "cost_per_game": "$0.022"
+    },
+    {
+      "model": "<a href=\"logs/2026-02-25T03-06-24_opus-4.5.html\">anthropic/claude-opus-4.5</a>",
+      "date": "2026-02-25",
+      "w": "19",
+      "win_pct": 0.95,
+      "hit_att": "78/84",
+      "acc_pct": 0.9286,
+      "avg_time": "34s",
+      "tok_per_game": "7.6k",
+      "cost": 1.52,
+      "cost_per_game": "$0.076"
     },
     {
       "model": "<a href=\"logs/2026-02-15T20-28-26_qwen3-max-thinking.html\">qwen/qwen3-max-thinking</a>",
@@ -312,6 +348,18 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.032"
     },
     {
+      "model": "<a href=\"logs/2026-03-10T02-45-04_gemini-3.1-flash-lite.html\">google/gemini-3.1-flash-lite-preview</a>",
+      "date": "2026-03-10",
+      "w": "16",
+      "win_pct": 0.8,
+      "hit_att": "68/92",
+      "acc_pct": 0.7391,
+      "avg_time": "12s",
+      "tok_per_game": "8.1k",
+      "cost": 0.09,
+      "cost_per_game": "$0.004"
+    },
+    {
       "model": "<a href=\"logs/2025-10-18T19-31-21_deepseek-r1.html\">deepseek/deepseek-r1-0528</a>",
       "date": "2025-10-18",
       "w": "16",
@@ -348,6 +396,18 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.006"
     },
     {
+      "model": "<a href=\"logs/2026-02-26T13-39-08_qwen3.5-35b-a3b.html\">qwen/qwen3.5-35b-a3b</a>",
+      "date": "2026-02-26",
+      "w": "14",
+      "win_pct": 0.7,
+      "hit_att": "63/89",
+      "acc_pct": 0.7079,
+      "avg_time": "3m10s",
+      "tok_per_game": "24.3k",
+      "cost": 0.73,
+      "cost_per_game": "$0.037"
+    },
+    {
       "model": "<a href=\"logs/2025-12-19T01-20-54_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",
       "date": "2025-12-19",
       "w": "13",
@@ -370,6 +430,30 @@ Latest runs for 36 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "13.7k",
       "cost": 0.69,
       "cost_per_game": "$0.034"
+    },
+    {
+      "model": "<a href=\"logs/2026-02-26T13-51-04_qwen3.5-flash.html\">qwen/qwen3.5-flash-02-23</a>",
+      "date": "2026-02-26",
+      "w": "13",
+      "win_pct": 0.65,
+      "hit_att": "61/97",
+      "acc_pct": 0.6289,
+      "avg_time": "2m53s",
+      "tok_per_game": "30.3k",
+      "cost": 0.19,
+      "cost_per_game": "$0.010"
+    },
+    {
+      "model": "<a href=\"logs/2026-03-10T02-44-07_qwen3.5-27b.html\">qwen/qwen3.5-27b</a>",
+      "date": "2026-03-10",
+      "w": "12",
+      "win_pct": 0.6,
+      "hit_att": "56/97",
+      "acc_pct": 0.5773,
+      "avg_time": "25m39s",
+      "tok_per_game": "165.2k",
+      "cost": 4.28,
+      "cost_per_game": "$0.214"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-58-13_kimi-k2.html\">moonshotai/kimi-k2-0905</a>",
