@@ -372,6 +372,18 @@ Latest runs for 43 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.049"
     },
     {
+      "model": "<a href=\"logs/2026-03-16T18-53-39_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",
+      "date": "2026-03-16",
+      "w": "15",
+      "win_pct": 0.75,
+      "hit_att": "63/93",
+      "acc_pct": 0.6774,
+      "avg_time": "29s",
+      "tok_per_game": "11.8k",
+      "cost": 0.5,
+      "cost_per_game": "$0.025"
+    },
+    {
       "model": "<a href=\"logs/2025-12-19T01-12-19_gpt5.2.html\">openai/gpt-5.2</a>",
       "date": "2025-12-19",
       "w": "15",
@@ -406,18 +418,6 @@ Latest runs for 43 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "24.3k",
       "cost": 0.73,
       "cost_per_game": "$0.037"
-    },
-    {
-      "model": "<a href=\"logs/2025-12-19T01-20-54_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",
-      "date": "2025-12-19",
-      "w": "13",
-      "win_pct": 0.65,
-      "hit_att": "47/94",
-      "acc_pct": 0.5,
-      "avg_time": "37s",
-      "tok_per_game": "12.5k",
-      "cost": 0.56,
-      "cost_per_game": "$0.028"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-57-26_qwen3-max.html\">qwen/qwen3-max</a>",
