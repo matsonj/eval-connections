@@ -4,7 +4,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for 43 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 44 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -526,6 +526,18 @@ Latest runs for 43 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "8.8k",
       "cost": 0.13,
       "cost_per_game": "$0.007"
+    },
+    {
+      "model": "<a href=\"logs/2026-03-17T17-52-39_mistral-small-4.html\">mistralai/mistral-small-2603</a>",
+      "date": "2026-03-17",
+      "w": "2",
+      "win_pct": 0.1,
+      "hit_att": "21/93",
+      "acc_pct": 0.2258,
+      "avg_time": "52s",
+      "tok_per_game": "13.7k",
+      "cost": 0.07,
+      "cost_per_game": "$0.004"
     },
     {
       "model": "<a href=\"logs/2025-12-20T01-18-27_nova-pro.html\">amazon/nova-pro-v1</a>",
