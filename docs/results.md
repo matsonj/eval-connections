@@ -4,7 +4,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for 45 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 46 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -502,6 +502,18 @@ Latest runs for 45 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "34.4k",
       "cost": 0.12,
       "cost_per_game": "$0.006"
+    },
+    {
+      "model": "<a href=\"logs/2026-03-17T19-09-35_gpt5.4-mini.html\">openai/gpt-5.4-mini</a>",
+      "date": "2026-03-17",
+      "w": "7",
+      "win_pct": 0.35,
+      "hit_att": "45/107",
+      "acc_pct": 0.4206,
+      "avg_time": "8s",
+      "tok_per_game": "5.2k",
+      "cost": 0.16,
+      "cost_per_game": "$0.008"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-29-21_glm-4.6.html\">z-ai/glm-4.6</a>",
