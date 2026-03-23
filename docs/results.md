@@ -4,7 +4,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for 48 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 49 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -490,6 +490,18 @@ Latest runs for 48 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "7.1k",
       "cost": 0.15,
       "cost_per_game": "$0.008"
+    },
+    {
+      "model": "<a href=\"logs/2026-03-23T21-06-18_minimax-m2.7.html\">minimax/minimax-m2.7</a>",
+      "date": "2026-03-23",
+      "w": "9",
+      "win_pct": 0.45,
+      "hit_att": "51/109",
+      "acc_pct": 0.4679,
+      "avg_time": "2m20s",
+      "tok_per_game": "12.4k",
+      "cost": 0.21,
+      "cost_per_game": "$0.010"
     },
     {
       "model": "<a href=\"logs/2025-12-20T01-17-29_o4-mini.html\">openai/o4-mini</a>",
