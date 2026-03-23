@@ -4,7 +4,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for 47 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 48 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -286,6 +286,18 @@ Latest runs for 47 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "11.4k",
       "cost": 1.3,
       "cost_per_game": "$0.065"
+    },
+    {
+      "model": "<a href=\"logs/2026-03-23T20-50-51_mimo-v2-omni.html\">xiaomi/mimo-v2-omni</a>",
+      "date": "2026-03-23",
+      "w": "18",
+      "win_pct": 0.9,
+      "hit_att": "74/99",
+      "acc_pct": 0.7475,
+      "avg_time": "1m39s",
+      "tok_per_game": "34.4k",
+      "cost": 0.68,
+      "cost_per_game": "$0.034"
     },
     {
       "model": "<a href=\"logs/2025-12-19T00-45-53_gpt5-mini.html\">openai/gpt-5-mini</a>",
