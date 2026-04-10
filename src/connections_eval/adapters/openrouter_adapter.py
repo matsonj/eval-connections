@@ -93,15 +93,6 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     # Check if this is a thinking model
     is_thinking_model = openrouter_model in _THINKING_MODELS
     
-    # Special handling for Gemini reasoning models (keeps temperature)
-    is_gemini_thinking_model = openrouter_model == 'google/gemini-2.5-pro'
-    
-    # Check if this is a DeepSeek model that supports reasoning parameter
-    is_deepseek_reasoning_model = (
-        openrouter_model.startswith('deepseek/') and 
-        is_thinking_model
-    )
-    
     # For Anthropic models, add cache_control breakpoints to enable prompt
     # caching via OpenRouter.  We mark the last assistant message with
     # cache_control so the entire conversation prefix up to that point is
@@ -154,20 +145,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     if is_thinking_model:
         if timeout < 600:
             timeout = 600
-            
-        # Special case: Gemini thinking models keep temperature
-        if is_gemini_thinking_model:
-            payload.update({
-                "temperature": 0.0,
-            })
-        
-        # Special case: DeepSeek models support reasoning parameter
-        if is_deepseek_reasoning_model:
-            payload.update({
-                "reasoning": {
-                    "enabled": True
-                }
-            })
+        payload["reasoning"] = {"effort": "minimal"}
     else:
         # Standard models
         payload.update({
