@@ -168,18 +168,6 @@ Latest runs for 53 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.097"
     },
     {
-      "model": "<a href=\"logs/2026-02-23T23-44-16_opus-4.6.html\">anthropic/claude-opus-4.6</a>",
-      "date": "2026-02-23",
-      "w": "20",
-      "win_pct": 1.0,
-      "hit_att": "80/80",
-      "acc_pct": 1.0,
-      "avg_time": "1m25s",
-      "tok_per_game": "17.7k",
-      "cost": 3.53,
-      "cost_per_game": "$0.176"
-    },
-    {
       "model": "<a href=\"logs/2026-02-24T04-49-45_sonnet-4.6.html\">anthropic/claude-sonnet-4.6</a>",
       "date": "2026-02-24",
       "w": "20",
@@ -466,6 +454,18 @@ Latest runs for 53 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "3.9k",
       "cost": 0.64,
       "cost_per_game": "$0.032"
+    },
+    {
+      "model": "<a href=\"logs/2026-04-10T20-03-26_opus-4.6.html\">anthropic/claude-opus-4.6</a>",
+      "date": "2026-04-10",
+      "w": "15",
+      "win_pct": 0.75,
+      "hit_att": "68/70",
+      "acc_pct": 0.9714,
+      "avg_time": "2m56s",
+      "tok_per_game": "26.1k",
+      "cost": 4.32,
+      "cost_per_game": "$0.216"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-34-10_gpt-oss-120b.html\">openai/gpt-oss-120b</a>",
