@@ -96,16 +96,16 @@ Latest runs for 54 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.016"
     },
     {
-      "model": "<a href=\"logs/2026-04-20T23-06-29_opus-4.7.html\">anthropic/claude-opus-4.7</a>",
+      "model": "<a href=\"logs/2026-04-20T23-08-30_opus-4.7.html\">anthropic/claude-opus-4.7</a>",
       "date": "2026-04-20",
       "w": "20",
       "win_pct": 1.0,
-      "hit_att": "80/80",
-      "acc_pct": 1.0,
-      "avg_time": "23s",
-      "tok_per_game": "4.8k",
-      "cost": 1.04,
-      "cost_per_game": "$0.052"
+      "hit_att": "80/82",
+      "acc_pct": 0.9756,
+      "avg_time": "21s",
+      "tok_per_game": "4.7k",
+      "cost": 0.95,
+      "cost_per_game": "$0.048"
     },
     {
       "model": "<a href=\"logs/2026-02-26T13-30-03_gpt5.3-codex.html\">openai/gpt-5.3-codex</a>",
