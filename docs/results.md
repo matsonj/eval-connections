@@ -4,7 +4,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for 56 models (20 games each, sorted by solve rate, avg inference time, cost). AVG/G is inference time per game; BACKOFF/G is time spent in retry backoff (e.g. upstream 429s) — "—" means not measured.
+Latest runs for 56 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -52,11 +52,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "align": "right"
     },
     {
-      "id": "avg_backoff",
-      "title": "BACKOFF/G",
-      "align": "right"
-    },
-    {
       "id": "tok_per_game",
       "title": "TOK/G",
       "align": "right"
@@ -84,7 +79,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/85",
       "acc_pct": 0.9412,
       "avg_time": "10s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "4.9k",
       "cost": 0.1,
       "cost_per_game": "$0.005"
@@ -97,7 +91,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/101",
       "acc_pct": 0.7921,
       "avg_time": "13s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "3.9k",
       "cost": 0.32,
       "cost_per_game": "$0.016"
@@ -110,7 +103,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/82",
       "acc_pct": 0.9756,
       "avg_time": "21s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "4.7k",
       "cost": 0.95,
       "cost_per_game": "$0.048"
@@ -123,7 +115,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/84",
       "acc_pct": 0.9524,
       "avg_time": "36s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "3.6k",
       "cost": 0.5,
       "cost_per_game": "$0.025"
@@ -136,7 +127,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/82",
       "acc_pct": 0.9756,
       "avg_time": "40s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "8.9k",
       "cost": 0.75,
       "cost_per_game": "$0.037"
@@ -149,7 +139,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/85",
       "acc_pct": 0.9412,
       "avg_time": "41s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "8.5k",
       "cost": 0.06,
       "cost_per_game": "$0.003"
@@ -162,7 +151,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/82",
       "acc_pct": 0.9756,
       "avg_time": "1m7s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "8.2k",
       "cost": 1.05,
       "cost_per_game": "$0.052"
@@ -175,7 +163,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/80",
       "acc_pct": 1.0,
       "avg_time": "1m15s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "7.8k",
       "cost": 1.31,
       "cost_per_game": "$0.066"
@@ -188,7 +175,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/81",
       "acc_pct": 0.9877,
       "avg_time": "1m19s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "10.7k",
       "cost": 1.94,
       "cost_per_game": "$0.097"
@@ -201,7 +187,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/80",
       "acc_pct": 1.0,
       "avg_time": "1m51s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "29.4k",
       "cost": 3.53,
       "cost_per_game": "$0.177"
@@ -214,7 +199,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/80",
       "acc_pct": 1.0,
       "avg_time": "3m7s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "3.9k",
       "cost": 7.44,
       "cost_per_game": "$0.372"
@@ -227,7 +211,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/82",
       "acc_pct": 0.9756,
       "avg_time": "3m28s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "13.6k",
       "cost": 2.53,
       "cost_per_game": "$0.127"
@@ -240,7 +223,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/89",
       "acc_pct": 0.8989,
       "avg_time": "3m52s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "16.1k",
       "cost": 0.51,
       "cost_per_game": "$0.026"
@@ -253,7 +235,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/83",
       "acc_pct": 0.9639,
       "avg_time": "5m1s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "11.0k",
       "cost": 0.75,
       "cost_per_game": "$0.037"
@@ -266,7 +247,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "80/89",
       "acc_pct": 0.8989,
       "avg_time": "8m14s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "13.4k",
       "cost": 0.51,
       "cost_per_game": "$0.026"
@@ -279,7 +259,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "78/86",
       "acc_pct": 0.907,
       "avg_time": "18s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "3.6k",
       "cost": 0.44,
       "cost_per_game": "$0.022"
@@ -292,7 +271,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "78/84",
       "acc_pct": 0.9286,
       "avg_time": "34s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "7.6k",
       "cost": 1.52,
       "cost_per_game": "$0.076"
@@ -305,7 +283,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "78/87",
       "acc_pct": 0.8966,
       "avg_time": "2m48s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "15.3k",
       "cost": 0.88,
       "cost_per_game": "$0.044"
@@ -318,7 +295,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "77/89",
       "acc_pct": 0.8652,
       "avg_time": "3m11s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "9.2k",
       "cost": 0.41,
       "cost_per_game": "$0.020"
@@ -331,7 +307,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "77/88",
       "acc_pct": 0.875,
       "avg_time": "5m18s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "21.0k",
       "cost": 0.76,
       "cost_per_game": "$0.038"
@@ -344,7 +319,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "77/92",
       "acc_pct": 0.837,
       "avg_time": "7m53s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "26.4k",
       "cost": 1.82,
       "cost_per_game": "$0.091"
@@ -357,7 +331,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "75/89",
       "acc_pct": 0.8427,
       "avg_time": "1m1s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "11.4k",
       "cost": 1.3,
       "cost_per_game": "$0.065"
@@ -370,7 +343,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "74/99",
       "acc_pct": 0.7475,
       "avg_time": "1m39s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "34.4k",
       "cost": 0.68,
       "cost_per_game": "$0.034"
@@ -383,7 +355,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "69/84",
       "acc_pct": 0.8214,
       "avg_time": "1m51s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "7.9k",
       "cost": 0.24,
       "cost_per_game": "$0.012"
@@ -396,7 +367,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "77/89",
       "acc_pct": 0.8652,
       "avg_time": "2m23s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "17.2k",
       "cost": 0.07,
       "cost_per_game": "$0.004"
@@ -409,7 +379,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "76/92",
       "acc_pct": 0.8261,
       "avg_time": "5m42s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "93.1k",
       "cost": 0.43,
       "cost_per_game": "$0.021"
@@ -422,7 +391,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "59/86",
       "acc_pct": 0.686,
       "avg_time": "38s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "7.1k",
       "cost": 0.91,
       "cost_per_game": "$0.045"
@@ -435,7 +403,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "72/92",
       "acc_pct": 0.7826,
       "avg_time": "4m21s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "13.4k",
       "cost": 0.08,
       "cost_per_game": "$0.004"
@@ -448,7 +415,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "74/101",
       "acc_pct": 0.7327,
       "avg_time": "8m26s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "17.9k",
       "cost": 0.65,
       "cost_per_game": "$0.032"
@@ -461,7 +427,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "68/92",
       "acc_pct": 0.7391,
       "avg_time": "12s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "8.1k",
       "cost": 0.09,
       "cost_per_game": "$0.004"
@@ -474,7 +439,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "69/103",
       "acc_pct": 0.6699,
       "avg_time": "45s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "7.0k",
       "cost": 0.34,
       "cost_per_game": "$0.017"
@@ -487,7 +451,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "70/96",
       "acc_pct": 0.7292,
       "avg_time": "7m19s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "23.2k",
       "cost": 1.14,
       "cost_per_game": "$0.057"
@@ -500,7 +463,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "69/99",
       "acc_pct": 0.697,
       "avg_time": "9m14s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "21.4k",
       "cost": 0.98,
       "cost_per_game": "$0.049"
@@ -513,7 +475,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "63/93",
       "acc_pct": 0.6774,
       "avg_time": "29s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "11.8k",
       "cost": 0.5,
       "cost_per_game": "$0.025"
@@ -526,7 +487,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "56/83",
       "acc_pct": 0.6747,
       "avg_time": "42s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "3.9k",
       "cost": 0.64,
       "cost_per_game": "$0.032"
@@ -539,7 +499,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "68/70",
       "acc_pct": 0.9714,
       "avg_time": "2m56s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "26.1k",
       "cost": 4.32,
       "cost_per_game": "$0.216"
@@ -552,7 +511,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "65/111",
       "acc_pct": 0.5856,
       "avg_time": "2m26s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "19.4k",
       "cost": 0.12,
       "cost_per_game": "$0.006"
@@ -565,7 +523,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "63/89",
       "acc_pct": 0.7079,
       "avg_time": "3m10s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "24.3k",
       "cost": 0.73,
       "cost_per_game": "$0.037"
@@ -578,7 +535,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "63/106",
       "acc_pct": 0.5943,
       "avg_time": "2m9s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "13.7k",
       "cost": 0.69,
       "cost_per_game": "$0.034"
@@ -591,7 +547,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "61/97",
       "acc_pct": 0.6289,
       "avg_time": "2m53s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "30.3k",
       "cost": 0.19,
       "cost_per_game": "$0.010"
@@ -604,7 +559,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "56/97",
       "acc_pct": 0.5773,
       "avg_time": "25m39s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "165.2k",
       "cost": 4.28,
       "cost_per_game": "$0.214"
@@ -617,7 +571,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "53/100",
       "acc_pct": 0.53,
       "avg_time": "1m9s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "7.1k",
       "cost": 0.15,
       "cost_per_game": "$0.008"
@@ -630,7 +583,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "51/109",
       "acc_pct": 0.4679,
       "avg_time": "2m20s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "12.4k",
       "cost": 0.21,
       "cost_per_game": "$0.010"
@@ -643,7 +595,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "35/97",
       "acc_pct": 0.3608,
       "avg_time": "3m33s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "29.3k",
       "cost": 2.41,
       "cost_per_game": "$0.121"
@@ -656,7 +607,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "39/97",
       "acc_pct": 0.4021,
       "avg_time": "11s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "6.6k",
       "cost": 0.06,
       "cost_per_game": "$0.003"
@@ -669,7 +619,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "45/108",
       "acc_pct": 0.4167,
       "avg_time": "4m4s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "34.4k",
       "cost": 0.12,
       "cost_per_game": "$0.006"
@@ -682,7 +631,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "45/107",
       "acc_pct": 0.4206,
       "avg_time": "8s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "5.2k",
       "cost": 0.16,
       "cost_per_game": "$0.008"
@@ -695,7 +643,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "45/115",
       "acc_pct": 0.3913,
       "avg_time": "1m41s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "8.2k",
       "cost": 0.17,
       "cost_per_game": "$0.008"
@@ -708,7 +655,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "25/100",
       "acc_pct": 0.25,
       "avg_time": "2m38s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "21.6k",
       "cost": 1.72,
       "cost_per_game": "$0.086"
@@ -721,7 +667,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "24/95",
       "acc_pct": 0.2526,
       "avg_time": "2m5s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "8.8k",
       "cost": 0.13,
       "cost_per_game": "$0.007"
@@ -734,7 +679,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "21/93",
       "acc_pct": 0.2258,
       "avg_time": "52s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "13.7k",
       "cost": 0.07,
       "cost_per_game": "$0.004"
@@ -747,7 +691,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "8/90",
       "acc_pct": 0.0889,
       "avg_time": "11s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "4.7k",
       "cost": 0.13,
       "cost_per_game": "$0.006"
@@ -760,7 +703,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "17/102",
       "acc_pct": 0.1667,
       "avg_time": "47s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "7.5k",
       "cost": 0.01,
       "cost_per_game": "$0.001"
@@ -773,7 +715,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "7/97",
       "acc_pct": 0.0722,
       "avg_time": "50s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "4.5k",
       "cost": 0.03,
       "cost_per_game": "$0.001"
@@ -786,7 +727,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "9/99",
       "acc_pct": 0.0909,
       "avg_time": "58s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "10.6k",
       "cost": 0.68,
       "cost_per_game": "$0.034"
@@ -799,7 +739,6 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg inference ti
       "hit_att": "18/99",
       "acc_pct": 0.1818,
       "avg_time": "3m22s",
-      "avg_backoff": "\u2014",
       "tok_per_game": "22.3k",
       "cost": 0.11,
       "cost_per_game": "$0.005"

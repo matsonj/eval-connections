@@ -77,20 +77,6 @@ def format_time(seconds):
     return f"{secs}s"
 
 
-def format_backoff(seconds):
-    # NULL = pre-instrumentation runs we didn't measure. Show em-dash, not 0,
-    # so the reader can't mistake missing data for zero throttling.
-    if seconds is None or pd.isna(seconds):
-        return "—"
-    try:
-        seconds = float(seconds)
-    except (ValueError, TypeError):
-        return "—"
-    if seconds < 1.0:
-        return "0s"
-    return format_time(seconds)
-
-
 def format_tokens(tokens):
     return f"{tokens / 1000:.1f}k"
 
@@ -117,20 +103,13 @@ def build_table_data(df: pd.DataFrame) -> list[dict[str, str]]:
         hit = int(row["correct_guesses"])
         att = int(row["total_guesses"])
 
-        # Inference time when we measured it, wall time otherwise.
+        # Inference time when we measured it (wall minus retry backoff),
+        # falling back to wall time for historical runs we didn't instrument.
         avg_inference = row.get("avg_inference_sec")
         if avg_inference is None or pd.isna(avg_inference):
             avg_time_display = format_time(row["avg_time_sec"])
         else:
             avg_time_display = format_time(avg_inference)
-
-        total_backoff = row.get("total_backoff_sec")
-        puzzles = int(row["puzzles_attempted"]) or 1
-        avg_backoff = (
-            float(total_backoff) / puzzles
-            if total_backoff is not None and not pd.isna(total_backoff)
-            else None
-        )
 
         rows.append({
             "model": model_cell,
@@ -140,7 +119,6 @@ def build_table_data(df: pd.DataFrame) -> list[dict[str, str]]:
             "hit_att": f"{hit}/{att}",
             "acc_pct": round(float(row["guess_accuracy"]), 4),
             "avg_time": avg_time_display,
-            "avg_backoff": format_backoff(avg_backoff),
             "tok_per_game": format_tokens(avg_tok),
             "cost": round(float(row["eval_cost"]), 2),
             "cost_per_game": f"${avg_c:.3f}",
@@ -164,7 +142,6 @@ def write_mviz_markdown(
         {"id": "hit_att", "title": "HIT/ATT", "align": "right"},
         {"id": "acc_pct", "title": "ACC%", "align": "right", "bold": True, "type": "heatmap", "higherIsBetter": True, "fmt": "pct1"},
         {"id": "avg_time", "title": "AVG/G", "align": "right"},
-        {"id": "avg_backoff", "title": "BACKOFF/G", "align": "right"},
         {"id": "tok_per_game", "title": "TOK/G", "align": "right"},
         {"id": "cost", "title": "COST", "align": "right", "type": "heatmap", "higherIsBetter": False, "fmt": "currency_auto"},
         {"id": "cost_per_game", "title": "$/G", "align": "right"},
@@ -178,7 +155,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for {num_models} models (20 games each, sorted by solve rate, avg inference time, cost). AVG/G is inference time per game; BACKOFF/G is time spent in retry backoff (e.g. upstream 429s) — "—" means not measured.
+Latest runs for {num_models} models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {table_spec}
