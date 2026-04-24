@@ -577,16 +577,16 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.008"
     },
     {
-      "model": "<a href=\"logs/2026-03-23T21-06-18_minimax-m2.7.html\">minimax/minimax-m2.7</a>",
-      "date": "2026-03-23",
-      "w": "9",
-      "win_pct": 0.45,
-      "hit_att": "51/109",
-      "acc_pct": 0.4679,
-      "avg_time": "2m20s",
-      "tok_per_game": "12.4k",
-      "cost": 0.21,
-      "cost_per_game": "$0.010"
+      "model": "<a href=\"logs/2026-04-24T16-10-59_minimax-m2.7.html\">minimax/minimax-m2.7</a>",
+      "date": "2026-04-24",
+      "w": "10",
+      "win_pct": 0.5,
+      "hit_att": "51/103",
+      "acc_pct": 0.4951,
+      "avg_time": "3m21s",
+      "tok_per_game": "15.7k",
+      "cost": 0.22,
+      "cost_per_game": "$0.011"
     },
     {
       "model": "<a href=\"logs/2025-12-20T01-17-29_o4-mini.html\">openai/o4-mini</a>",

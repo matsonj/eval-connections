@@ -21,7 +21,7 @@ Environment:
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import duckdb  # type: ignore
@@ -753,7 +753,6 @@ def main():
     allowed_run_ids: List[str] = []
     if RUN_SUMMARIES_CSV.exists():
         import csv
-        from datetime import timezone
         rows: List[Dict[str, Any]] = []
         with RUN_SUMMARIES_CSV.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -776,8 +775,12 @@ def main():
             ts = r.get("start_timestamp", "")
             try:
                 dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                # MotherDuck emits some timestamps tz-naive; normalize to UTC so
+                # comparisons don't mix offset-aware and offset-naive datetimes.
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
             except Exception:
-                dt = datetime.min
+                dt = datetime.min.replace(tzinfo=timezone.utc)
             existing = best_by_key.get(model)
             if existing is None or dt > existing["dt"]:
                 best_by_key[model] = {"row": r, "dt": dt}
