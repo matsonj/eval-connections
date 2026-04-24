@@ -1,6 +1,7 @@
 ---
 theme: light
 title: Connections Evaluation Box Score
+orientation: landscape
 continuous: true
 ---
 

@@ -152,6 +152,7 @@ def write_mviz_markdown(
     md_content = f"""---
 theme: light
 title: Connections Evaluation Box Score
+orientation: landscape
 continuous: true
 ---
 
