@@ -147,7 +147,16 @@ def write_mviz_markdown(
         {"id": "cost_per_game", "title": "$/G", "align": "right"},
     ]
 
-    table_spec = json.dumps({"columns": columns, "data": data, "size": [16, "auto"]}, indent=2)
+    table_spec = json.dumps(
+        {
+            "columns": columns,
+            "data": data,
+            "size": [16, "auto"],
+            "sortable": True,
+            "filter": True,
+        },
+        indent=2,
+    )
 
     md_content = f"""---
 theme: light

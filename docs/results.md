@@ -748,6 +748,8 @@ Latest runs for 56 models (20 games each, sorted by solve rate, avg time, cost)
   "size": [
     16,
     "auto"
-  ]
+  ],
+  "sortable": true,
+  "filter": true
 }
 ```
