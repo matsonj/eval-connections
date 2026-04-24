@@ -5,7 +5,7 @@ import yaml
 import os
 import logging
 from typing import Dict, List, Optional, Set
-from ..utils.retry import retry_with_backoff
+from ..utils.retry import retry_with_backoff, get_last_backoff_sec
 
 logger = logging.getLogger(__name__)
 
@@ -180,22 +180,30 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             pass
     
     response.raise_for_status()
-    
+
     response_data = response.json()
-    
+
+    # OpenRouter occasionally returns HTTP 200 with an error body (no `choices`)
+    # when an upstream provider is throttled or misbehaving. Raise as a
+    # RequestException so retry_with_backoff gets another attempt instead of
+    # letting a KeyError('choices') escape upstream.
+    if not response_data.get("choices"):
+        err = response_data.get("error") or response_data
+        raise requests.RequestException(f"OpenRouter 200 OK but no 'choices' in body: {err}")
+
     # DEBUG: Log if content is missing but tokens were used
-    if response_data.get("choices") and len(response_data["choices"]) > 0:
-        choice = response_data["choices"][0]
-        message = choice.get("message", {})
-        content = message.get("content", "")
-        usage = response_data.get("usage", {})
-        completion_tokens = usage.get("completion_tokens", 0)
-        
-        if (not content or content.strip() == "") and completion_tokens > 0:
-            logger.warning(f"[OpenRouter] Model generated {completion_tokens} tokens but content is empty!")
-            logger.warning(f"[OpenRouter] finish_reason: {choice.get('finish_reason')}")
-            logger.warning(f"[OpenRouter] Message keys: {list(message.keys())}")
-    
+    choice = response_data["choices"][0]
+    message = choice.get("message", {})
+    content = message.get("content", "")
+    usage = response_data.get("usage", {})
+    completion_tokens = usage.get("completion_tokens", 0)
+
+    if (not content or content.strip() == "") and completion_tokens > 0:
+        logger.warning(f"[OpenRouter] Model generated {completion_tokens} tokens but content is empty!")
+        logger.warning(f"[OpenRouter] finish_reason: {choice.get('finish_reason')}")
+        logger.warning(f"[OpenRouter] Message keys: {list(message.keys())}")
+
+    response_data["_backoff_sec"] = get_last_backoff_sec()
     return response_data
 
 

@@ -8,8 +8,20 @@
 import time
 import logging
 import random
+import threading
 from typing import Callable, TypeVar
 from functools import wraps
+
+# Per-thread accumulator for time spent sleeping between retry attempts.
+# Reset at the top of every decorated call; read by the caller after the
+# call returns so we can split "time waiting in backoff" from "time waiting
+# for the model." Thread-local because the runner uses a worker pool.
+_backoff_state = threading.local()
+
+
+def get_last_backoff_sec() -> float:
+    """Seconds slept across all retry attempts of the most recent call on this thread."""
+    return getattr(_backoff_state, "backoff_sec", 0.0)
 
 try:
     # Optional import; only used for isinstance checks
@@ -73,6 +85,7 @@ def retry_with_backoff(
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
             last_exception: Exception | None = None
+            _backoff_state.backoff_sec = 0.0
 
             for attempt in range(max_retries + 1):
                 try:
@@ -113,6 +126,7 @@ def retry_with_backoff(
                         )
 
                     time.sleep(total_delay)
+                    _backoff_state.backoff_sec += total_delay
 
             # If we get here, all retries failed
             assert last_exception is not None

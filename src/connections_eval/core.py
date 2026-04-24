@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple, Any
 from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info, extract_cache_info
 from .utils.logging import log_exchange, log_summary, setup_logger
+from .utils.retry import get_last_backoff_sec
 import controllog as cl
 from .adapters import openrouter_adapter
 
@@ -51,6 +52,7 @@ class PuzzleResult:
     total_cached_tokens: int = 0
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
+    total_backoff_sec: float = 0.0
 
 
 @dataclass
@@ -70,6 +72,7 @@ class EvalStats:
     total_cached_tokens: int = 0
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
+    total_backoff_sec: float = 0.0
 
     def accumulate(self, result: PuzzleResult) -> None:
         """Accumulate a single puzzle result into totals."""
@@ -87,6 +90,7 @@ class EvalStats:
         self.total_cached_tokens += result.total_cached_tokens
         self.total_cost += result.total_cost
         self.total_upstream_cost += result.total_upstream_cost
+        self.total_backoff_sec += result.total_backoff_sec
         if result.token_count_method == "API":
             self.token_count_method = "API"
 
@@ -239,6 +243,7 @@ class ConnectionsGame:
         request_text: str, content: str, prompt_tokens: Optional[int],
         completion_tokens: Optional[int], elapsed_ms: int,
         cost: Optional[float], upstream_cost: Optional[float], result: str,
+        backoff_ms: int = 0,
     ) -> None:
         """Emit controllog prompt and completion events."""
         try:
@@ -274,6 +279,26 @@ class ConnectionsGame:
                 },
                 exchange_id=exchange_id,
             )
+            # Separate posting for time spent in retry backoff (upstream 429s, etc.),
+            # so reporting can split inference-time from queue-wait-time.
+            if backoff_ms > 0:
+                cl.event(
+                    kind="model_backoff",
+                    actor={"agent_id": "agent:connections_eval", "task_id": task_id},
+                    run_id=self.run_id,
+                    payload={
+                        "puzzle_id": puzzle_id,
+                        "guess_index": guess_count,
+                        "model": model_id,
+                        "backoff_ms": backoff_ms,
+                    },
+                    postings=[
+                        cl.post("resource.time_ms", "agent:agent:connections_eval", "ms", -int(backoff_ms), {"kind": "backoff"}),
+                        cl.post("resource.time_ms", "project:connections_eval", "ms", +int(backoff_ms), {"kind": "backoff"}),
+                    ],
+                    project_id="connections_eval",
+                    source="runtime",
+                )
         except Exception:
             pass
 
@@ -360,8 +385,11 @@ class ConnectionsGame:
 
         # Build summary
         end_timestamp = datetime.utcnow().isoformat() + "Z"
+        total_inference_sec = max(0.0, stats.total_time_sec - stats.total_backoff_sec)
         avg_time = (stats.total_time_sec / stats.puzzles_attempted
                     if stats.puzzles_attempted > 0 else 0.0)
+        avg_inference = (total_inference_sec / stats.puzzles_attempted
+                         if stats.puzzles_attempted > 0 else 0.0)
 
         summary = {
             "run_id": self.run_id,
@@ -370,6 +398,8 @@ class ConnectionsGame:
             "seed": self.seed,
             "threads": threads,
             "avg_time_sec": round(avg_time, 1),
+            "avg_inference_sec": round(avg_inference, 1),
+            "total_inference_sec": round(total_inference_sec, 3),
             "start_timestamp": start_timestamp,
             "end_timestamp": end_timestamp,
             **asdict(stats),
@@ -407,6 +437,7 @@ class ConnectionsGame:
         total_cached_tokens = 0
         total_cost = 0.0
         total_upstream_cost = 0.0
+        total_backoff_sec = 0.0
         task_id = f"T{puzzle.id}:{self.run_id}"
         final_state_emitted = False
 
@@ -428,6 +459,9 @@ class ConnectionsGame:
                     # Pin to provider on all calls to enable prompt caching
                     # (requires provider + cache_control + prefix >= 1024 tokens)
                     response = adapter.chat(messages, model_id, provider=pinned_provider)
+
+                    backoff_sec = float(response.pop("_backoff_sec", 0.0))
+                    total_backoff_sec += backoff_sec
 
                     choice = response["choices"][0]
                     message = choice["message"]
@@ -484,6 +518,10 @@ class ConnectionsGame:
 
                 except Exception as e:
                     elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
+                    backoff_sec = get_last_backoff_sec()
+                    total_backoff_sec += backoff_sec
+                    backoff_ms = int(backoff_sec * 1000)
+                    inference_ms = max(0, elapsed_ms - backoff_ms)
 
                     log_exchange(self.logger, {
                         "run_id": self.run_id,
@@ -493,6 +531,8 @@ class ConnectionsGame:
                         "request": messages[-1]["content"],
                         "response": str(e),
                         "latency_ms": elapsed_ms,
+                        "backoff_ms": backoff_ms,
+                        "inference_ms": inference_ms,
                         "prompt_tokens": None,
                         "completion_tokens": None,
                         "result": "API_ERROR"
@@ -524,6 +564,8 @@ class ConnectionsGame:
                     break
 
             # Log exchange
+            backoff_ms = int(backoff_sec * 1000)
+            inference_ms = max(0, timer.elapsed_ms - backoff_ms)
             exchange_data = {
                 "run_id": self.run_id,
                 "model": model_name,
@@ -535,6 +577,8 @@ class ConnectionsGame:
                 "guess": structured_response.get('guess', ''),
                 "confidence": structured_response.get('confidence', ''),
                 "latency_ms": timer.elapsed_ms,
+                "backoff_ms": backoff_ms,
+                "inference_ms": inference_ms,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "result": result
@@ -556,6 +600,7 @@ class ConnectionsGame:
                 messages[-1]["content"], content,
                 prompt_tokens, completion_tokens, timer.elapsed_ms,
                 cost, upstream_cost, result,
+                backoff_ms=backoff_ms,
             )
 
             # Append response and result to conversation
@@ -594,6 +639,7 @@ class ConnectionsGame:
             total_cached_tokens=total_cached_tokens,
             total_cost=total_cost,
             total_upstream_cost=total_upstream_cost,
+            total_backoff_sec=total_backoff_sec,
         )
 
     def _run_puzzle_interactive(self, puzzle: Puzzle) -> PuzzleResult:

@@ -403,3 +403,110 @@ class TestUtilities:
         assert prompt_tokens is None
         assert completion_tokens is None
         assert method == "APPROXIMATE"
+
+
+class TestBackoffAccumulator:
+    """Retry backoff is attributed via a thread-local so callers can split
+    inference time from time spent waiting in retry sleeps."""
+
+    def test_accumulator_sums_sleeps_and_resets_per_call(self, monkeypatch):
+        import requests
+        from connections_eval.utils import retry as retry_mod
+
+        sleeps = []
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda s: sleeps.append(s))
+        # Make jitter deterministic so we can assert the exact accumulated value.
+        monkeypatch.setattr(retry_mod.random, "uniform", lambda a, b: 0.0)
+
+        attempts = {"n": 0}
+
+        @retry_mod.retry_with_backoff(
+            max_retries=3, base_delay=1.0, exceptions=(requests.RequestException,)
+        )
+        def flaky():
+            attempts["n"] += 1
+            if attempts["n"] < 3:
+                raise requests.RequestException("boom")
+            return "ok"
+
+        assert flaky() == "ok"
+        # base_delay * 2^0 + base_delay * 2^1 = 1 + 2 = 3s
+        assert retry_mod.get_last_backoff_sec() == pytest.approx(3.0)
+        assert sleeps == [1.0, 2.0]
+
+        # Second call must start fresh
+        attempts["n"] = 0
+        sleeps.clear()
+        flaky()
+        assert retry_mod.get_last_backoff_sec() == pytest.approx(3.0)
+
+    def test_accumulator_zero_on_first_attempt_success(self, monkeypatch):
+        import requests
+        from connections_eval.utils import retry as retry_mod
+
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
+
+        @retry_mod.retry_with_backoff(
+            max_retries=3, base_delay=1.0, exceptions=(requests.RequestException,)
+        )
+        def clean():
+            return "ok"
+
+        clean()
+        assert retry_mod.get_last_backoff_sec() == 0.0
+
+
+class TestAdapterChoicesFix:
+    """OpenRouter sometimes returns HTTP 200 with an error body (no `choices`).
+    The adapter must surface that as a RequestException so retry engages
+    instead of letting a KeyError escape."""
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_200_with_no_choices_is_retried(self, mock_key, mock_post, monkeypatch):
+        import requests
+        from connections_eval.adapters.openrouter_adapter import chat
+        from connections_eval.utils import retry as retry_mod
+
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
+        monkeypatch.setattr(retry_mod.random, "uniform", lambda a, b: 0.0)
+
+        bad_response = MagicMock()
+        bad_response.ok = True
+        bad_response.json.return_value = {"error": {"message": "upstream throttled"}}
+        bad_response.raise_for_status.return_value = None
+
+        good_response = MagicMock()
+        good_response.ok = True
+        good_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        good_response.raise_for_status.return_value = None
+
+        mock_post.side_effect = [bad_response, good_response]
+
+        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
+
+        # Both calls happened — malformed 200 was retried, not escaped as KeyError.
+        assert mock_post.call_count == 2
+        assert result["choices"][0]["message"]["content"] == "hi"
+        # The one retry sleep should be attributed as backoff on the response.
+        assert result["_backoff_sec"] > 0
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_successful_first_call_stashes_zero_backoff(self, mock_key, mock_post):
+        from connections_eval.adapters.openrouter_adapter import chat
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_post.return_value = mock_response
+
+        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
+
+        assert result["_backoff_sec"] == 0.0

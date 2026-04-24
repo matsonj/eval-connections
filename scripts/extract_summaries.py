@@ -87,11 +87,21 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             GROUP BY e.run_id
         ),
         time_stats AS (
-            -- Aggregate time statistics from postings
-            -- Filter to project: account_id to avoid double-counting (agent: has identical values)
+            -- Aggregate time statistics from postings.
+            -- Filter to project: account_id to avoid double-counting (agent: has identical values).
+            -- total_time_sec is wall time; total_backoff_sec is time spent in retry backoff
+            -- (e.g. upstream 429s). Historical runs have no backoff postings -> NULL.
+            -- NULL-safe kind lookup: legacy postings pre-date the dims_json.kind field.
             SELECT
                 e.run_id,
-                SUM(CASE WHEN p.account_type = 'resource.time_ms' AND p.unit = 'ms' THEN ABS(p.delta_numeric) ELSE 0 END) / 1000.0 AS total_time_sec
+                SUM(CASE
+                    WHEN p.account_type = 'resource.time_ms' AND p.unit = 'ms'
+                         AND COALESCE(p.dims_json.kind, 'wall') = 'wall'
+                    THEN ABS(p.delta_numeric) ELSE 0 END) / 1000.0 AS total_time_sec,
+                SUM(CASE
+                    WHEN p.account_type = 'resource.time_ms' AND p.unit = 'ms'
+                         AND p.dims_json.kind = 'backoff'
+                    THEN ABS(p.delta_numeric) END) / 1000.0 AS total_backoff_sec
             FROM controllog.postings p
             JOIN controllog.events e ON p.event_id = e.event_id
             WHERE e.run_id IS NOT NULL
@@ -115,7 +125,8 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             COALESCE(ts.total_completion_tokens, 0) AS total_completion_tokens,
             COALESCE(ts.total_cost, 0.0) AS total_cost,
             COALESCE(ts.total_upstream_cost, 0.0) AS total_upstream_cost,
-            COALESCE(tims.total_time_sec, 0.0) AS total_time_sec
+            COALESCE(tims.total_time_sec, 0.0) AS total_time_sec,
+            tims.total_backoff_sec AS total_backoff_sec
         FROM run_metadata rm
         LEFT JOIN puzzle_stats ps ON rm.run_id = ps.run_id
         LEFT JOIN guess_stats gs ON rm.run_id = gs.run_id
@@ -180,6 +191,9 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         "guess_accuracy",
         "avg_time_sec",
         "total_time_sec",
+        "avg_inference_sec",
+        "total_inference_sec",
+        "total_backoff_sec",
         "total_tokens",
         "total_prompt_tokens",
         "total_completion_tokens",
@@ -204,13 +218,27 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         else:
             summary["guess_accuracy"] = 0
         
-        # Calculate average time per puzzle
+        # Calculate average time per puzzle (wall clock)
         total_time = summary.get("total_time_sec", 0) or 0
         puzzles_attempted = summary.get("puzzles_attempted", 0) or 0
         if puzzles_attempted > 0:
             summary["avg_time_sec"] = total_time / puzzles_attempted
         else:
             summary["avg_time_sec"] = 0.0
+
+        # Inference time = wall - backoff. Historical runs with no backoff
+        # postings have total_backoff_sec = NULL; leave inference fields NULL too
+        # so downstream reporting can show "—" instead of mis-crediting zero.
+        total_backoff = summary.get("total_backoff_sec")
+        if total_backoff is None:
+            summary["total_inference_sec"] = None
+            summary["avg_inference_sec"] = None
+        else:
+            total_inference = max(0.0, total_time - total_backoff)
+            summary["total_inference_sec"] = total_inference
+            summary["avg_inference_sec"] = (
+                total_inference / puzzles_attempted if puzzles_attempted > 0 else 0.0
+            )
     
     print(f"Writing {len(summaries)} summaries to {output_file}")
     

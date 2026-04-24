@@ -277,7 +277,20 @@ def _display_summary(summary: dict, interactive: bool):
         accuracy = summary["correct_guesses"] / summary["total_guesses"] * 100
         table.add_row("Guess Accuracy", f"{accuracy:.1f}%")
 
-    table.add_row("Average Time", f"{summary['avg_time_sec']:.1f}s")
+    avg_wall = summary["avg_time_sec"]
+    avg_inference = summary.get("avg_inference_sec")
+    total_backoff = summary.get("total_backoff_sec")
+    if avg_inference is None:
+        # Older run or summary without backoff instrumentation — don't label
+        # as "inference" since we can't actually split it out.
+        table.add_row("Average Time", f"{avg_wall:.1f}s")
+    else:
+        table.add_row("Average Time (inference)", f"{avg_inference:.1f}s")
+        # Surface wall + backoff only when upstream throttling was a non-trivial
+        # share of wall time; otherwise they'd just be clutter.
+        if avg_wall > 0 and (avg_wall - avg_inference) / avg_wall >= 0.05:
+            table.add_row("Average Time (wall)", f"{avg_wall:.1f}s")
+            table.add_row("Upstream Backoff", f"{total_backoff:.1f}s")
 
     if not interactive:
         table.add_row("Threads", str(summary.get("threads", 1)))

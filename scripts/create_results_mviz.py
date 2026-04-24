@@ -11,6 +11,12 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
     """Load CSV data and apply filtering logic."""
     df = pd.read_csv(csv_file)
 
+    # Backfill columns added in later versions so older CSVs still render.
+    # Missing values stay NaN so downstream can show "—" for "not measured".
+    for col in ("avg_inference_sec", "total_inference_sec", "total_backoff_sec"):
+        if col not in df.columns:
+            df[col] = pd.NA
+
     filtered_df = df[
         (df["puzzles_attempted"] == 20)
         & (df["total_cost"].notna())
@@ -21,9 +27,11 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
         "total_upstream_cost"
     ].fillna(0)
 
-    # Latest run per model
+    # Latest run per model. Use ISO8601 explicitly — MotherDuck emits offsets
+    # like "+00:00" for some rows and plain ISO for others, and pandas 2.x
+    # refuses to auto-infer across that mix.
     filtered_df.loc[:, "start_timestamp"] = pd.to_datetime(
-        filtered_df["start_timestamp"]
+        filtered_df["start_timestamp"], format="ISO8601"
     )
     latest_runs = filtered_df.loc[
         filtered_df.groupby("model")["start_timestamp"].idxmax()
@@ -33,10 +41,15 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
         latest_runs["eval_cost"] / latest_runs["puzzles_attempted"]
     )
 
-    latest_runs = latest_runs.sort_values(
-        ["solve_rate", "avg_time_sec", "eval_cost_per_game"],
-        ascending=[False, True, True],
+    # Sort by inference time (fair across upstream-throttled models) with wall
+    # time as a tiebreaker for historical runs that lack backoff data.
+    sort_time = latest_runs["avg_inference_sec"].where(
+        latest_runs["avg_inference_sec"].notna(), latest_runs["avg_time_sec"]
     )
+    latest_runs = latest_runs.assign(_sort_time=sort_time).sort_values(
+        ["solve_rate", "_sort_time", "eval_cost_per_game"],
+        ascending=[False, True, True],
+    ).drop(columns=["_sort_time"])
 
     return latest_runs
 
@@ -64,6 +77,20 @@ def format_time(seconds):
     return f"{secs}s"
 
 
+def format_backoff(seconds):
+    # NULL = pre-instrumentation runs we didn't measure. Show em-dash, not 0,
+    # so the reader can't mistake missing data for zero throttling.
+    if seconds is None or pd.isna(seconds):
+        return "—"
+    try:
+        seconds = float(seconds)
+    except (ValueError, TypeError):
+        return "—"
+    if seconds < 1.0:
+        return "0s"
+    return format_time(seconds)
+
+
 def format_tokens(tokens):
     return f"{tokens / 1000:.1f}k"
 
@@ -82,13 +109,28 @@ def build_table_data(df: pd.DataFrame) -> list[dict[str, str]]:
         else:
             model_cell = model_name
 
-        date = pd.to_datetime(row["start_timestamp"]).strftime("%Y-%m-%d")
+        date = pd.to_datetime(row["start_timestamp"], format="ISO8601").strftime("%Y-%m-%d")
         idx = row.name
         avg_tok = avg_tokens[idx]
         avg_c = avg_cost[idx]
 
         hit = int(row["correct_guesses"])
         att = int(row["total_guesses"])
+
+        # Inference time when we measured it, wall time otherwise.
+        avg_inference = row.get("avg_inference_sec")
+        if avg_inference is None or pd.isna(avg_inference):
+            avg_time_display = format_time(row["avg_time_sec"])
+        else:
+            avg_time_display = format_time(avg_inference)
+
+        total_backoff = row.get("total_backoff_sec")
+        puzzles = int(row["puzzles_attempted"]) or 1
+        avg_backoff = (
+            float(total_backoff) / puzzles
+            if total_backoff is not None and not pd.isna(total_backoff)
+            else None
+        )
 
         rows.append({
             "model": model_cell,
@@ -97,7 +139,8 @@ def build_table_data(df: pd.DataFrame) -> list[dict[str, str]]:
             "win_pct": round(float(row["solve_rate"]), 4),
             "hit_att": f"{hit}/{att}",
             "acc_pct": round(float(row["guess_accuracy"]), 4),
-            "avg_time": format_time(row["avg_time_sec"]),
+            "avg_time": avg_time_display,
+            "avg_backoff": format_backoff(avg_backoff),
             "tok_per_game": format_tokens(avg_tok),
             "cost": round(float(row["eval_cost"]), 2),
             "cost_per_game": f"${avg_c:.3f}",
@@ -121,6 +164,7 @@ def write_mviz_markdown(
         {"id": "hit_att", "title": "HIT/ATT", "align": "right"},
         {"id": "acc_pct", "title": "ACC%", "align": "right", "bold": True, "type": "heatmap", "higherIsBetter": True, "fmt": "pct1"},
         {"id": "avg_time", "title": "AVG/G", "align": "right"},
+        {"id": "avg_backoff", "title": "BACKOFF/G", "align": "right"},
         {"id": "tok_per_game", "title": "TOK/G", "align": "right"},
         {"id": "cost", "title": "COST", "align": "right", "type": "heatmap", "higherIsBetter": False, "fmt": "currency_auto"},
         {"id": "cost_per_game", "title": "$/G", "align": "right"},
@@ -134,7 +178,7 @@ title: Connections Evaluation Box Score
 continuous: true
 ---
 
-Latest runs for {num_models} models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for {num_models} models (20 games each, sorted by solve rate, avg inference time, cost). AVG/G is inference time per game; BACKOFF/G is time spent in retry backoff (e.g. upstream 429s) — "—" means not measured.
 
 ```table
 {table_spec}
