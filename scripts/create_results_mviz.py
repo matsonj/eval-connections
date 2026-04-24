@@ -27,11 +27,11 @@ def load_and_filter_data(csv_file: str = "results/run_summaries.csv") -> pd.Data
         "total_upstream_cost"
     ].fillna(0)
 
-    # Latest run per model. Use ISO8601 explicitly — MotherDuck emits offsets
-    # like "+00:00" for some rows and plain ISO for others, and pandas 2.x
-    # refuses to auto-infer across that mix.
+    # Latest run per model. MotherDuck emits offsets like "+00:00" for some rows
+    # and plain ISO for others; without utc=True the resulting Series mixes
+    # tz-aware and tz-naive Timestamps, and idxmax() can't compare them.
     filtered_df.loc[:, "start_timestamp"] = pd.to_datetime(
-        filtered_df["start_timestamp"], format="ISO8601"
+        filtered_df["start_timestamp"], format="ISO8601", utc=True
     )
     latest_runs = filtered_df.loc[
         filtered_df.groupby("model")["start_timestamp"].idxmax()
@@ -95,7 +95,7 @@ def build_table_data(df: pd.DataFrame) -> list[dict[str, str]]:
         else:
             model_cell = model_name
 
-        date = pd.to_datetime(row["start_timestamp"], format="ISO8601").strftime("%Y-%m-%d")
+        date = row["start_timestamp"].strftime("%Y-%m-%d")
         idx = row.name
         avg_tok = avg_tokens[idx]
         avg_c = avg_cost[idx]
