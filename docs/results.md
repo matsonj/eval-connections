@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 58 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 59 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -73,18 +73,6 @@ Latest runs for 58 models (20 games each, sorted by solve rate, avg time, cost)
   ],
   "data": [
     {
-      "model": "<a href=\"logs/2026-02-24T18-55-13_gemini-3-flash.html\">google/gemini-3-flash-preview</a>",
-      "date": "2026-02-24",
-      "w": "20",
-      "win_pct": 1.0,
-      "hit_att": "80/85",
-      "acc_pct": 0.9412,
-      "avg_time": "10s",
-      "tok_per_game": "4.9k",
-      "cost": 0.1,
-      "cost_per_game": "$0.005"
-    },
-    {
       "model": "<a href=\"logs/2026-03-10T02-52-45_gpt5.4.html\">openai/gpt-5.4</a>",
       "date": "2026-03-10",
       "w": "20",
@@ -95,6 +83,18 @@ Latest runs for 58 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "3.9k",
       "cost": 0.32,
       "cost_per_game": "$0.016"
+    },
+    {
+      "model": "<a href=\"logs/2026-04-28T20-58-08_gemini-3-flash.html\">google/gemini-3-flash-preview</a>",
+      "date": "2026-04-28",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/84",
+      "acc_pct": 0.9524,
+      "avg_time": "14s",
+      "tok_per_game": "4.5k",
+      "cost": 0.1,
+      "cost_per_game": "$0.005"
     },
     {
       "model": "<a href=\"logs/2026-04-20T23-08-30_opus-4.7.html\">anthropic/claude-opus-4.7</a>",
@@ -251,6 +251,18 @@ Latest runs for 58 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "13.4k",
       "cost": 0.51,
       "cost_per_game": "$0.026"
+    },
+    {
+      "model": "<a href=\"logs/2026-04-28T20-43-22_deepseek-v4.html\">deepseek/deepseek-v4-pro</a>",
+      "date": "2026-04-28",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/84",
+      "acc_pct": 0.9524,
+      "avg_time": "10m20s",
+      "tok_per_game": "20.3k",
+      "cost": 0.24,
+      "cost_per_game": "$0.012"
     },
     {
       "model": "<a href=\"logs/2026-03-10T02-51-14_gpt5.3-chat.html\">openai/gpt-5.3-chat</a>",
