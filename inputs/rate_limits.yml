@@ -22,3 +22,14 @@ policies:
     burst: 1.0
     aimd_step: 0.1
     concurrency: 2
+
+  # deepseek-v4-pro returns 429s under the default 8-rps / 8-concurrency load.
+  # Start in the middle ground between :free and defaults; AIMD will climb back
+  # if the upstream is healthier than we assume.
+  "deepseek/deepseek-v4-pro":
+    rps: 2.0
+    rps_max: 6.0
+    rps_min: 0.3
+    burst: 2.0
+    aimd_step: 0.2
+    concurrency: 3
