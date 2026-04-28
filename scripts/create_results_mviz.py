@@ -184,8 +184,11 @@ def render_html(
     html_path: str = "docs/index.html",
 ):
     """Run npx mviz to render markdown to HTML, then apply CSS fixes."""
+    # Pin mviz: leaving this unversioned silently broke sortable/filter when a
+    # newer mviz shipped a regression. Bump deliberately when validated locally.
+    MVIZ_VERSION = "1.6.7"
     result = subprocess.run(
-        ["npx", "--yes", "mviz", md_path, "-o", html_path],
+        ["npx", "--yes", f"mviz@{MVIZ_VERSION}", md_path, "-o", html_path],
         capture_output=True,
         text=True,
     )
