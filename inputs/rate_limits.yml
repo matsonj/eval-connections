@@ -1,0 +1,24 @@
+# Per-model rate-limit policy. The runtime token bucket adapts (AIMD), so
+# `rps` is a starting point — it'll grow toward `rps_max` while requests
+# succeed and halve toward `rps_min` on every 429.
+#
+# Resolution order: exact model id → suffix patterns starting with ":" →
+# prefix patterns ending with "/" → defaults.
+defaults:
+  rps: 8.0          # starting requests per second per model
+  rps_max: 16.0     # ceiling the bucket can climb to
+  rps_min: 0.5      # floor — we never starve completely
+  burst: 8.0        # tokens accumulated when idle (initial bucket size)
+  aimd_step: 0.5    # additive growth per successful request
+  concurrency: 8    # max simultaneous in-flight requests
+
+policies:
+  # Free-tier OpenRouter endpoints share aggressive rate limits across the
+  # whole project — start slow, climb cautiously, throttle hard on 429.
+  ":free":
+    rps: 1.0
+    rps_max: 3.0
+    rps_min: 0.2
+    burst: 1.0
+    aimd_step: 0.1
+    concurrency: 2

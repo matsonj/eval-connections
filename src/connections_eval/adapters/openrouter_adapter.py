@@ -6,6 +6,7 @@ import os
 import logging
 from typing import Dict, List, Optional, Set
 from ..utils.retry import retry_with_backoff, get_last_backoff_sec
+from ..utils.rate_limiter import get_default as get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -159,14 +160,35 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             "temperature": 0.0,
         })
     
-    response = requests.post(url, json=payload, headers=headers, timeout=timeout)
-    
+    # Wait our turn at the shared rate limiter before hitting the network.
+    # Each retry attempt acquires a fresh permit so the in-flight cap stays accurate.
+    limiter = get_rate_limiter()
+    limiter.acquire(openrouter_model)
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+    except BaseException:
+        limiter.release(openrouter_model)
+        raise
+
+    # 429 → feed the AIMD signal so the bucket halves before the retry decorator
+    # backs off; all other workers on this model see the new (slower) rate too.
+    if response.status_code == 429:
+        ra_raw = response.headers.get("Retry-After") or response.headers.get("retry-after")
+        try:
+            ra = float(ra_raw) if ra_raw is not None else None
+        except ValueError:
+            ra = None
+        limiter.on_429(openrouter_model, retry_after=ra)
+        limiter.release(openrouter_model)
+        # Let the retry decorator handle the actual sleep + retry loop.
+        response.raise_for_status()
+
     # Check for OpenRouter-specific errors before raising
     if not response.ok:
         try:
             error_data = response.json()
             error_msg = error_data.get("error", {}).get("message", "")
-            
+
             # Check for data policy configuration error
             if "data policy" in error_msg.lower() and response.status_code == 404:
                 logger.error(f"[OpenRouter] Data policy configuration required for model: {openrouter_model}")
@@ -177,17 +199,26 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
                 )
                 error = requests.HTTPError(detailed_msg)
                 error.response = response
+                limiter.release(openrouter_model)
                 raise error
         except requests.HTTPError:
-            # Re-raise our custom error
+            limiter.release(openrouter_model)
             raise
         except (ValueError, KeyError):
             # If we can't parse the error JSON, fall through to default handling
             pass
-    
-    response.raise_for_status()
 
-    response_data = response.json()
+    try:
+        response.raise_for_status()
+    except BaseException:
+        limiter.release(openrouter_model)
+        raise
+
+    try:
+        response_data = response.json()
+    except BaseException:
+        limiter.release(openrouter_model)
+        raise
 
     # OpenRouter occasionally returns HTTP 200 with an error body (no `choices`)
     # when an upstream provider is throttled or misbehaving. Raise as a
@@ -195,7 +226,14 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     # letting a KeyError('choices') escape upstream.
     if not response_data.get("choices"):
         err = response_data.get("error") or response_data
+        # Treat upstream-throttled 200s the same as 429 for the AIMD loop —
+        # the symptom (provider can't serve us right now) is identical.
+        limiter.on_429(openrouter_model, retry_after=None)
+        limiter.release(openrouter_model)
         raise requests.RequestException(f"OpenRouter 200 OK but no 'choices' in body: {err}")
+
+    limiter.on_success(openrouter_model)
+    limiter.release(openrouter_model)
 
     # DEBUG: Log if content is missing but tokens were used
     choice = response_data["choices"][0]
