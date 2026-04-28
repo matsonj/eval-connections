@@ -787,11 +787,11 @@ class ConnectionsGame:
         """Parse response into list of words, handling structured XML format."""
         import re
 
-        # Strip <thinking> blocks first so that any <guess> examples
+        # Strip <thinking>/<think> blocks first so that any <guess> examples
         # inside reasoning don't get picked up by the guess regex.
-        # Also handle unclosed <thinking> tags (truncated responses).
-        cleaned = re.sub(r'<thinking>.*?</thinking>', '', response, flags=re.IGNORECASE | re.DOTALL)
-        cleaned = re.sub(r'<thinking>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
+        # Also handle unclosed tags (truncated responses).
+        cleaned = re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', response, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r'<think(?:ing)?>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
 
         # First try to extract from <guess> tags
         guess_match = re.search(r'<guess>(.*?)</guess>', cleaned, re.IGNORECASE | re.DOTALL)
@@ -826,7 +826,7 @@ class ConnectionsGame:
             'confidence': ''
         }
 
-        thinking_match = re.search(r'<thinking>(.*?)</thinking>', response, re.IGNORECASE | re.DOTALL)
+        thinking_match = re.search(r'<think(?:ing)?>(.*?)</think(?:ing)?>', response, re.IGNORECASE | re.DOTALL)
         if thinking_match:
             result['thinking'] = thinking_match.group(1).strip()
 

@@ -142,7 +142,7 @@ class TestConnectionsGame:
         # Mix of different groups
         result = mock_game._process_guess(game_state, "APPLE, BLUE, FAST, BRIGHT")
 
-        assert result == "INCORRECT. 3 INCORRECT GUESSES REMAINING"
+        assert result == "INCORRECT. 3 INCORRECT GUESSES REMAINING."
         assert game_state.guess_count == 1
         assert game_state.mistake_count == 1
         assert len(game_state.solved_groups) == 0
@@ -181,7 +181,7 @@ class TestConnectionsGame:
         for i in range(4):
             result = mock_game._process_guess(game_state, "APPLE, BLUE, FAST, BRIGHT")
             expected_remaining = 3 - i
-            assert result == f"INCORRECT. {expected_remaining} INCORRECT GUESSES REMAINING"
+            assert result == f"INCORRECT. {expected_remaining} INCORRECT GUESSES REMAINING."
 
             if i == 3:  # 4th mistake
                 assert game_state.finished

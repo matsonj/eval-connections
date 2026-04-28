@@ -59,7 +59,13 @@ def extract_provider_slug(model: str) -> Optional[str]:
     return None
 
 
-@retry_with_backoff(max_retries=5, base_delay=2.0, exceptions=(requests.RequestException,))
+def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None) -> float:
+    # Free-tier endpoints (model IDs ending in `:free`) hit aggressive rate limits;
+    # double the base delay so the exponential schedule actually clears their cooldown.
+    return 4.0 if model.endswith(":free") else 2.0
+
+
+@retry_with_backoff(max_retries=5, base_delay=_chat_base_delay, exceptions=(requests.RequestException,))
 def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.

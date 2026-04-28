@@ -72,7 +72,7 @@ def _status_code(exc: Exception) -> int | None:
 
 def retry_with_backoff(
     max_retries: int = 3,
-    base_delay: float = 2.0,
+    base_delay: float | Callable[..., float] = 2.0,
     exceptions: tuple = (Exception,)
 ) -> Callable:
     """
@@ -80,12 +80,16 @@ def retry_with_backoff(
 
     - On HTTP 429, honors Retry-After (if present), otherwise falls back to exponential backoff.
     - Adds small jitter (0-0.5s) to spread concurrent retries.
+    - `base_delay` may be a callable receiving the same args/kwargs as the wrapped function,
+      allowing per-call tuning (e.g. larger backoff for free-tier endpoints).
     """
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
             last_exception: Exception | None = None
             _backoff_state.backoff_sec = 0.0
+
+            bd = base_delay(*args, **kwargs) if callable(base_delay) else base_delay
 
             for attempt in range(max_retries + 1):
                 try:
@@ -97,7 +101,7 @@ def retry_with_backoff(
                         break
 
                     # Default exponential backoff
-                    exp_delay = base_delay * (2 ** attempt)
+                    exp_delay = bd * (2 ** attempt)
 
                     # If 429, prefer Retry-After when available
                     sc = _status_code(e)
