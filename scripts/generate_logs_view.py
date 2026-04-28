@@ -340,8 +340,13 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         ".puzzle-block>summary::before{content:'\\25B8';font-size:16px;flex-shrink:0;line-height:1;transition:transform 0.15s;}"
         ".puzzle-block[open]>summary::before{transform:rotate(90deg);}"
         ".puzzle-block>summary .puzzle-stats-inline{color:#48525c;font-size:12px;margin-left:auto;text-align:right;white-space:nowrap;}"
-        ".puzzle-mistakes>summary{background:#fff3f3;}"
-        ".puzzle-mistakes>summary .pill{border-color:#c0392b;color:#c0392b;}"
+        ".puzzle-failed>summary{background:#fff3f3;}"
+        ".puzzle-failed>summary .pill{border-color:#c0392b;color:#c0392b;}"
+        ".puzzle-solved>summary{background:#eaf6ee;}"
+        ".puzzle-solved>summary .pill{border-color:#1f3b2a;color:#1f3b2a;}"
+        ".bubble.error{border-left-color:#c0392b;background:#fff5f5;}"
+        ".bubble.error .metahead{background:#ffe5e5;color:#7a1f1f;}"
+        ".endpill.failed{background:#fde7e9;color:#5b1a1f;}"
     )
 
     # Determine model/provider from first event with payload
@@ -365,11 +370,9 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
     # Pre-group events by puzzle_id; events without a puzzle_id go into a separate list
     puzzle_events: Dict[Any, List[Event]] = {}
     non_puzzle_events: List[Event] = []
+    PUZZLE_KINDS = ("model_prompt", "model_completion", "model_response", "model_response_error", "state_move")
     for ev in events:
-        pid = ev.payload.get("puzzle_id") if ev.kind in ("model_prompt", "model_completion", "model_response") else None
-        if pid is None and ev.kind == "state_move":
-            # state_move events carry puzzle_id in payload
-            pid = ev.payload.get("puzzle_id")
+        pid = ev.payload.get("puzzle_id") if ev.kind in PUZZLE_KINDS else None
         if pid is not None:
             puzzle_events.setdefault(pid, []).append(ev)
         else:
@@ -388,6 +391,10 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
     for puzzle_id in sorted_puzzle_ids:
         p_events = sorted(puzzle_events[puzzle_id], key=lambda e: e.dt)
         steps.append({"type": "puzzle_header", "puzzle_id": puzzle_id})
+        # Track whether a terminal state transition (WIP→DONE/FAILED/ERROR) was emitted
+        # so we can synthesize one for older runs that only logged model_response_error.
+        has_terminal_state_move = False
+        last_error_event: Optional[Event] = None
         for ev in p_events:
             kind = ev.kind
             p = ev.payload
@@ -420,11 +427,15 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 ps["prompt"] += int(tok.get("prompt_tokens") or 0)
                 ps["completion"] += int(tok.get("completion_tokens") or 0)
                 ps["cost"] += float(tok.get("cost") or 0.0)
-                gw = extract_guess_words(p.get("response_text", ""))
-                if gw:
-                    ps["guesses"] += 1
+                # One model_completion event = one graded attempt by the harness.
+                # Exclude INVALID_RESPONSE (parse failure) from the guess count, but include
+                # all real verdicts even when the renderer's own regex can't re-extract guess
+                # words from quirky model output.
                 res = str(p.get("result", ""))
-                if "CORRECT" in res.upper() and "INCORRECT" not in res.upper():
+                res_u = res.upper()
+                if res and "INVALID_RESPONSE" not in res_u:
+                    ps["guesses"] += 1
+                if "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1
                 if ps["start_dt"] is None:
                     ps["start_dt"] = ev.dt
@@ -441,9 +452,13 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 ps["prompt"] += int(tok.get("prompt_tokens") or 0)
                 ps["completion"] += int(tok.get("completion_tokens") or 0)
                 ps["cost"] += float(tok.get("cost") or 0.0)
-                ps["guesses"] += 1
+                # Match model_completion semantics — count graded attempts by verdict, not
+                # by re-parsing response text, and exclude INVALID_RESPONSE from the guess count.
                 res = str(p.get("result", ""))
-                if "CORRECT" in res.upper():
+                res_u = res.upper()
+                if res and "INVALID_RESPONSE" not in res_u:
+                    ps["guesses"] += 1
+                if "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1
                 if ps["start_dt"] is None:
                     ps["start_dt"] = ev.dt
@@ -456,12 +471,28 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                     "tokens": summarize_tokens_and_cost(ev.postings),
                     "ts": ev.event_time,
                 })
+            elif kind == "model_response_error":
+                # Diagnostic event: API call failed after exhausting retries.
+                # Render as a response bubble so the failure is visible in the log.
+                err_text = p.get("response_text") or p.get("error") or "(API error — no details captured)"
+                steps.append({
+                    "type": "response",
+                    "text": f"⚠ API error: {err_text}",
+                    "puzzle_id": puzzle_id,
+                    "tokens": summarize_tokens_and_cost(ev.postings),
+                    "ts": ev.event_time,
+                    "is_error": True,
+                })
+                last_error_event = ev
             elif kind == "state_move":
                 state_increments += 1
                 st = extract_state_transition(ev)
                 if st:
                     task_id, frm, to, pid_str = st
                     puzzle_label = pid_str or pid
+                    is_terminal = str(frm).upper() == "WIP" and str(to).upper() in ("DONE", "FAILED", "ERROR")
+                    if is_terminal:
+                        has_terminal_state_move = True
                     reason = "SOLVED" if str(to).upper() == "DONE" else ("FAILED" if str(to).upper() == "ERROR" else str(to).upper())
                     final_eval = last_eval_by_puzzle.get(str(puzzle_label)) or {}
                     summary: Dict[str, Any] = {}
@@ -498,6 +529,40 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                         "summary": summary,
                         "ts": ev.event_time,
                     })
+
+        # Backfill: older runs logged WIP→FAILED via postings on model_response_error
+        # without a separate state_move event, leaving puzzles visually stuck in WIP.
+        # Synthesize a terminal task_end so the renderer reflects the actual outcome.
+        if not has_terminal_state_move and last_error_event is not None:
+            ev = last_error_event
+            pid = str(puzzle_id)
+            ps = puzzle_stats.get(pid)
+            summary = {}
+            if ps:
+                start_dt = ps.get("start_dt")
+                end_dt = ev.dt
+                if start_dt and end_dt:
+                    seconds = int((end_dt - start_dt).total_seconds())
+                    time_str = f"{seconds // 60:02d}:{seconds % 60:02d}"
+                else:
+                    time_str = "--:--"
+                summary = {
+                    "prompt_tokens": int(ps.get("prompt", 0)),
+                    "completion_tokens": int(ps.get("completion", 0)),
+                    "guesses": int(ps.get("guesses", 0)),
+                    "correct": int(ps.get("correct", 0)),
+                    "time": time_str,
+                    "cost": float(ps.get("cost", 0.0)),
+                }
+            steps.append({
+                "type": "task_end",
+                "text": f"{puzzle_id} → FAILED",
+                "from": "WIP",
+                "to": "FAILED",
+                "final_eval": last_eval_by_puzzle.get(pid) or {},
+                "summary": summary,
+                "ts": ev.event_time,
+            })
 
     # Render HTML
     parts: List[str] = []
@@ -546,9 +611,20 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         guesses = int(ps.get("guesses", 0))
         pct = f"{correct / guesses * 100:.0f}%" if guesses > 0 else "—"
         cost = float(ps.get("cost", 0.0))
-        # Determine outcome for styling
-        has_mistakes = guesses > correct
-        outcome_class = " puzzle-mistakes" if has_mistakes else ""
+        # Pick header style from the actual terminal outcome (last task_end step), not
+        # from "any wrong guesses ever" — a solved puzzle that took mistakes en route
+        # should still read as solved.
+        terminal_to: Optional[str] = None
+        for s in reversed(p_steps):
+            if s.get("type") == "task_end":
+                terminal_to = str(s.get("to", "")).upper()
+                break
+        if terminal_to == "DONE":
+            outcome_class = " puzzle-solved"
+        elif terminal_to in ("FAILED", "ERROR"):
+            outcome_class = " puzzle-failed"
+        else:
+            outcome_class = ""
 
         parts.append(f"<details class=\"puzzle-block{outcome_class}\">")
         parts.append(
@@ -566,7 +642,9 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 parts.append(f"<div class=\"state\">{escape_html(step.get('text'))}</div>")
                 continue
             if st == "task_end":
-                parts.append(f"<div class=\"endpill\">{escape_html(step.get('text'))} <span class=\"meta\">({escape_html(step.get('from',''))} → {escape_html(step.get('to',''))})</span></div>")
+                to_state = str(step.get("to", "")).upper()
+                pill_class = "endpill failed" if to_state in ("FAILED", "ERROR") else "endpill"
+                parts.append(f"<div class=\"{pill_class}\">{escape_html(step.get('text'))} <span class=\"meta\">({escape_html(step.get('from',''))} → {escape_html(step.get('to',''))})</span></div>")
                 fe = step.get("final_eval", {})
                 if fe:
                     gi = fe.get("guess_index")
@@ -635,13 +713,17 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                     bubble_inner.append(f"<div>{simple_markdown_to_html(rest)}</div>")
                 else:
                     bubble_inner.append(f"<div>{simple_markdown_to_html(raw_text)}</div>")
-                parts.append("<div class=\"bubble right\">")
+                bubble_class = "bubble right error" if step.get("is_error") else "bubble right"
+                parts.append(f"<div class=\"{bubble_class}\">")
                 gh = []
                 if step.get("guess_index") is not None:
                     gh.append(f"Guess {escape_html(str(step['guess_index']))}")
                 if step.get("result"):
                     gh.append(escape_html(str(step.get("result"))))
-                meta_right = " · ".join(gh) if gh else "RESPONSE"
+                if step.get("is_error"):
+                    meta_right = "API ERROR"
+                else:
+                    meta_right = " · ".join(gh) if gh else "RESPONSE"
                 parts.append(f"<div class=\"metahead\"><span>{meta_right}</span><span>{escape_html(step.get('ts',''))}</span></div>")
                 parts.append(f"<div class=\"body\">{''.join(bubble_inner)}</div>")
                 parts.append("</div>")

@@ -540,6 +540,9 @@ class ConnectionsGame:
 
                     self.logger.error(f"API call failed: {str(e)}")
                     try:
+                        # Diagnostic event: stash error text in response_text and elapsed in wall_ms
+                        # because the events.payload_json STRUCT schema has no `error`/`latency_ms` fields,
+                        # and unknown fields are silently dropped at ingest.
                         cl.event(
                             kind="model_response_error",
                             actor={"agent_id": "agent:connections_eval", "task_id": task_id},
@@ -547,15 +550,22 @@ class ConnectionsGame:
                             payload={
                                 "model": model_name,
                                 "puzzle_id": puzzle.id,
-                                "error": str(e),
-                                "latency_ms": elapsed_ms,
+                                "guess_index": state.guess_count,
+                                "phase": "error",
+                                "wall_ms": elapsed_ms,
+                                "response_text": str(e),
                             },
-                            postings=[
-                                cl.post("truth.state", f"task:{task_id}", "tasks", -1, {"from": "WIP"}),
-                                cl.post("truth.state", f"task:{task_id}", "tasks", +1, {"to": "FAILED"}),
-                            ],
                             project_id="connections_eval",
                             source="runtime",
+                        )
+                        # Canonical state transition — must be a state_move event so the
+                        # renderer (and any other state_move consumer) sees WIP → FAILED.
+                        cl.state_move(
+                            task_id=task_id, from_="WIP", to="FAILED",
+                            project_id="connections_eval",
+                            agent_id="agent:connections_eval",
+                            run_id=self.run_id,
+                            payload={"puzzle_id": puzzle.id, "reason": "api_error"},
                         )
                         final_state_emitted = True
                     except Exception:
