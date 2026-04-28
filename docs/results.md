@@ -637,18 +637,6 @@ Latest runs for 58 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.008"
     },
     {
-      "model": "<a href=\"logs/2026-04-28T16-34-33_laguna-m.1.html\">poolside/laguna-m.1:free</a>",
-      "date": "2026-04-28",
-      "w": "7",
-      "win_pct": 0.35,
-      "hit_att": "43/94",
-      "acc_pct": 0.4574,
-      "avg_time": "1m21s",
-      "tok_per_game": "14.8k",
-      "cost": 0.0,
-      "cost_per_game": "$0.000"
-    },
-    {
       "model": "<a href=\"logs/2025-10-18T19-29-21_glm-4.6.html\">z-ai/glm-4.6</a>",
       "date": "2025-10-18",
       "w": "7",
@@ -659,6 +647,18 @@ Latest runs for 58 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "8.2k",
       "cost": 0.17,
       "cost_per_game": "$0.008"
+    },
+    {
+      "model": "<a href=\"logs/2026-04-28T20-11-43_laguna-m.1.html\">poolside/laguna-m.1:free</a>",
+      "date": "2026-04-28",
+      "w": "7",
+      "win_pct": 0.35,
+      "hit_att": "38/100",
+      "acc_pct": 0.38,
+      "avg_time": "6m3s",
+      "tok_per_game": "16.2k",
+      "cost": 0.0,
+      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2025-12-20T01-17-14_o3-mini.html\">openai/o3-mini</a>",
