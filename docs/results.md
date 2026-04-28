@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 57 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 58 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -683,6 +683,18 @@ Latest runs for 57 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "8.8k",
       "cost": 0.13,
       "cost_per_game": "$0.007"
+    },
+    {
+      "model": "<a href=\"logs/2026-04-28T16-47-22_laguna-xs.2.html\">poolside/laguna-xs.2:free</a>",
+      "date": "2026-04-28",
+      "w": "2",
+      "win_pct": 0.1,
+      "hit_att": "24/95",
+      "acc_pct": 0.2526,
+      "avg_time": "25s",
+      "tok_per_game": "8.8k",
+      "cost": 0.0,
+      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2026-03-17T17-52-39_mistral-small-4.html\">mistralai/mistral-small-2603</a>",
