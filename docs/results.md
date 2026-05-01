@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 60 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 61 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -311,6 +311,18 @@ Latest runs for 60 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "9.2k",
       "cost": 0.41,
       "cost_per_game": "$0.020"
+    },
+    {
+      "model": "<a href=\"logs/2026-05-01T19-06-46_grok-4.3.html\">x-ai/grok-4.3</a>",
+      "date": "2026-05-01",
+      "w": "19",
+      "win_pct": 0.95,
+      "hit_att": "78/87",
+      "acc_pct": 0.8966,
+      "avg_time": "4m41s",
+      "tok_per_game": "22.6k",
+      "cost": 1.01,
+      "cost_per_game": "$0.051"
     },
     {
       "model": "<a href=\"logs/2026-01-30T22-42-20_glm-4.7.html\">z-ai/glm-4.7</a>",
