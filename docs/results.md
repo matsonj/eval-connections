@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 59 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 60 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -731,6 +731,18 @@ Latest runs for 59 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "4.7k",
       "cost": 0.13,
       "cost_per_game": "$0.006"
+    },
+    {
+      "model": "<a href=\"logs/2026-05-01T15-28-43_granite-4.1-8b.html\">ibm-granite/granite-4.1-8b</a>",
+      "date": "2026-05-01",
+      "w": "1",
+      "win_pct": 0.05,
+      "hit_att": "12/102",
+      "acc_pct": 0.1176,
+      "avg_time": "20s",
+      "tok_per_game": "10.1k",
+      "cost": 0.01,
+      "cost_per_game": "$0.001"
     },
     {
       "model": "<a href=\"logs/2025-11-06T23-17-31_phi-4.html\">microsoft/phi-4</a>",
