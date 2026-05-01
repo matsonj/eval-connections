@@ -271,18 +271,34 @@ def extract_state_transition(ev: Event) -> Optional[Tuple[str, str, str, Optiona
     return None
 
 
+_STRAY_TAIL_RE = re.compile(r"\s*</(?:response|speak|output|answer)>\s*$", re.IGNORECASE)
+
+
 def split_thinking_blocks(text: str) -> Tuple[str, str]:
-    """Split response_text into (thinking, rest) by <thinking> tags."""
+    """Split response_text into (thinking, rest).
+
+    Primary path: explicit <thinking>...</thinking> wrapper.
+    Fallback: when the model emits reasoning without the wrapper but does include
+    a <guess> block (e.g. granite-4.1-8b after a CORRECT verdict), treat everything
+    before the first <guess> as thinking. Trailing stray closing tags like
+    </response> or </speak> are stripped from the rest.
+    """
     if not text:
         return "", ""
-    lower = text
-    start = lower.find("<thinking>")
-    end = lower.find("</thinking>")
+    start = text.find("<thinking>")
+    end = text.find("</thinking>")
     if start != -1 and end != -1 and end > start:
         thinking = text[start + len("<thinking>"):end].strip()
         rest = (text[:start] + text[end + len("</thinking>"):]).strip()
+        rest = _STRAY_TAIL_RE.sub("", rest)
         return thinking, rest
-    return "", text.strip()
+    guess_idx = text.find("<guess>")
+    if guess_idx > 0:
+        thinking = text[:guess_idx].strip()
+        rest = _STRAY_TAIL_RE.sub("", text[guess_idx:].strip())
+        if thinking:
+            return thinking, rest
+    return "", _STRAY_TAIL_RE.sub("", text.strip())
 
 
 _GUESS_RE = re.compile(r"<guess>\s*(.+?)\s*</guess>", re.DOTALL)
