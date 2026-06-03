@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 63 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 64 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -431,6 +431,18 @@ Latest runs for 63 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "93.1k",
       "cost": 0.43,
       "cost_per_game": "$0.021"
+    },
+    {
+      "model": "<a href=\"logs/2026-06-03T05-30-55_minimax-m3.html\">minimax/minimax-m3</a>",
+      "date": "2026-06-03",
+      "w": "18",
+      "win_pct": 0.9,
+      "hit_att": "76/86",
+      "acc_pct": 0.8837,
+      "avg_time": "10m31s",
+      "tok_per_game": "37.0k",
+      "cost": 0.55,
+      "cost_per_game": "$0.027"
     },
     {
       "model": "<a href=\"logs/2025-12-19T01-11-11_sonnet-4.5.html\">anthropic/claude-4.5-sonnet</a>",
