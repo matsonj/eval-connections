@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 62 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 63 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -299,6 +299,18 @@ Latest runs for 62 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "7.6k",
       "cost": 1.52,
       "cost_per_game": "$0.076"
+    },
+    {
+      "model": "<a href=\"logs/2026-06-03T05-14-49_step3.7-flash.html\">stepfun/step-3.7-flash</a>",
+      "date": "2026-06-03",
+      "w": "19",
+      "win_pct": 0.95,
+      "hit_att": "77/90",
+      "acc_pct": 0.8556,
+      "avg_time": "2m47s",
+      "tok_per_game": "34.0k",
+      "cost": 0.72,
+      "cost_per_game": "$0.036"
     },
     {
       "model": "<a href=\"logs/2026-02-15T20-28-26_qwen3-max-thinking.html\">qwen/qwen3-max-thinking</a>",
