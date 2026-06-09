@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 64 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 65 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -287,6 +287,18 @@ Latest runs for 64 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "3.6k",
       "cost": 0.44,
       "cost_per_game": "$0.022"
+    },
+    {
+      "model": "<a href=\"logs/2026-06-09T19-37-35_fable-5.html\">anthropic/claude-fable-5</a>",
+      "date": "2026-06-09",
+      "w": "19",
+      "win_pct": 0.95,
+      "hit_att": "77/77",
+      "acc_pct": 1.0,
+      "avg_time": "25s",
+      "tok_per_game": "4.5k",
+      "cost": 1.69,
+      "cost_per_game": "$0.084"
     },
     {
       "model": "<a href=\"logs/2026-02-25T03-06-24_opus-4.5.html\">anthropic/claude-opus-4.5</a>",
