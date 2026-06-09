@@ -157,6 +157,18 @@ Latest runs for 65 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.003"
     },
     {
+      "model": "<a href=\"logs/2026-06-09T20-23-20_fable-5.html\">anthropic/claude-fable-5</a>",
+      "date": "2026-06-09",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/80",
+      "acc_pct": 1.0,
+      "avg_time": "1m6s",
+      "tok_per_game": "4.5k",
+      "cost": 1.46,
+      "cost_per_game": "$0.073"
+    },
+    {
       "model": "<a href=\"logs/2026-02-25T03-25-53_o3.html\">openai/o3</a>",
       "date": "2026-02-25",
       "w": "20",
@@ -731,18 +743,6 @@ Latest runs for 65 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "21.6k",
       "cost": 1.72,
       "cost_per_game": "$0.086"
-    },
-    {
-      "model": "<a href=\"logs/2026-06-09T20-05-31_fable-5.html\">anthropic/claude-fable-5</a>",
-      "date": "2026-06-09",
-      "w": "4",
-      "win_pct": 0.2,
-      "hit_att": "27/27",
-      "acc_pct": 1.0,
-      "avg_time": "17s",
-      "tok_per_game": "1.5k",
-      "cost": 0.55,
-      "cost_per_game": "$0.028"
     },
     {
       "model": "<a href=\"logs/2026-02-14T22-51-48_minimax-m2.5.html\">minimax/minimax-m2.5</a>",
