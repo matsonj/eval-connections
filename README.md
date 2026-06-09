@@ -125,6 +125,7 @@ Models are configured in `inputs/model_mappings.yml`. Here are some popular opti
 | `grok3`       | `x-ai/grok-3`                | Standard               | xAI Grok-3                      |
 | `grok3-mini`  | `x-ai/grok-3-mini`           | Reasoning              | xAI Grok-3 Mini                 |
 | `opus-4.1`    | `anthropic/claude-opus-4.1`  | Standard               | Anthropic Claude Opus 4.1       |
+| `fable-5`     | `anthropic/claude-fable-5`   | Reasoning              | Anthropic Claude Fable 5        |
 | `sonnet`      | `anthropic/claude-3.5-sonnet`| Standard               | Anthropic Claude 3.5 Sonnet     |
 | `gemini`      | `google/gemini-2.5-pro`      | Reasoning              | Google Gemini 2.5 Pro           |
 
