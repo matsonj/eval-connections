@@ -33,3 +33,16 @@ policies:
     burst: 2.0
     aimd_step: 0.2
     concurrency: 3
+
+  # claude-fable-5 is newly released; Anthropic capacity is tight and we pin the
+  # provider with allow_fallbacks=False (for prompt caching), so a 429 has no
+  # fallback to escape to. A 20-puzzle run on 2026-06-09 lost puzzle 814 to a
+  # sustained 429 that exhausted all retries. Start conservative; AIMD climbs
+  # back as capacity frees up.
+  "anthropic/claude-fable-5":
+    rps: 2.0
+    rps_max: 6.0
+    rps_min: 0.3
+    burst: 2.0
+    aimd_step: 0.2
+    concurrency: 3
