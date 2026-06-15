@@ -457,8 +457,13 @@ class ConnectionsGame:
             with Timer() as timer:
                 try:
                     # Pin to provider on all calls to enable prompt caching
-                    # (requires provider + cache_control + prefix >= 1024 tokens)
-                    response = adapter.chat(messages, model_id, provider=pinned_provider)
+                    # (requires provider + cache_control + prefix >= 1024 tokens).
+                    # session_id keeps every turn of this puzzle on one upstream
+                    # provider (sticky routing) so caching also works for cloaked /
+                    # non-pinnable models that have no provider slug.
+                    response = adapter.chat(
+                        messages, model_id, provider=pinned_provider, session_id=task_id
+                    )
 
                     backoff_sec = float(response.pop("_backoff_sec", 0.0))
                     total_backoff_sec += backoff_sec

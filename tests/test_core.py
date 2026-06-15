@@ -362,6 +362,46 @@ class TestChatProviderParam:
         payload = mock_post.call_args[1]["json"]
         assert payload["provider"] == {"order": ["openai"], "allow_fallbacks": False}
 
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_chat_without_session_id(self, mock_key, mock_post):
+        """session_id key should not appear when session_id is None."""
+        from connections_eval.adapters.openrouter_adapter import chat
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_post.return_value = mock_response
+
+        chat([{"role": "user", "content": "test"}], "openrouter/fusion")
+
+        payload = mock_post.call_args[1]["json"]
+        assert "session_id" not in payload
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_chat_with_session_id(self, mock_key, mock_post):
+        """session_id should be set top-level for sticky routing on cloaked models."""
+        from connections_eval.adapters.openrouter_adapter import chat
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_post.return_value = mock_response
+
+        chat([{"role": "user", "content": "test"}], "openrouter/fusion", session_id="T314:run1")
+
+        payload = mock_post.call_args[1]["json"]
+        assert payload["session_id"] == "T314:run1"
+        # Cloaked model has no pinnable slug, so no provider order is forced.
+        assert "provider" not in payload
+
 
 class TestUtilities:
     """Test utility functions."""
