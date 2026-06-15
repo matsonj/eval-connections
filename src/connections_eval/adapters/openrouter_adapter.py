@@ -60,14 +60,16 @@ def extract_provider_slug(model: str) -> Optional[str]:
     return None
 
 
-def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None) -> float:
+def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
+                     provider: Optional[str] = None, **_kwargs) -> float:
     # Free-tier endpoints (model IDs ending in `:free`) hit aggressive rate limits;
     # double the base delay so the exponential schedule actually clears their cooldown.
     return 4.0 if model.endswith(":free") else 2.0
 
 
 @retry_with_backoff(max_retries=5, base_delay=_chat_base_delay, exceptions=(requests.RequestException,))
-def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None) -> Dict:
+def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None,
+         session_id: Optional[str] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.
 
@@ -78,6 +80,11 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         provider: Optional provider slug to pin requests to (e.g., 'anthropic').
             When set, forces OpenRouter to route to this provider with no fallbacks,
             enabling prompt caching across calls.
+        session_id: Optional stable identifier shared by all calls in one
+            conversation. OpenRouter uses it as the sticky-routing key, pinning
+            every request in the session to the same upstream provider — from the
+            first call, before any cache hit. This is the only caching lever for
+            cloaked/third-party-hosted models that have no pinnable provider slug.
 
     Returns:
         Raw API response JSON
@@ -147,6 +154,12 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             "order": [provider],
             "allow_fallbacks": False,
         }
+
+    # Sticky-routing key. Keeps all calls in one puzzle conversation on the same
+    # upstream provider so prompt caching can take effect — especially for cloaked
+    # or third-party-hosted models that have no pinnable provider slug above.
+    if session_id:
+        payload["session_id"] = session_id
 
     # Handle different model types
     if is_thinking_model:
