@@ -473,6 +473,30 @@ class TestRankSessionIsolation:
             game._rank_puzzle(puzzle, runs=3, model_name=next(iter(game.MODEL_CONFIG)))
         assert attempts == [0, 1, 2]
 
+    def test_rank_run_id_is_timestamped(self):
+        """A fresh rank invocation builds a timestamped run_id (not the static
+        rank_{model} form) so session keys don't recur across invocations."""
+        import re
+
+        def fake_run(puzzle, model_name, rng, attempt=None):
+            return PuzzleResult(
+                won=False, guess_count=0, mistake_count=0, invalid_count=0,
+                solved_groups=[], time_sec=0.0, total_tokens=0,
+            )
+
+        # Fresh game: logger is None so the rank entrypoint assigns run_id.
+        game = ConnectionsGame(self._INPUTS, Path("logs"))
+        puzzle_id = game.puzzles[0].id
+        model_name = next(iter(game.MODEL_CONFIG))
+        with patch("connections_eval.core.setup_logger", return_value=MagicMock()), \
+             patch.object(game, "_run_puzzle_ai", side_effect=fake_run):
+            game.rank_puzzle(puzzle_id, runs=1, model_name=model_name)
+        assert game.run_id != f"rank_{model_name}"
+        assert re.fullmatch(
+            rf"rank_\d{{4}}-\d{{2}}-\d{{2}}T\d{{2}}-\d{{2}}-\d{{2}}_{re.escape(model_name)}",
+            game.run_id,
+        )
+
 
 class TestUtilities:
     """Test utility functions."""

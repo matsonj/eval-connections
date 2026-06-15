@@ -912,7 +912,9 @@ class ConnectionsGame:
         Public API that accepts a puzzle_id. Delegates to _rank_puzzle().
         """
         if self.logger is None:
-            self.run_id = f"rank_{model_name}"
+            # Timestamp the base id so each rank invocation gets its own run_id
+            # (and OpenRouter session key), matching the eval `run` path.
+            self.run_id = f"rank_{datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')}_{model_name}"
             self.logger = setup_logger(self.log_path, self.run_id, verbose=self.verbose)
 
         puzzle_map = {p.id: p for p in self.puzzles}
@@ -958,7 +960,9 @@ class ConnectionsGame:
         """
         # Ensure logger is set up for ranking
         if self.logger is None:
-            self.run_id = f"rank_{model_name}"
+            # Timestamp the base id so each rank invocation gets its own run_id
+            # (and OpenRouter session key), matching the eval `run` path.
+            self.run_id = f"rank_{datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')}_{model_name}"
             self.logger = setup_logger(self.log_path, self.run_id, verbose=self.verbose)
 
         all_puzzles = list(self.puzzles)
