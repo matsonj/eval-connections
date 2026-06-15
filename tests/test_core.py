@@ -1,5 +1,6 @@
 """Tests for core game logic."""
 
+import random
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -401,6 +402,76 @@ class TestChatProviderParam:
         assert payload["session_id"] == "T314:run1"
         # Cloaked model has no pinnable slug, so no provider order is forced.
         assert "provider" not in payload
+
+
+class TestRankSessionIsolation:
+    """session_id passed to the adapter must be unique per ranking attempt so
+    repeated trials of one puzzle don't share a sticky-routing session."""
+
+    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+
+    def _build_game(self):
+        game = ConnectionsGame(self._INPUTS, Path("logs"))
+        game.run_id = "rank_test-model"
+        game.logger = MagicMock()
+        return game
+
+    def _capture_session_ids(self, attempt):
+        """Run one puzzle with a mocked adapter and return the session_ids the
+        game passed to adapter.chat. The mock returns an unparseable guess so the
+        game ends after MAX_INVALID turns regardless of which puzzle is chosen."""
+        captured = []
+
+        def fake_chat(messages, model_id, provider=None, session_id=None):
+            captured.append(session_id)
+            return {
+                "choices": [{"message": {"content": "no valid guess here"},
+                             "finish_reason": "stop"}],
+                "usage": {},
+            }
+
+        with patch("connections_eval.core.cl"), \
+             patch("connections_eval.core.openrouter_adapter") as mock_adapter:
+            mock_adapter.chat.side_effect = fake_chat
+            mock_adapter.extract_provider_slug.return_value = None  # cloaked model
+            game = self._build_game()
+            puzzle = game.puzzles[0]
+            model_name = next(iter(game.MODEL_CONFIG))
+            game._run_puzzle_ai(puzzle, model_name, random.Random(0), attempt=attempt)
+        return captured
+
+    def test_normal_path_session_id_is_task_id(self):
+        """attempt=None (normal eval) leaves session_id as the bare task_id."""
+        sessions = self._capture_session_ids(attempt=None)
+        assert sessions  # game actually called the adapter
+        assert all(s.endswith(":rank_test-model") for s in sessions)
+        assert all(":a" not in s for s in sessions)
+
+    def test_rank_attempts_get_distinct_sessions(self):
+        """Different attempts produce different session_ids; within an attempt
+        every turn shares one session (so caching can still work per trial)."""
+        a0 = self._capture_session_ids(attempt=0)
+        a1 = self._capture_session_ids(attempt=1)
+        assert len(set(a0)) == 1 and a0[0].endswith(":a0")
+        assert len(set(a1)) == 1 and a1[0].endswith(":a1")
+        assert a0[0] != a1[0]
+
+    def test_rank_passes_incrementing_attempt_index(self):
+        """_rank_puzzle hands _run_puzzle_ai a distinct attempt index per trial."""
+        attempts = []
+
+        def fake_run(puzzle, model_name, rng, attempt=None):
+            attempts.append(attempt)
+            return PuzzleResult(
+                won=False, guess_count=0, mistake_count=0, invalid_count=0,
+                solved_groups=[], time_sec=0.0, total_tokens=0,
+            )
+
+        game = self._build_game()
+        puzzle = game.puzzles[0]
+        with patch.object(game, "_run_puzzle_ai", side_effect=fake_run):
+            game._rank_puzzle(puzzle, runs=3, model_name=next(iter(game.MODEL_CONFIG)))
+        assert attempts == [0, 1, 2]
 
 
 class TestUtilities:

@@ -411,8 +411,16 @@ class ConnectionsGame:
         log_summary(self.logger, summary)
         return summary
 
-    def _run_puzzle_ai(self, puzzle: Puzzle, model_name: str, rng: random.Random) -> PuzzleResult:
-        """Run a single puzzle with AI model."""
+    def _run_puzzle_ai(self, puzzle: Puzzle, model_name: str, rng: random.Random,
+                       attempt: Optional[int] = None) -> PuzzleResult:
+        """Run a single puzzle with AI model.
+
+        attempt: optional trial index. The normal eval path runs each puzzle once
+            per run_id, so task_id is already unique. Ranking re-runs the same
+            puzzle under one run_id, so callers pass the trial index to keep each
+            attempt's sticky-routing session_id distinct — otherwise repeated
+            trials would share a routing session and lose independence.
+        """
         model_id = self.MODEL_CONFIG[model_name]
         adapter = openrouter_adapter
         pinned_provider = adapter.extract_provider_slug(model_id)
@@ -439,6 +447,9 @@ class ConnectionsGame:
         total_upstream_cost = 0.0
         total_backoff_sec = 0.0
         task_id = f"T{puzzle.id}:{self.run_id}"
+        # Sticky-routing key shared by every turn of this puzzle. Append the trial
+        # index when ranking so repeated attempts get independent routing sessions.
+        session_id = task_id if attempt is None else f"{task_id}:a{attempt}"
         final_state_emitted = False
 
         state.start_time = time.time()
@@ -462,7 +473,7 @@ class ConnectionsGame:
                     # provider (sticky routing) so caching also works for cloaked /
                     # non-pinnable models that have no provider slug.
                     response = adapter.chat(
-                        messages, model_id, provider=pinned_provider, session_id=task_id
+                        messages, model_id, provider=pinned_provider, session_id=session_id
                     )
 
                     backoff_sec = float(response.pop("_backoff_sec", 0.0))
@@ -919,7 +930,7 @@ class ConnectionsGame:
 
         for i in range(runs):
             run_rng = random.Random(self.seed + puzzle.id + i)
-            stats = self._run_puzzle_ai(puzzle, model_name, run_rng)
+            stats = self._run_puzzle_ai(puzzle, model_name, run_rng, attempt=i)
 
             if stats.won:
                 wins += 1
