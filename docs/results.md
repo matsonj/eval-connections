@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 65 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 66 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -743,6 +743,18 @@ Latest runs for 65 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "21.6k",
       "cost": 1.72,
       "cost_per_game": "$0.086"
+    },
+    {
+      "model": "<a href=\"logs/2026-06-15T15-24-33_mercury-2.html\">inception/mercury-2</a>",
+      "date": "2026-06-15",
+      "w": "3",
+      "win_pct": 0.15,
+      "hit_att": "32/104",
+      "acc_pct": 0.3077,
+      "avg_time": "8s",
+      "tok_per_game": "8.3k",
+      "cost": 0.08,
+      "cost_per_game": "$0.004"
     },
     {
       "model": "<a href=\"logs/2026-02-14T22-51-48_minimax-m2.5.html\">minimax/minimax-m2.5</a>",
