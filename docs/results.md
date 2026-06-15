@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 67 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 68 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -263,6 +263,18 @@ Latest runs for 67 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "11.0k",
       "cost": 0.75,
       "cost_per_game": "$0.037"
+    },
+    {
+      "model": "<a href=\"logs/2026-06-15T16-11-01_qwen3.7-plus.html\">qwen/qwen3.7-plus</a>",
+      "date": "2026-06-15",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/80",
+      "acc_pct": 1.0,
+      "avg_time": "5m25s",
+      "tok_per_game": "25.5k",
+      "cost": 0.5,
+      "cost_per_game": "$0.025"
     },
     {
       "model": "<a href=\"logs/2026-02-24T22-12-30_kimi-k2.5.html\">moonshotai/kimi-k2.5</a>",
