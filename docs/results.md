@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 68 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 69 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -203,6 +203,18 @@ Latest runs for 68 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "10.7k",
       "cost": 1.94,
       "cost_per_game": "$0.097"
+    },
+    {
+      "model": "<a href=\"logs/2026-06-15T17-03-02_fusion.html\">openrouter/fusion</a>",
+      "date": "2026-06-15",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/80",
+      "acc_pct": 1.0,
+      "avg_time": "1m24s",
+      "tok_per_game": "15.0k",
+      "cost": 5.29,
+      "cost_per_game": "$0.265"
     },
     {
       "model": "<a href=\"logs/2026-02-24T04-49-45_sonnet-4.6.html\">anthropic/claude-sonnet-4.6</a>",
