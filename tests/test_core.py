@@ -275,6 +275,17 @@ class TestProviderPinning:
     def test_xai_provider(self):
         assert extract_provider_slug("x-ai/grok-3") == "xai"
 
+    def test_sonnet_5_overridden_to_bedrock(self):
+        """TEMPORARY: claude-sonnet-5 400s on the Anthropic route (deprecated
+        top_p injected via reasoning.effort), so it's pinned to Bedrock instead.
+        Remove the override — and this test — once OpenRouter fixes that route."""
+        assert extract_provider_slug("anthropic/claude-sonnet-5") == "amazon-bedrock"
+
+    def test_other_anthropic_models_not_overridden(self):
+        """The sonnet-5 override must not leak to sibling Anthropic models."""
+        assert extract_provider_slug("anthropic/claude-sonnet-4.6") == "anthropic"
+        assert extract_provider_slug("anthropic/claude-opus-4.8") == "anthropic"
+
     def test_deepseek_skipped(self):
         """DeepSeek models are hosted by third parties; pinning is skipped."""
         assert extract_provider_slug("deepseek/deepseek-r1-0528") is None

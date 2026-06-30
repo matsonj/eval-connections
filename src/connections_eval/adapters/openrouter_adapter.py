@@ -43,6 +43,19 @@ _PROVIDER_SLUG_MAP = {
     "x-ai/": "xai",
 }
 
+# Per-model overrides that take precedence over the prefix map above.
+# TEMPORARY: claude-sonnet-5 is a day-0 model that deprecated `top_p`, but
+# OpenRouter's first-party Anthropic route still injects `top_p` when it
+# translates `reasoning.effort`, so any thinking request pinned to "anthropic"
+# 400s ("`top_p` is deprecated for this model."). The Amazon Bedrock route
+# handles the same request (reasoning included) fine, so we pin there instead.
+# Trade-off: forgoes first-party Anthropic prompt caching (the cache_control
+# branch in chat() only fires for provider == "anthropic"). Remove this entry
+# once OpenRouter stops sending top_p on the Anthropic route.
+_PROVIDER_SLUG_OVERRIDES = {
+    "anthropic/claude-sonnet-5": "amazon-bedrock",
+}
+
 
 def extract_provider_slug(model: str) -> Optional[str]:
     """
@@ -54,6 +67,8 @@ def extract_provider_slug(model: str) -> Optional[str]:
     Returns:
         Provider slug (e.g., 'anthropic') or None for unrecognized prefixes
     """
+    if model in _PROVIDER_SLUG_OVERRIDES:
+        return _PROVIDER_SLUG_OVERRIDES[model]
     for prefix, slug in _PROVIDER_SLUG_MAP.items():
         if model.startswith(prefix):
             return slug
