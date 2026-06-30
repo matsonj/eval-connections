@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 70 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 71 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -119,6 +119,18 @@ Latest runs for 70 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "4.7k",
       "cost": 0.95,
       "cost_per_game": "$0.048"
+    },
+    {
+      "model": "<a href=\"logs/2026-06-30T18-36-42_sonnet-5.html\">anthropic/claude-sonnet-5</a>",
+      "date": "2026-06-30",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/81",
+      "acc_pct": 0.9877,
+      "avg_time": "33s",
+      "tok_per_game": "5.5k",
+      "cost": 0.57,
+      "cost_per_game": "$0.029"
     },
     {
       "model": "<a href=\"logs/2026-02-26T13-30-03_gpt5.3-codex.html\">openai/gpt-5.3-codex</a>",
