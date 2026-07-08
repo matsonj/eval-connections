@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 76 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 77 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -215,6 +215,18 @@ Latest runs for 76 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "10.7k",
       "cost": 1.94,
       "cost_per_game": "$0.097"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-08T22-52-21_fugu-ultra.html\">sakana/fugu-ultra</a>",
+      "date": "2026-07-08",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/97",
+      "acc_pct": 0.8247,
+      "avg_time": "1m23s",
+      "tok_per_game": "23.0k",
+      "cost": 4.53,
+      "cost_per_game": "$0.227"
     },
     {
       "model": "<a href=\"logs/2026-06-15T17-03-02_fusion.html\">openrouter/fusion</a>",
