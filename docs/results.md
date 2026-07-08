@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 73 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 74 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -647,6 +647,18 @@ Latest runs for 73 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "26.1k",
       "cost": 4.32,
       "cost_per_game": "$0.216"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-08T20-50-33_aion-3.0.html\">aion-labs/aion-3.0</a>",
+      "date": "2026-07-08",
+      "w": "15",
+      "win_pct": 0.75,
+      "hit_att": "67/96",
+      "acc_pct": 0.6979,
+      "avg_time": "4m31s",
+      "tok_per_game": "15.9k",
+      "cost": 1.6,
+      "cost_per_game": "$0.080"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-34-10_gpt-oss-120b.html\">openai/gpt-oss-120b</a>",
