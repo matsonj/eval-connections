@@ -28,6 +28,7 @@ models:
     grok4-fast: "x-ai/grok-4-fast"
     grok-4.20: "x-ai/grok-4.20"
     grok-4.3: "x-ai/grok-4.3"
+    grok-4.5: "x-ai/grok-4.5"
     grok-code: "x-ai/grok-code-fast-1"
     
     # Google reasoning models
@@ -110,12 +111,31 @@ models:
     # Poolside models
     laguna-m.1: "poolside/laguna-m.1:free"
     laguna-xs.2: "poolside/laguna-xs.2:free"
+    laguna-xs-2.1: "poolside/laguna-xs-2.1"
 
     # Sakana models
     # Multi-agent orchestration system w/ configurable reasoning effort; single
     # provider (no pinning needed). Orchestration/recursion tokens bill as
     # standard I/O ($5/$30 per 1M), so runs cost more than a typical model.
     fugu-ultra: "sakana/fugu-ultra"
+
+    # AionLabs models
+    # Multi-model roleplaying/storytelling systems (collaborative generation
+    # across specialized sub-models); no dedicated OpenRouter provider slug,
+    # so no pinning.
+    aion-3.0: "aion-labs/aion-3.0"
+    aion-3.0-mini: "aion-labs/aion-3.0-mini"
+
+    # Tencent models
+    # Verified single-turn inference works, but the route is currently
+    # rate-limited hard by the upstream provider even in isolation (429s with
+    # rps throttled 8 -> 0.5 over successive retries, exhausting the harness's
+    # retry budget with zero guesses made). Same "day-old model" pattern as
+    # fugu-ultra above. Re-check once the Tencent upstream has more capacity.
+    hy3: "tencent/hy3"
+
+    # Nex AGI models
+    nex-n2-mini: "nex-agi/nex-n2-mini"
 
   non_thinking:
     # OpenAI standard models
