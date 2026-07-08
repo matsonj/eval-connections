@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 75 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 76 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -719,6 +719,18 @@ Latest runs for 75 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "30.3k",
       "cost": 0.19,
       "cost_per_game": "$0.010"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-08T21-50-31_nex-n2-mini.html\">nex-agi/nex-n2-mini</a>",
+      "date": "2026-07-08",
+      "w": "13",
+      "win_pct": 0.65,
+      "hit_att": "62/102",
+      "acc_pct": 0.6078,
+      "avg_time": "8m26s",
+      "tok_per_game": "66.1k",
+      "cost": 0.13,
+      "cost_per_game": "$0.006"
     },
     {
       "model": "<a href=\"logs/2026-03-10T02-44-07_qwen3.5-27b.html\">qwen/qwen3.5-27b</a>",
