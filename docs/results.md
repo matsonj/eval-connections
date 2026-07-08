@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 71 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 73 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -457,6 +457,18 @@ Latest runs for 71 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.065"
     },
     {
+      "model": "<a href=\"logs/2026-07-08T20-31-00_grok-4.5.html\">x-ai/grok-4.5</a>",
+      "date": "2026-07-08",
+      "w": "18",
+      "win_pct": 0.9,
+      "hit_att": "74/91",
+      "acc_pct": 0.8132,
+      "avg_time": "1m3s",
+      "tok_per_game": "6.7k",
+      "cost": 0.43,
+      "cost_per_game": "$0.021"
+    },
+    {
       "model": "<a href=\"logs/2026-03-23T20-50-51_mimo-v2-omni.html\">xiaomi/mimo-v2-omni</a>",
       "date": "2026-03-23",
       "w": "18",
@@ -791,6 +803,18 @@ Latest runs for 71 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "16.2k",
       "cost": 0.0,
       "cost_per_game": "$0.000"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-08T20-29-43_laguna-xs-2.1.html\">poolside/laguna-xs-2.1</a>",
+      "date": "2026-07-08",
+      "w": "6",
+      "win_pct": 0.3,
+      "hit_att": "37/102",
+      "acc_pct": 0.3627,
+      "avg_time": "2m20s",
+      "tok_per_game": "46.9k",
+      "cost": 0.07,
+      "cost_per_game": "$0.004"
     },
     {
       "model": "<a href=\"logs/2025-12-20T01-17-14_o3-mini.html\">openai/o3-mini</a>",
