@@ -361,6 +361,18 @@ Latest runs for 77 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.022"
     },
     {
+      "model": "<a href=\"logs/2026-07-09T03-30-15_grok-4.5.html\">x-ai/grok-4.5</a>",
+      "date": "2026-07-09",
+      "w": "19",
+      "win_pct": 0.95,
+      "hit_att": "78/96",
+      "acc_pct": 0.8125,
+      "avg_time": "32s",
+      "tok_per_game": "6.7k",
+      "cost": 0.41,
+      "cost_per_game": "$0.020"
+    },
+    {
       "model": "<a href=\"logs/2026-02-25T03-06-24_opus-4.5.html\">anthropic/claude-opus-4.5</a>",
       "date": "2026-02-25",
       "w": "19",
@@ -467,18 +479,6 @@ Latest runs for 77 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "11.4k",
       "cost": 1.3,
       "cost_per_game": "$0.065"
-    },
-    {
-      "model": "<a href=\"logs/2026-07-08T20-31-00_grok-4.5.html\">x-ai/grok-4.5</a>",
-      "date": "2026-07-08",
-      "w": "18",
-      "win_pct": 0.9,
-      "hit_att": "74/91",
-      "acc_pct": 0.8132,
-      "avg_time": "1m3s",
-      "tok_per_game": "6.7k",
-      "cost": 0.43,
-      "cost_per_game": "$0.021"
     },
     {
       "model": "<a href=\"logs/2026-03-23T20-50-51_mimo-v2-omni.html\">xiaomi/mimo-v2-omni</a>",
