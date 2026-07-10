@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 77 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 78 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -539,6 +539,18 @@ Latest runs for 77 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "37.0k",
       "cost": 0.55,
       "cost_per_game": "$0.027"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-10T16-58-47_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
+      "date": "2026-07-10",
+      "w": "17",
+      "win_pct": 0.85,
+      "hit_att": "74/89",
+      "acc_pct": 0.8315,
+      "avg_time": "17s",
+      "tok_per_game": "3.6k",
+      "cost": 0.21,
+      "cost_per_game": "$0.010"
     },
     {
       "model": "<a href=\"logs/2025-12-19T01-11-11_sonnet-4.5.html\">anthropic/claude-4.5-sonnet</a>",

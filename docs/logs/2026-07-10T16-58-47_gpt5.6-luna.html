@@ -1,0 +1,1173 @@
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Run 2026-07-10T16-58-47_gpt5.6-luna · Logs</title><style>body{font-family:ui-monospace,Menlo,Consolas,Monaco,"Courier New",monospace;margin:0;padding:0;background:repeating-linear-gradient(0deg,#e9ecef,#e9ecef 24px,#eff2f5 25px);color:#0f1419;}.container{max-width:1024px;margin:0 auto;padding:24px;}.panel{background:#ffffff;border:2px solid #2b3035;box-shadow:inset 0 0 0 1px #d9dde1;}.topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#1f2a36;color:#e6eef7;border-bottom:2px solid #2b3035;letter-spacing:0.04em;text-transform:uppercase;}.title{font-weight:700;} .meta{color:#8aa0b8;font-size:12px;}.content{padding:16px;}.row{display:flex;flex-direction:column;margin:8px 0;}.bubble{max-width:76%;padding:0;border:2px solid #2b3035;background:#fff;}.bubble .metahead{background:#f2f5f8;border-bottom:2px solid #2b3035;padding:6px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:#28323b;display:flex;justify-content:space-between;}.bubble .body{padding:12px 14px;white-space:pre-wrap;word-wrap:break-word;}.left{align-self:flex-start;border-left:6px solid #6c757d;}.right{align-self:flex-end;border-left:6px solid #0d6efd;background:#f7fbff;}.step{border-left:4px solid #2b3035;padding-left:12px;margin:18px 0;}.state{font-size:12px;color:#34424f;margin-left:2px;margin-top:6px;}.stats{font-size:12px;color:#1f2a36;margin-top:6px;}.pill{display:inline-block;background:#f0f3f6;border:2px solid #2b3035;border-radius:0;padding:2px 8px;margin-right:6px;color:#1f2a36;}.endpill{display:inline-block;background:#e7f5ec;border:2px solid #2b3035;color:#1f3b2a;border-radius:0;padding:4px 10px;margin:10px 0;}details{margin:8px 0;} details>summary{cursor:pointer;color:#0b63ce;list-style:none;display:flex;align-items:center;}details>summary::before{content:'\25B8';font-size:14px;margin-right:6px;flex-shrink:0;transition:transform 0.15s;line-height:1;}details[open]>summary::before{transform:rotate(90deg);}.thinking{font-style:italic;font-size:12px;color:#2b333b;white-space:pre-wrap;overflow-x:auto;}.bubble .body{overflow:hidden;}.bubble details{margin:4px 0;}.footer{margin:24px;color:#48525c;font-size:12px;}a{color:#0b63ce;text-decoration:none;}a:hover{text-decoration:underline;}.puzzle-block{border:2px solid #2b3035;margin:10px 0;background:#fff;}.puzzle-block>summary{cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;background:#f2f5f8;border-bottom:2px solid #2b3035;list-style:none;font-size:13px;}.puzzle-block>summary::before{content:'\25B8';font-size:16px;flex-shrink:0;line-height:1;transition:transform 0.15s;}.puzzle-block[open]>summary::before{transform:rotate(90deg);}.puzzle-block>summary .puzzle-stats-inline{color:#48525c;font-size:12px;margin-left:auto;text-align:right;white-space:nowrap;}.puzzle-failed>summary{background:#fff3f3;}.puzzle-failed>summary .pill{border-color:#c0392b;color:#c0392b;}.puzzle-solved>summary{background:#eaf6ee;}.puzzle-solved>summary .pill{border-color:#1f3b2a;color:#1f3b2a;}.bubble.error{border-left-color:#c0392b;background:#fff5f5;}.bubble.error .metahead{background:#ffe5e5;color:#7a1f1f;}.endpill.failed{background:#fde7e9;color:#5b1a1f;}</style></head><body><div class="container"><div class="panel"><div class="topbar"><div class="title">Run 2026-07-10T16-58-47_gpt5.6-luna</div><div class="meta">openrouter · openai/gpt-5.6-luna · <a href="../index.html" style="color:#b6c7da">Back</a></div></div><div class="content"><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 814</span><span class="puzzle-stats-inline">2/6 correct (33%) · $0.0296</span></summary><div class="endpill">814 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:22.649597</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: FOUR-LETTER WORDS, HISTAMINE, OUROBOROS, MOUSE, EXPLETIVES, HOUSE, EARRING, CHRISTMAS, NECKLACE, PLEATHER VEST, PROFANITY, HERRING, MESH SHIRT, STIRRING, MYSTERY, SWEARING</div></div><div class="stats">prompt: 392</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:22.650046</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four terms are all associated with obscene or profane language.</div></details><div>&lt;guess&gt;
+FOUR-LETTER WORDS, EXPLETIVES, PROFANITY, SWEARING
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 148 · cost: $0.001280</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:26.997141</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 463</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:26.997586</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four are all items of clothing or adornment, with a particularly punk/rock-inspired aesthetic.</div></details><div>&lt;guess&gt;
+EARRING, NECKLACE, PLEATHER VEST, MESH SHIRT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.72
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 553 · cost: $0.003781</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:36.614316</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 542</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:36.614761</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four are associated with “snake”: house snake, mouse snake, herring snake, and Ouroboros as a serpent symbol.</div></details><div>&lt;guess&gt;
+MOUSE, HOUSE, HERRING, OUROBOROS
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.18
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,082 · cost: $0.007034</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:44.680393</span></div><div class="body">INCORRECT. 3 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 631</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:44.68083</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">“White” can precede HOUSE, MOUSE, CHRISTMAS, and HERRING.</div></details><div>&lt;guess&gt;
+HOUSE, MOUSE, CHRISTMAS, HERRING
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.62
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 943 · cost: $0.006289</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:51.619314</span></div><div class="body">INCORRECT - ONE AWAY. 2 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 714</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:51.619759</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The “one away” result suggests three of HOUSE, MOUSE, CHRISTMAS, and HERRING form a “WHITE ___” group. WHITE HOUSE, WHITE MOUSE, and WHITE CHRISTMAS are common phrases; HERRING is the likely intruder.</div></details><div>&lt;guess&gt;
+HOUSE, MOUSE, CHRISTMAS, HISTAMINE
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.32
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 609 · cost: $0.004368</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:59.117471</span></div><div class="body">INCORRECT - ONE AWAY. 1 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 831</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:59.11797</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">HOUSE, MOUSE, and CHRISTMAS strongly share the prefix “WHITE” (White House, white mouse, White Christmas). The remaining likely member is MYSTERY, as “White Mystery” is a recognized phrase/title.</div></details><div>&lt;guess&gt;
+HOUSE, MOUSE, CHRISTMAS, MYSTERY
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.38
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,000 · cost: $0.006831</div></div><div class="endpill failed">814 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 3,573 · completion: 4,335 · guesses: 6 · correct: 2 · time: 00:36 · cost: $0.0296</div></details><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 842</span><span class="puzzle-stats-inline">2/6 correct (33%) · $0.0282</span></summary><div class="endpill">842 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:53.246903</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: WOOD, COULD, AWKWARD, WOODY, CHUCK, THEREFORE, WOODEN, CLASSICS, GUTHRIE, STILTED, WOODCHUCK, WOODSTOCK, SCROOGE, STIFF, CREATE, FOGHORN</div></div><div class="stats">prompt: 384</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:53.247359</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four words can all describe something lacking natural movement or ease: AWKWARD, STILTED, STIFF, and WOODEN.</div></details><div>&lt;guess&gt;
+AWKWARD, STILTED, STIFF, WOODEN
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.92
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 458 · cost: $0.003132</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:56.499169</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 467</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:56.499567</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four are directly associated with “WOOD”: WOOD, WOODY, WOODCHUCK, and WOODSTOCK.</div></details><div>&lt;guess&gt;
+WOOD, WOODY, WOODCHUCK, WOODSTOCK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 152 · cost: $0.001379</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:08.487357</span></div><div class="body">INCORRECT. 3 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 556</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:08.487858</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These are names associated with fictional characters: Chuck, Foghorn Leghorn, Ebenezer Scrooge, and Woodstock.</div></details><div>&lt;guess&gt;
+CHUCK, FOGHORN, SCROOGE, WOODSTOCK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.48
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,403 · cost: $0.008974</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:11.582523</span></div><div class="body">INCORRECT - ONE AWAY. 2 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 652</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:11.583088</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The previous guess was one away. FOGHORN, SCROOGE, WOODSTOCK, and WOODY are all names of fictional characters, while CHUCK is the likely extra.</div></details><div>&lt;guess&gt;
+FOGHORN, SCROOGE, WOODSTOCK, WOODY
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.72
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 375 · cost: $0.002902</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:16.198587</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 748</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:16.19913</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining words appear to form a group of terms associated with “Woody”: WOOD, WOODCHUCK, GUTHRIE, and CHUCK.</div></details><div>&lt;guess&gt;
+WOOD, WOODCHUCK, GUTHRIE, CHUCK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.38
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 592 · cost: $0.004300</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:24.584034</span></div><div class="body">INCORRECT - ONE AWAY. 1 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 848</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:24.584475</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The previous guess was one away, suggesting WOOD, WOODCHUCK, and GUTHRIE are part of the same group. CLASSICS is the strongest remaining candidate to complete that association.</div></details><div>&lt;guess&gt;
+WOOD, WOODCHUCK, GUTHRIE, CLASSICS
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.31
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,116 · cost: $0.007544</div></div><div class="endpill failed">842 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 3,655 · completion: 4,096 · guesses: 6 · correct: 2 · time: 00:31 · cost: $0.0282</div></details><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 830</span><span class="puzzle-stats-inline">2/6 correct (33%) · $0.0231</span></summary><div class="endpill">830 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:02.814589</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: SUBARU, NOAA, OUTFIT, EQUIP, NASA, EAGER, EAVE, PREPARE, N.F.L., DOWN, GAME, WILLING, PARAMOUNT, CANE, READY, ABLE</div></div><div class="stats">prompt: 371</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:02.815042</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">OUTFIT, EQUIP, PREPARE, and READY are all verbs meaning to make something ready or provide it with what it needs.</div></details><div>&lt;guess&gt;
+OUTFIT, EQUIP, PREPARE, READY
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.92
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 209 · cost: $0.001625</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:06.858612</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 450</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:06.859046</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">EAGER, WILLING, GAME, and DOWN can all describe someone who is willing or enthusiastic to participate.</div></details><div>&lt;guess&gt;
+EAGER, WILLING, GAME, DOWN
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.88
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 299 · cost: $0.002244</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:08.348371</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 521</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:08.348772</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">NOAA, NASA, and N.F.L. are organizations commonly abbreviated as initialisms. PARAMOUNT is the likely fourth word in this set as a major organization/brand name.</div></details><div>&lt;guess&gt;
+NOAA, NASA, N.F.L., PARAMOUNT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.48
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 120 · cost: $0.001241</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:18.756078</span></div><div class="body">INCORRECT - ONE AWAY. 3 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 621</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:18.756491</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The previous guess was one away, so three of NOAA, NASA, N.F.L., and PARAMOUNT belong together. SUBARU is the strongest replacement: all four are associated with prominent star imagery in their branding or logos.</div></details><div>&lt;guess&gt;
+NOAA, NASA, N.F.L., SUBARU
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.56
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 865 · cost: $0.005811</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:30.150494</span></div><div class="body">INCORRECT - ONE AWAY. 2 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 732</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:30.151001</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">NOAA, NASA, and N.F.L. are all organizations whose names begin with “National” when expanded. PARAMOUNT was one away with this trio, so the likely fourth is SUBARU based on the branding/logo connection.</div></details><div>&lt;guess&gt;
+NOAA, NASA, N.F.L., SUBARU
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.55
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,122 · cost: $0.007464</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:35.775666</span></div><div class="body">INCORRECT - ONE AWAY. 1 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 844</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:35.776177</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining words form a likely wordplay group: CANE, EAVE, ABLE, and SUBARU can each be preceded by “S” to create or suggest a related term (S-cane, sleeve-like transformations, etc.). However, the strongest remaining organizational group is NOAA, NASA, N.F.L., and PARAMOUNT, which was previously one away; replacing SUBARU with PARAMOUNT is the best final attempt.</div></details><div>&lt;guess&gt;
+NOAA, NASA, N.F.L., PARAMOUNT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.52
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 644 · cost: $0.004708</div></div><div class="endpill failed">830 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 3,539 · completion: 3,259 · guesses: 6 · correct: 2 · time: 00:32 · cost: $0.0231</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 831</span><span class="puzzle-stats-inline">4/5 correct (80%) · $0.0121</span></summary><div class="endpill">831 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:02.308862</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: MASCARA, TRAIL, CLIP, RATE, PACE, SCORE, STOCKINGS, FIDGET, GRADE, TIGER, SWEAT, TOWEL, BLUSH, DYE, NOSE, RANK</div></div><div class="stats">prompt: 372</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:02.309526</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">RATE, SCORE, GRADE, and RANK are all ways of evaluating or assigning a position/value.</div></details><div>&lt;guess&gt;
+RATE, SCORE, GRADE, RANK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.95
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 203 · cost: $0.001590</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:05.182319</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 442</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:05.182731</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">TOWEL, TIGER, TRAIL, and CLIP can all follow “paper.”</div></details><div>&lt;guess&gt;
+TOWEL, TIGER, TRAIL, CLIP
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 309 · cost: $0.002296</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:12.281649</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 513</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:12.282111</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">FIDGET, PACE, SWEAT, and NOSE are associated with nervousness: someone nervous may fidget, pace, sweat, or have a nervous nose-picking habit.</div></details><div>&lt;guess&gt;
+FIDGET, PACE, SWEAT, NOSE
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.55
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 593 · cost: $0.004071</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:15.797408</span></div><div class="body">INCORRECT - ONE AWAY. 3 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 614</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:15.797892</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The “one away” result suggests NOSE does not belong with the nervousness-related words. MASCARA, STOCKINGS, DYE, and NOSE can all be associated with “run” (running mascara, stockings, dye, and a runny nose).</div></details><div>&lt;guess&gt;
+MASCARA, STOCKINGS, DYE, NOSE
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.9
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 340 · cost: $0.002654</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:18.252097</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 720</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:18.252537</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining four words all relate to nervousness or anxiety: one may FIDGET, PACE, SWEAT, or BLUSH when nervous.</div></details><div>&lt;guess&gt;
+FIDGET, PACE, SWEAT, BLUSH
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0</div></div></div><div class="stats">completion: 134 · cost: $0.001524</div></div><div class="endpill">831 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 2,661 · completion: 1,579 · guesses: 5 · correct: 4 · time: 00:15 · cost: $0.0121</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 817</span><span class="puzzle-stats-inline">4/5 correct (80%) · $0.0078</span></summary><div class="endpill">817 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:15.882146</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: TANG, JACK, MING, RAM, FREE, ZING, BUCK, STAG, BILLY, KICK, SINGLE, SONG, SOLO, HAN, ZEST, PUNCH</div></div><div class="stats">prompt: 366</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:15.882641</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">TANG, MING, HAN, and SONG are all Chinese dynasties.</div></details><div>&lt;guess&gt;
+TANG, MING, HAN, SONG
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 174 · cost: $0.001410</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:18.593366</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 432</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:18.593851</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">JACK, BUCK, BILLY, and STAG can all refer to a male animal.</div></details><div>&lt;guess&gt;
+JACK, BUCK, BILLY, STAG
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.95
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 128 · cost: $0.001200</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:21.57534</span></div><div class="body">INCORRECT - ONE AWAY. 3 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 518</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:21.575778</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">ZING, ZEST, KICK, and PUNCH all mean energy, force, or lively impact.</div></details><div>&lt;guess&gt;
+ZING, ZEST, KICK, PUNCH
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.95
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 158 · cost: $0.001466</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:24.344982</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 591</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:24.345383</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The prior group was one away: JACK, RAM, BUCK, and BILLY are male-animal terms. The remaining words form a group meaning alone or unaccompanied: FREE, SINGLE, SOLO, and STAG.</div></details><div>&lt;guess&gt;
+JACK, RAM, BUCK, BILLY
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.9
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 327 · cost: $0.002553</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:27.123448</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 690</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:27.123901</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The final four words all describe being alone or unaccompanied.</div></details><div>&lt;guess&gt;
+FREE, SINGLE, SOLO, STAG
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 79 · cost: $0.001164</div></div><div class="endpill">817 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 2,597 · completion: 866 · guesses: 5 · correct: 4 · time: 00:11 · cost: $0.0078</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 826</span><span class="puzzle-stats-inline">4/5 correct (80%) · $0.0065</span></summary><div class="endpill">826 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:08.330466</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: HATCH, GATE, TOP, FLEET, KEY, BETTER, BEST, MAIN, PORTAL, SCALE, COMPASS, INSET, DOWNING, DOOR, BEAT, WALL</div></div><div class="stats">prompt: 367</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:08.330869</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">HATCH, GATE, PORTAL, and DOOR are all types of entrances or entryways.</div></details><div>&lt;guess&gt;
+HATCH, GATE, PORTAL, DOOR
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 91 · cost: $0.000913</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:10.627628</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 439</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:10.628113</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">DOWNING, FLEET, MAIN, and WALL can all precede “Street.”</div></details><div>&lt;guess&gt;
+DOWNING, FLEET, MAIN, WALL
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 103 · cost: $0.001057</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:13.859003</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 507</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:13.859407</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">KEY, SCALE, COMPASS, and BEAT are all musical terms.</div></details><div>&lt;guess&gt;
+KEY, SCALE, COMPASS, BEAT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 138 · cost: $0.001335</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:16.182788</span></div><div class="body">INCORRECT - ONE AWAY. 3 INCORRECT GUESSES REMAINING.</div></div><div class="stats">prompt: 584</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:16.183374</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">TOP, BETTER, BEST, and BEAT can all mean to surpass or defeat. COMPASS was the one away.</div></details><div>&lt;guess&gt;
+TOP, BETTER, BEST, BEAT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 235 · cost: $0.001994</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:20.579206</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 658</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:20.579715</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining four words are all features or elements commonly found on a map: KEY, SCALE, COMPASS, and INSET.</div></details><div>&lt;guess&gt;
+KEY, SCALE, COMPASS, INSET
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 98 · cost: $0.001246</div></div><div class="endpill">826 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 2,555 · completion: 665 · guesses: 5 · correct: 4 · time: 00:12 · cost: $0.0065</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 246</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0122</span></summary><div class="endpill">246 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:52.246073</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: SAMURAI, PRISONER, ECHO, FANTASTIC, MONKEY, FREEZE, GENIE, APOLLO, REFEREE, PARROT, LAG, SAILOR, CANDLES, MIME, DROP, PRINCESS</div></div><div class="stats">prompt: 378</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:52.246473</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">GENIE, PRINCESS, MONKEY, and PARROT are all associated with Disney’s “Aladdin.”</div></details><div>&lt;guess&gt;
+GENIE, PRINCESS, MONKEY, PARROT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.92
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 532 · cost: $0.003570</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:58.319977</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 453</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:58.320535</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">FREEZE, LAG, DROP, and ECHO are all problems that can occur during a video call or online connection.</div></details><div>&lt;guess&gt;
+FREEZE, LAG, DROP, ECHO
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.78
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 511 · cost: $0.003519</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:01.410167</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 528</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:01.410582</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">PRISONER, REFEREE, MIME, and SAILOR are associated with striped clothing or uniforms.</div></details><div>&lt;guess&gt;
+PRISONER, REFEREE, MIME, SAILOR
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.95
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 343 · cost: $0.002586</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:04.236924</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 603</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:04.237354</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining words pair with numbers in well-known film titles: SEVEN SAMURAI, APOLLO 13, SIXTEEN CANDLES, and FANTASTIC FOUR.</div></details><div>&lt;guess&gt;
+SAMURAI, APOLLO, CANDLES, FANTASTIC
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 328 · cost: $0.002571</div></div><div class="endpill">246 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,962 · completion: 1,714 · guesses: 4 · correct: 4 · time: 00:11 · cost: $0.0122</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 833</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0078</span></summary><div class="endpill">833 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:01.094411</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: CHILL, SWIPE, LOAF, EEK, BOOTH, QUASH, TABLE, TAP, SCROLL, ALE, HIVE, BAR, LOUNGE, PINCH, VEG, COUNTER</div></div><div class="stats">prompt: 368</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:01.094892</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">SWIPE, TAP, SCROLL, and PINCH are touchscreen gestures.</div></details><div>&lt;guess&gt;
+SWIPE, TAP, SCROLL, PINCH
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 121 · cost: $0.001094</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:05.162112</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 433</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:05.162591</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">BOOTH, COUNTER, TABLE, and BAR are fixtures or areas commonly found in a restaurant or diner.</div></details><div>&lt;guess&gt;
+BOOTH, COUNTER, TABLE, BAR
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.72
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 491 · cost: $0.003379</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:08.247227</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 504</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:08.24764</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">CHILL, LOAF, LOUNGE, and VEG all mean to relax or spend time idly.</div></details><div>&lt;guess&gt;
+CHILL, LOAF, LOUNGE, VEG
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 139 · cost: $0.001338</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:10.456607</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 577</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:10.457181</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">EEK, ALE, HIVE, and QUASH can each become a new word by adding S at the beginning: SEEK, SALE, SHIVE, and SQUASH.</div></details><div>&lt;guess&gt;
+EEK, ALE, HIVE, QUASH
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 235 · cost: $0.001987</div></div><div class="endpill">833 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,882 · completion: 986 · guesses: 4 · correct: 4 · time: 00:09 · cost: $0.0078</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 304</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0077</span></summary><div class="endpill">304 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:53.95529</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: GROUNDS, FIELD, LAWN, PEA, COCO, BROWN, CHAIR, DOGS, HEAD, HAZEL, UNCHAINED, CHEST, CHIEF, FICTION, GREEN, DIRECTOR</div></div><div class="stats">prompt: 371</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:53.955709</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">CHAIR, CHIEF, DIRECTOR, and HEAD are leadership titles. BROWN, DOGS, FICTION, and UNCHAINED are associated with Quentin Tarantino films: Jackie Brown, Reservoir Dogs, Pulp Fiction, and Django Unchained. GROUNDS, FIELD, LAWN, and GREEN are grassy areas. The remaining words form the final set.</div></details><div>&lt;guess&gt;
+CHAIR, CHIEF, DIRECTOR, HEAD
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 629 · cost: $0.004145</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:55.219878</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 495</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:55.220328</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The next clear category is films directed by Quentin Tarantino.</div></details><div>&lt;guess&gt;
+BROWN, DOGS, FICTION, UNCHAINED
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 72 · cost: $0.000927</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:58.188637</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 559</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:58.189215</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">COCO, CHEST, HAZEL, and PEA can all precede “NUT”: coconut, chestnut, hazelnut, and peanut.</div></details><div>&lt;guess&gt;
+COCO, CHEST, HAZEL, PEA
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 171 · cost: $0.001585</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:59.265864</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 644</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:59.26644</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The four remaining words are types of grassy outdoor areas.</div></details><div>&lt;guess&gt;
+GROUNDS, FIELD, LAWN, GREEN
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 67 · cost: $0.001046</div></div><div class="endpill">304 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 2,069 · completion: 939 · guesses: 4 · correct: 4 · time: 00:05 · cost: $0.0077</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 476</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0075</span></summary><div class="endpill">476 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:54.22166</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: DISCARD, SHAM, LABOR, SHEET, STATE, FULFILL, THROW, KEEP, HONOR, PLAY, DRAW, BLANKET, UPHOLD, PASS, JUSTICE, ENERGY</div></div><div class="stats">prompt: 369</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:54.222153</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four words can all follow “promise” or describe carrying out a commitment.</div></details><div>&lt;guess&gt;
+FULFILL, HONOR, KEEP, UPHOLD
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 506 · cost: $0.003405</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:56.252815</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 437</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:56.253271</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">DISCARD, DRAW, PASS, and PLAY are all actions commonly used in card games.</div></details><div>&lt;guess&gt;
+DISCARD, DRAW, PASS, PLAY
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.95
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 166 · cost: $0.001433</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:58.776073</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 503</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:58.776549</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">SHAM, SHEET, BLANKET, and THROW are types of bedding or bed coverings.</div></details><div>&lt;guess&gt;
+SHAM, SHEET, BLANKET, THROW
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 134 · cost: $0.001307</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:01.106245</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 574</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:01.10689</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining words are U.S. Cabinet department names when preceded by “Department of”: Department of Labor, State, Justice, and Energy.</div></details><div>&lt;guess&gt;
+LABOR, STATE, JUSTICE, ENERGY
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 131 · cost: $0.001360</div></div><div class="endpill">476 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,883 · completion: 937 · guesses: 4 · correct: 4 · time: 00:06 · cost: $0.0075</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 815</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0071</span></summary><div class="endpill">815 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:16.561769</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: FLY, BOND, FUSE, ALF, DAY, FLOWER, GENESIS, WED, MTV, START, POLE, NES, VHS, DAWN, COMBINE, BIRTH</div></div><div class="stats">prompt: 368</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:16.562298</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">WED, BOND, FUSE, and COMBINE all mean to join or unite.</div></details><div>&lt;guess&gt;
+WED, BOND, FUSE, COMBINE
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.94
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 283 · cost: $0.002066</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:19.340003</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 440</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:19.340474</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">GENESIS, DAWN, BIRTH, and START all relate to beginnings or origins.</div></details><div>&lt;guess&gt;
+GENESIS, DAWN, BIRTH, START
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 109 · cost: $0.001094</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:22.281109</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 508</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:22.281588</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">FLY, FLOWER, POLE, and DAY can all be preceded by “MAY”: mayfly, Mayflower, maypole, and Mayday.</div></details><div>&lt;guess&gt;
+FLY, FLOWER, POLE, DAY
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 304 · cost: $0.002332</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:24.754352</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 591</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:24.754778</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The four remaining words are ALF, MTV, NES, and VHS. They are all three-letter initialisms/abbreviations associated with entertainment media: a TV show, music television, a game console, and a video format.</div></details><div>&lt;guess&gt;
+ALF, MTV, NES, VHS
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 171 · cost: $0.001617</div></div><div class="endpill">815 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,907 · completion: 867 · guesses: 4 · correct: 4 · time: 00:08 · cost: $0.0071</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 837</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0071</span></summary><div class="endpill">837 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:50.697308</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: BLUE, SHAKE, SPACECRAFT, SPLIT, DEPARTED, LIBERAL, GREEK/ROMAN GOD, LEFT, CONE, CUP, RAINMAKER, MARTIAN, GOOD SHEPHERD, THEATER, FICTIONAL BOXER, PROGRESSIVE</div></div><div class="stats">prompt: 385</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:50.697791</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These are types or forms of ice cream: a shake, split, cone, and cup.</div></details><div>&lt;guess&gt;
+SHAKE, SPLIT, CONE, CUP
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 372 · cost: $0.002617</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:54.67597</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 454</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:54.676389</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">BLUE, LEFT, LIBERAL, and PROGRESSIVE can all describe political views or affiliations.</div></details><div>&lt;guess&gt;
+BLUE, LEFT, LIBERAL, PROGRESSIVE
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.97
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 218 · cost: $0.001762</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:57.820899</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 523</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:57.821369</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">SPACECRAFT, GREEK/ROMAN GOD, THEATER, and FICTIONAL BOXER all point to APOLLO: the Apollo spacecraft, Apollo mythology, the Apollo Theater, and Apollo Creed.</div></details><div>&lt;guess&gt;
+SPACECRAFT, GREEK/ROMAN GOD, THEATER, FICTIONAL BOXER
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 172 · cost: $0.001555</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:58.823385</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 626</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:58.823785</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining four words form a category connected with the film “The Martian”: DEPARTED, RAINMAKER, MARTIAN, and GOOD SHEPHERD are all films directed by or starring Matt Damon.</div></details><div>&lt;guess&gt;
+DEPARTED, RAINMAKER, MARTIAN, GOOD SHEPHERD
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 88 · cost: $0.001154</div></div><div class="endpill">837 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,988 · completion: 850 · guesses: 4 · correct: 4 · time: 00:08 · cost: $0.0071</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 839</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0067</span></summary><div class="endpill">839 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:50.280479</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: FIN, FIDDLE, KIND, MICROWAVE, WARM, FLIPPER, KETTLE, ARM, TRIFLE, POPPER, WING, THROW, STOVETOP, TENDER, SWEET, FRITTER</div></div><div class="stats">prompt: 375</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:50.28089</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">FIN, FLIPPER, WING, and ARM are all appendages or body parts used for movement.</div></details><div>&lt;guess&gt;
+FIN, FLIPPER, WING, ARM
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 159 · cost: $0.001329</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:52.870333</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 447</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:52.870731</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">MICROWAVE, KETTLE, POPPER, and STOVETOP are all kitchen appliances or cooking devices.</div></details><div>&lt;guess&gt;
+MICROWAVE, KETTLE, POPPER, STOVETOP
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.90
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 265 · cost: $0.002037</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:56.525996</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 528</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:56.526424</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">FIDDLE, TRIFLE, FRITTER, and THROW can all be followed by “away,” forming phrases meaning to waste or discard.</div></details><div>&lt;guess&gt;
+FIDDLE, TRIFLE, FRITTER, THROW
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.94
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 258 · cost: $0.002076</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:58.640371</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 607</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:58.64087</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining words KIND, WARM, TENDER, and SWEET can all describe a person’s affectionate or caring nature.</div></details><div>&lt;guess&gt;
+KIND, WARM, TENDER, SWEET
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 114 · cost: $0.001291</div></div><div class="endpill">839 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,957 · completion: 796 · guesses: 4 · correct: 4 · time: 00:08 · cost: $0.0067</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 828</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0067</span></summary><div class="endpill">828 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:01.198771</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: MONTH, DONUT, TRACK, PEN, ROSE, VELVETEEN, JUROR, WHITE, FOLLOW, TRIX, SQUID, MONITOR, TATTOO MACHINE, PRINTER, WATCH, ROGER</div></div><div class="stats">prompt: 374</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:01.199294</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">VELVETEEN Rabbit, Roger Rabbit, White Rabbit, and the Trix rabbit are all associated with rabbits.</div></details><div>&lt;guess&gt;
+VELVETEEN, ROGER, WHITE, TRIX
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 174 · cost: $0.001418</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:04.222719</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 450</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:04.223182</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">TRACK, MONITOR, WATCH, and FOLLOW are all ways to observe or keep tabs on someone or something.</div></details><div>&lt;guess&gt;
+TRACK, MONITOR, WATCH, FOLLOW
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.97
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 144 · cost: $0.001314</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:06.804168</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 520</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:06.804655</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">PEN, SQUID, TATTOO MACHINE, and PRINTER are all associated with ink.</div></details><div>&lt;guess&gt;
+PEN, SQUID, TATTOO MACHINE, PRINTER
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.94
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 143 · cost: $0.001378</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:11.07146</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 595</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:11.071916</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining words are associated with the number twelve: twelve months, a dozen donuts, a dozen roses, and a twelve-person jury.</div></details><div>&lt;guess&gt;
+MONTH, DONUT, ROSE, JUROR
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 337 · cost: $0.002617</div></div><div class="endpill">828 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,939 · completion: 798 · guesses: 4 · correct: 4 · time: 00:09 · cost: $0.0067</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 827</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0065</span></summary><div class="endpill">827 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:03.548017</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: HEARTBREAKER, CONNECTION, LAMINATE, CARPET, WAILER, PIP, STRAND, TILE, CHEMISTRY, FIREWORKS, SPARK, WOOD, COAST, BANK, BANSHEE, SHORE</div></div><div class="stats">prompt: 377</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:03.548529</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">LAMINATE, CARPET, TILE, and WOOD are all types of flooring.</div></details><div>&lt;guess&gt;
+LAMINATE, CARPET, TILE, WOOD
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 77 · cost: $0.000839</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:05.914868</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 446</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:05.915306</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">COAST, SHORE, BANK, and STRAND are all terms for land bordering a body of water.</div></details><div>&lt;guess&gt;
+COAST, SHORE, BANK, STRAND
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.95
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 126 · cost: $0.001202</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:07.810546</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 518</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:07.810993</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">CONNECTION, CHEMISTRY, FIREWORKS, and SPARK all describe romantic attraction or a strong rapport.</div></details><div>&lt;guess&gt;
+CONNECTION, CHEMISTRY, FIREWORKS, SPARK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.85
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 207 · cost: $0.001760</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:12.2689</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 594</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:12.269413</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The four remaining words form the final category by elimination.</div></details><div>&lt;guess&gt;
+HEARTBREAKER, WAILER, PIP, BANSHEE
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.6
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 355 · cost: $0.002724</div></div><div class="endpill">827 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,935 · completion: 765 · guesses: 4 · correct: 4 · time: 00:08 · cost: $0.0065</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 832</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0064</span></summary><div class="endpill">832 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:00.664049</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: ROCKET, LINCOLN, LARK, CHIP, DIP, DODGE, STAR, RAM, DIVE, DUCK, FLYER, SENATOR, FRY, FORD, SCRAPER, WING</div></div><div class="stats">prompt: 371</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:00.664488</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">DODGE, FORD, LINCOLN, and RAM are automobile brands.</div></details><div>&lt;guess&gt;
+DODGE, FORD, LINCOLN, RAM
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 88 · cost: $0.000899</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:04.632558</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 440</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:04.633001</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">ROCKET, LARK, DIVE, and SCRAPER can all be preceded by “sky”: skyrocket, skylark, skydive, and skyscraper.</div></details><div>&lt;guess&gt;
+ROCKET, LARK, DIVE, SCRAPER
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 239 · cost: $0.001874</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:07.406361</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 525</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:07.406831</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">DUCK, FLYER, SENATOR, and STAR are NHL team names: Anaheim Ducks, Philadelphia Flyers, Ottawa Senators, and Dallas Stars.</div></details><div>&lt;guess&gt;
+DUCK, FLYER, SENATOR, STAR
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 138 · cost: $0.001353</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:13.722568</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 606</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:13.723094</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The four remaining words form a group of common game-day or sports-bar foods: CHIP, DIP, FRY, and WING.</div></details><div>&lt;guess&gt;
+CHIP, DIP, FRY, WING
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 272 · cost: $0.002238</div></div><div class="endpill">832 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,942 · completion: 737 · guesses: 4 · correct: 4 · time: 00:13 · cost: $0.0064</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 819</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0061</span></summary><div class="endpill">819 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:13.104117</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: SPLIT, VOLUMETRIC, AURORA, ARIAL, AERIAL, TIANA, ROUNDOFF, GEORGIA, ANGULAR, VERDANA, ARABESQUE, AREAL, LINEAR, MERIDA, ARIEL, IMPACT</div></div><div class="stats">prompt: 381</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:13.10465</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">ARIAL, VERDANA, GEORGIA, and IMPACT are all typefaces/fonts.</div></details><div>&lt;guess&gt;
+ARIAL, VERDANA, GEORGIA, IMPACT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 92 · cost: $0.000933</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:17.624195</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 454</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:17.624647</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">AURORA, ARIEL, TIANA, and MERIDA are Disney princesses.</div></details><div>&lt;guess&gt;
+AURORA, ARIEL, TIANA, MERIDA
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 119 · cost: $0.001168</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:24.2186</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 524</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:24.219034</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">LINEAR, AREAL, VOLUMETRIC, and ANGULAR are all types of measurement or dimensional quantities.</div></details><div>&lt;guess&gt;
+LINEAR, AREAL, VOLUMETRIC, ANGULAR
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.92
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 227 · cost: $0.001886</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:27.792358</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 600</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:27.792809</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">AERIAL, ARABESQUE, ROUNDOFF, and SPLIT are gymnastics or dance movements.</div></details><div>&lt;guess&gt;
+AERIAL, ARABESQUE, ROUNDOFF, SPLIT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 244 · cost: $0.002064</div></div><div class="endpill">819 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,959 · completion: 682 · guesses: 4 · correct: 4 · time: 00:14 · cost: $0.0061</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 836</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0060</span></summary><div class="endpill">836 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:50.557313</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: BRAIN, TOOTH, PICTURE, PEPPER, POTATO, TALK, PRUNE, FEATURE, SIXTEEN, SCATTER, SPRINKLE, LITTER, FLICK, FILM, CREPE PAPER, SHAR PEI</div></div><div class="stats">prompt: 376</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:50.55788</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">FILM, PICTURE, FEATURE, and FLICK are all terms for a movie or motion picture.</div></details><div>&lt;guess&gt;
+FILM, PICTURE, FEATURE, FLICK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 158 · cost: $0.001324</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:52.211827</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 447</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:52.212299</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">SWEET can precede TALK, POTATO, SIXTEEN, and TOOTH.</div></details><div>&lt;guess&gt;
+TALK, POTATO, SIXTEEN, TOOTH
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 160 · cost: $0.001407</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:55.858337</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 518</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:55.858742</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">SCATTER, SPRINKLE, LITTER, and PEPPER can all mean to distribute or spread things around.</div></details><div>&lt;guess&gt;
+SCATTER, SPRINKLE, LITTER, PEPPER
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.93
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 237 · cost: $0.001940</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:58.127067</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 595</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:58.127486</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">BRAIN, PRUNE, CREPE PAPER, and SHAR PEI are all associated with a wrinkled texture or appearance.</div></details><div>&lt;guess&gt;
+BRAIN, PRUNE, CREPE PAPER, SHAR PEI
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 126 · cost: $0.001351</div></div><div class="endpill">836 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,936 · completion: 681 · guesses: 4 · correct: 4 · time: 00:07 · cost: $0.0060</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 818</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0055</span></summary><div class="endpill">818 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:13.42297</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: JAZZ, SHADE, DIVINE, READ, BURST, CHORAL, BROKE, FORECAST, SPLIT, SPECTER, AMERICANA, WIGHT, BLEW, SPIRIT, CALL, RAP</div></div><div class="stats">prompt: 373</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:13.423467</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four words can all refer to a ghost or supernatural apparition.</div></details><div>&lt;guess&gt;
+SHADE, SPECTER, WIGHT, SPIRIT
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.95
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 103 · cost: $0.000991</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:16.091047</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 438</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:16.091464</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These are all musical styles or genres.</div></details><div>&lt;guess&gt;
+JAZZ, CHORAL, RAP, AMERICANA
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.97&lt;/confidence&gt;</div></div></div><div class="stats">completion: 111 · cost: $0.001104</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:19.18727</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 498</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:19.187801</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These words can all mean to predict or foresee something: divine, forecast, read (the future), and call (an outcome).</div></details><div>&lt;guess&gt;
+DIVINE, FORECAST, READ, CALL
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.93
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 184 · cost: $0.001602</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:59:23.180179</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 573</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:59:23.180657</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The remaining four words can all be followed by “APART”: burst apart, broke apart, split apart, and blew apart.</div></details><div>&lt;guess&gt;
+BURST, BROKE, SPLIT, BLEW
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 211 · cost: $0.001839</div></div><div class="endpill">818 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,882 · completion: 609 · guesses: 4 · correct: 4 · time: 00:09 · cost: $0.0055</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 314</span><span class="puzzle-stats-inline">4/4 correct (100%) · $0.0053</span></summary><div class="endpill">314 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:50.196967</span></div><div class="body">HOW TO PLAY
+1. Guess 4 related words that belong to the same category.
+2. You'll be told "CORRECT", "INCORRECT", "INCORRECT - ONE AWAY" or "INVALID_RESPONSE" with details.
+3. If a word has been correctly guessed, it shall not be used again.
+4. You have at most 6 total guesses (4 incorrect answers allowed).
+5. Once you have guessed 4 correct distinct sets, the puzzle is solved.
+
+SCORING
+You are scored on three criteria, in priority order:
+1. Solve rate: Did you complete the puzzle? This is all that matters for correctness.
+2. Cost: Every token you generate costs money. Cheaper solves are better.
+3. Speed: Faster solves are better, but this is secondary to cost.
+
+Incorrect guesses give you free information - use them to narrow the solution space. You are only penalized for incorrect guesses if you fail the puzzle.
+
+With 4 incorrect guesses available, guess quickly early on. Save deeper analysis for when you have 1-2 incorrect guesses remaining.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;guess&gt;
+[EXACTLY four words, ALL CAPS, comma-separated]
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this guess]
+&lt;/confidence&gt;
+
+Available words: HAMMER, BATON, BEND, SHEEPSHANK, PITCHFORK, BOWLINE, HORNS, HURDLE, POLE, CROCK, BUNK, TAIL, HORSEFEATHERS, HITCH, GOATEE, HOGWASH</div></div><div class="stats">prompt: 385</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:50.197442</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These are all types of rope knots.</div></details><div>&lt;guess&gt;
+BOWLINE, BEND, HITCH, SHEEPSHANK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 105 · cost: $0.001015</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:53.453794</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 447</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:53.454245</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These four words all mean nonsense or foolish talk.</div></details><div>&lt;guess&gt;
+BUNK, CROCK, HORSEFEATHERS, HOGWASH
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.99
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 168 · cost: $0.001455</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:56.16353</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 513</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:56.163918</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These are implements or equipment used in track and field: hammer throw, relay baton, hurdles, and pole vault.</div></details><div>&lt;guess&gt;
+HAMMER, BATON, HURDLE, POLE
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+0.97
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 164 · cost: $0.001497</div></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-10 16:58:58.480627</span></div><div class="body">CORRECT. NEXT GUESS?</div></div><div class="stats">prompt: 589</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>RESPONSE</span><span>2026-07-10 16:58:58.481085</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">These are associated with the Devil: horns, a tail, a goatee, and a pitchfork.</div></details><div>&lt;guess&gt;
+HORNS, TAIL, GOATEE, PITCHFORK
+&lt;/guess&gt;
+
+&lt;confidence&gt;
+1.0
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 116 · cost: $0.001285</div></div><div class="endpill">314 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 1,934 · completion: 553 · guesses: 4 · correct: 4 · time: 00:08 · cost: $0.0053</div></details><div class="footer">Generated by generate_logs_view.py</div></div></div></div></body></html>
