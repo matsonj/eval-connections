@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 80 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 83 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -145,6 +145,18 @@ Latest runs for 80 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.048"
     },
     {
+      "model": "<a href=\"logs/2026-07-10T17-52-33_gpt5.6-terra-pro.html\">openai/gpt-5.6-terra-pro</a>",
+      "date": "2026-07-10",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/82",
+      "acc_pct": 0.9756,
+      "avg_time": "32s",
+      "tok_per_game": "19.2k",
+      "cost": 1.73,
+      "cost_per_game": "$0.087"
+    },
+    {
       "model": "<a href=\"logs/2026-06-30T18-36-42_sonnet-5.html\">anthropic/claude-sonnet-5</a>",
       "date": "2026-06-30",
       "w": "20",
@@ -167,6 +179,18 @@ Latest runs for 80 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "3.6k",
       "cost": 0.5,
       "cost_per_game": "$0.025"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-10T17-50-04_gpt5.6-sol-pro.html\">openai/gpt-5.6-sol-pro</a>",
+      "date": "2026-07-10",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/80",
+      "acc_pct": 1.0,
+      "avg_time": "36s",
+      "tok_per_game": "17.6k",
+      "cost": 2.8,
+      "cost_per_game": "$0.140"
     },
     {
       "model": "<a href=\"logs/2026-04-10T17-19-16_grok-4.20.html\">x-ai/grok-4.20</a>",
@@ -395,6 +419,18 @@ Latest runs for 80 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "6.7k",
       "cost": 0.41,
       "cost_per_game": "$0.020"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-10T17-42-46_gpt5.6-luna-pro.html\">openai/gpt-5.6-luna-pro</a>",
+      "date": "2026-07-10",
+      "w": "19",
+      "win_pct": 0.95,
+      "hit_att": "78/91",
+      "acc_pct": 0.8571,
+      "avg_time": "33s",
+      "tok_per_game": "25.6k",
+      "cost": 1.03,
+      "cost_per_game": "$0.051"
     },
     {
       "model": "<a href=\"logs/2026-02-25T03-06-24_opus-4.5.html\">anthropic/claude-opus-4.5</a>",
