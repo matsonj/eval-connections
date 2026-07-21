@@ -1045,6 +1045,18 @@ Latest runs for 88 models (20 games each, sorted by solve rate, avg time, cost)
       "cost_per_game": "$0.004"
     },
     {
+      "model": "<a href=\"logs/2026-07-21T17-41-19_inkling.html\">thinkingmachines/inkling</a>",
+      "date": "2026-07-21",
+      "w": "2",
+      "win_pct": 0.1,
+      "hit_att": "20/28",
+      "acc_pct": 0.7143,
+      "avg_time": "1m40s",
+      "tok_per_game": "0.9k",
+      "cost": 0.03,
+      "cost_per_game": "$0.002"
+    },
+    {
       "model": "<a href=\"logs/2025-12-20T01-18-27_nova-pro.html\">amazon/nova-pro-v1</a>",
       "date": "2025-12-20",
       "w": "1",
@@ -1103,18 +1115,6 @@ Latest runs for 88 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "10.6k",
       "cost": 0.68,
       "cost_per_game": "$0.034"
-    },
-    {
-      "model": "<a href=\"logs/2026-07-21T17-24-03_inkling.html\">thinkingmachines/inkling</a>",
-      "date": "2026-07-21",
-      "w": "0",
-      "win_pct": 0.0,
-      "hit_att": "7/9",
-      "acc_pct": 0.7778,
-      "avg_time": "14s",
-      "tok_per_game": "0.2k",
-      "cost": 0.01,
-      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-29-16_ernie-4.5.html\">baidu/ernie-4.5-21b-a3b-thinking</a>",
