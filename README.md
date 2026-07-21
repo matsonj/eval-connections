@@ -23,11 +23,13 @@ This project provides a comprehensive evaluation framework for testing linguisti
 
 ## Changelog
 
-### 3.1.0 (2026-07-21)
+### 4.0.0 (2026-07-21)
 - **One-shot mode** (`--mode oneshot`) — model submits all 4 groups in a single response instead of guessing one group at a time; one API call per puzzle, no feedback loop
 - **One-shot scoring** — 1 point per correctly matched group plus a 1-point bonus for matching all 4, giving 0/1/2/5 per puzzle (max 5 × puzzles attempted, i.e. 100 over the 20-puzzle canonical set)
 - Only one guess is allowed per puzzle in one-shot mode; a structurally invalid submission (wrong word count, duplicate/foreign words, etc.) scores 0 and is counted as invalid — there is no retry
 - `--mode classic|oneshot` flag on `run` (default `classic`); classic multi-turn behavior is unchanged
+- **One-shot is now the primary eval** — the leaderboard (`docs/index.html`) shows one-shot runs only; the classic multi-turn leaderboard moved to `docs/classic.html`, and the GitHub Action defaults to `mode: oneshot`
+- **Backfill driver** (`scripts/backfill_oneshot.py`) — runs the canonical set in one-shot mode for models first seen in the last 90 days or scoring ≥75% in classic; `--dry-run` to preview
 - `--reasoning-effort minimal|low|medium|high|xhigh` flag on `run` — overrides the reasoning effort for thinking models (previously hardcoded to `minimal`; non-thinking models ignore it)
 
 ### 3.0.0 (2026-02-23)
@@ -469,9 +471,9 @@ This will run 10 puzzles with the GPT-5 model and automatically update the docum
 
 ## Latest Results
 
-[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/) - Sports-style box score showing latest model performance
+[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/) - Sports-style box score showing latest one-shot model performance ([classic leaderboard](https://matsonj.github.io/eval-connections/classic.html))
 
-*Table includes solve rates, costs, token usage, and timing metrics formatted like sports statistics.*
+*Table includes points scored, costs, token usage, and timing metrics formatted like sports statistics.*
 
 ## License
 

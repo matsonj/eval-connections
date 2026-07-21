@@ -8,13 +8,14 @@
 - **Run canonical set**: `uv run connections_eval run --model MODEL_NAME --canonical`
 - **Run one-shot mode**: `uv run connections_eval run --model MODEL_NAME --mode oneshot --canonical` (single submission of all 4 groups per puzzle, scored 0/1/2/5)
 - **Set reasoning effort**: `uv run connections_eval run --model MODEL_NAME --reasoning-effort high` (thinking models only; default: minimal)
+- **Backfill one-shot runs**: `uv run python scripts/backfill_oneshot.py --dry-run` (preview), then without the flag to run (models first seen <90d ago OR ≥75% classic solve rate)
 - **List models**: `uv run connections_eval list-models`
 - **List puzzles**: `uv run connections_eval list-puzzles` (add `--difficulty` for ratings)
 - **Rank puzzles**: `uv run connections_eval rank --model MODEL_NAME --runs 5 --threads 4`
 - **Rank single puzzle**: `uv run connections_eval rank --puzzle-id 246 --runs 10`
 - **Install deps**: `uv sync`
 - **Extract data**: `uv run python scripts/extract_summaries.py` (creates results/run_summaries.csv)
-- **Generate table**: `uv run python scripts/create_results_table_gt.py` (creates results/results_table_gt.html)
+- **Generate leaderboards**: `uv run python scripts/create_results_mviz.py` (docs/index.html = one-shot, docs/classic.html = classic multi-turn)
 
 ## Architecture
 - **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics

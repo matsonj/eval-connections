@@ -451,7 +451,13 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 res_u = res.upper()
                 if res and "INVALID_RESPONSE" not in res_u:
                     ps["guesses"] += 1
-                if "CORRECT" in res_u and "INCORRECT" not in res_u:
+                if res_u.startswith("ONESHOT_SCORE_"):
+                    # One-shot verdict: N = score (0/1/2/5); groups matched = min(N, 4).
+                    try:
+                        ps["correct"] += min(int(res_u.rsplit("_", 1)[1]), 4)
+                    except ValueError:
+                        pass
+                elif "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1
                 if ps["start_dt"] is None:
                     ps["start_dt"] = ev.dt
@@ -474,7 +480,13 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 res_u = res.upper()
                 if res and "INVALID_RESPONSE" not in res_u:
                     ps["guesses"] += 1
-                if "CORRECT" in res_u and "INCORRECT" not in res_u:
+                if res_u.startswith("ONESHOT_SCORE_"):
+                    # One-shot verdict: N = score (0/1/2/5); groups matched = min(N, 4).
+                    try:
+                        ps["correct"] += min(int(res_u.rsplit("_", 1)[1]), 4)
+                    except ValueError:
+                        pass
+                elif "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1
                 if ps["start_dt"] is None:
                     ps["start_dt"] = ev.dt
@@ -859,17 +871,22 @@ def main():
                     # Filters matching create_results_table_gt.py
                     if int(r.get("puzzles_attempted", "0") or 0) < 11:
                         continue
-                    if int(r.get("total_guesses", "0") or 0) <= 40:
+                    # One-shot runs have exactly one guess per puzzle (<= 20 on the
+                    # canonical set), so the classic >40 guess floor would exclude
+                    # every one of them. Only apply it to classic runs.
+                    run_mode = (r.get("mode") or "classic").strip() or "classic"
+                    if run_mode != "oneshot" and int(r.get("total_guesses", "0") or 0) <= 40:
                         continue
                     if r.get("total_cost", "") in ("", None):
                         continue
                     rows.append(r)
                 except Exception:
                     continue
-        # Select latest per model by start_timestamp
+        # Select latest per (model, mode) by start_timestamp — the one-shot and
+        # classic leaderboards each link their own latest run per model.
         best_by_key: Dict[str, Dict[str, Any]] = {}
         for r in rows:
-            model = r.get("model", "")
+            model = f"{r.get('model', '')}|{(r.get('mode') or 'classic').strip() or 'classic'}"
             ts = r.get("start_timestamp", "")
             try:
                 dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))

@@ -133,7 +133,7 @@ class ConnectionsGame:
     """Main game engine for Connections puzzles."""
 
     # Version for tracking evaluation framework changes
-    VERSION = "3.1.0"  # One-shot mode: submit all 4 groups in a single response, scored 0/1/2/5
+    VERSION = "4.0.0"  # One-shot mode becomes the primary eval (single submission, scored 0/1/2/5)
 
     # Model configuration loaded from YAML file
     MODEL_CONFIG = {}
