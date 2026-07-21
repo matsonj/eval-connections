@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 83 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 84 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -647,6 +647,18 @@ Latest runs for 83 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "17.9k",
       "cost": 0.65,
       "cost_per_game": "$0.032"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-12-18_gemini-3.5-flash-lite.html\">google/gemini-3.5-flash-lite</a>",
+      "date": "2026-07-21",
+      "w": "16",
+      "win_pct": 0.8,
+      "hit_att": "69/88",
+      "acc_pct": 0.7841,
+      "avg_time": "8s",
+      "tok_per_game": "8.3k",
+      "cost": 0.14,
+      "cost_per_game": "$0.007"
     },
     {
       "model": "<a href=\"logs/2026-03-10T02-45-04_gemini-3.1-flash-lite.html\">google/gemini-3.1-flash-lite-preview</a>",
