@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 84 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 85 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -83,6 +83,18 @@ Latest runs for 84 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "7.1k",
       "cost": 0.46,
       "cost_per_game": "$0.023"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-23-12_gemini-3.6-flash.html\">google/gemini-3.6-flash</a>",
+      "date": "2026-07-21",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/81",
+      "acc_pct": 0.9877,
+      "avg_time": "12s",
+      "tok_per_game": "6.0k",
+      "cost": 0.34,
+      "cost_per_game": "$0.017"
     },
     {
       "model": "<a href=\"logs/2026-03-10T02-52-45_gpt5.4.html\">openai/gpt-5.4</a>",
