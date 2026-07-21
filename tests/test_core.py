@@ -516,6 +516,104 @@ class TestConnectionsGameMode:
         assert "<answer>" not in game.prompt_template
 
 
+class TestOneshotEndToEnd:
+    """run_evaluation drives the one-shot path end to end (mocked adapter)."""
+
+    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+
+    def _make_game(self, tmp_path, puzzle, mode="oneshot"):
+        """Game with a single synthetic puzzle; real prompt template from inputs/."""
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode=mode)
+
+    @staticmethod
+    def _make_puzzle():
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+        )
+
+    @staticmethod
+    def _mock_response(content):
+        return {
+            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+        }
+
+    def test_perfect_submission_summary(self, tmp_path):
+        """A perfect one-shot answer yields score 5 and a solved puzzle."""
+        puzzle = self._make_puzzle()
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["mode"] == "oneshot"
+        assert summary["puzzles_attempted"] == 1
+        assert summary["puzzles_solved"] == 1
+        assert summary["total_score"] == 5
+        assert summary["max_score"] == 5
+        assert summary["avg_score"] == 5.0
+        assert summary["total_guesses"] == 1
+        assert summary["correct_guesses"] == 4
+        assert summary["incorrect_guesses"] == 0
+        assert summary["invalid_responses"] == 0
+
+    def test_invalid_submission_summary(self, tmp_path):
+        """An unparseable response scores 0 and counts as invalid."""
+        puzzle = self._make_puzzle()
+        game = self._make_game(tmp_path, puzzle)
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response("I refuse to answer in the requested format.")):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["mode"] == "oneshot"
+        assert summary["puzzles_solved"] == 0
+        assert summary["total_score"] == 0
+        assert summary["max_score"] == 5
+        assert summary["avg_score"] == 0.0
+        assert summary["invalid_responses"] == 1
+        assert summary["incorrect_guesses"] == 0
+
+    def test_mode_override_mismatch_raises(self, tmp_path):
+        """run_evaluation(mode=...) must match the mode the game was built with,
+        since the prompt template is selected at construction time."""
+        puzzle = self._make_puzzle()
+        game = self._make_game(tmp_path, puzzle, mode="classic")
+
+        with pytest.raises(ValueError, match="conflicts with game mode"):
+            game.run_evaluation("test-model", puzzle_ids=[477], mode="oneshot")
+
+
+class TestOneshotFallbackPunctuation:
+    """Tagless fallback parsing keeps hyphenated/apostrophe words intact."""
+
+    @pytest.fixture
+    def mock_game(self):
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    def test_hyphenated_word_survives_fallback(self, mock_game):
+        response = (
+            "FLEUR-DE-LIS, BANANA, CHERRY, GRAPE\n"
+            "ROCK 'N' ROLL, GREEN, RED, YELLOW\n"
+            "FAST, QUICK, RAPID, SWIFT\n"
+            "BRIGHT, CLEVER, SMART, WISE"
+        )
+        groups = mock_game._parse_oneshot_response(response)
+        assert len(groups) == 4
+        assert groups[0] == ["FLEUR-DE-LIS", "BANANA", "CHERRY", "GRAPE"]
+        assert groups[1][0] == "ROCK 'N' ROLL"
+
+
 class TestProviderPinning:
     """Test provider slug extraction."""
 

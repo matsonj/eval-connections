@@ -51,13 +51,26 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             GROUP BY e.run_id
         ),
         guess_stats AS (
-            -- Aggregate guess statistics from model_completion events
-            SELECT 
+            -- Aggregate guess statistics from model_completion events.
+            -- Classic results: CORRECT / INCORRECT / INVALID prefixes.
+            -- One-shot results: ONESHOT_SCORE_N (N in 0,1,2,5) / ONESHOT_INVALID.
+            -- groups_correct is derivable from N (N=5 -> 4 groups, else N), which
+            -- keeps correct/incorrect semantics aligned with EvalStats.accumulate.
+            SELECT
                 e.run_id,
                 COUNT(*) AS total_guesses,
-                COUNT(CASE WHEN e.payload_json.result = 'CORRECT' OR e.payload_json.result LIKE 'CORRECT%' THEN 1 END) AS correct_guesses,
-                COUNT(CASE WHEN e.payload_json.result LIKE 'INCORRECT%' THEN 1 END) AS incorrect_guesses,
-                COUNT(CASE WHEN e.payload_json.result LIKE 'INVALID%' THEN 1 END) AS invalid_responses
+                COUNT(CASE WHEN e.payload_json.result = 'CORRECT' OR e.payload_json.result LIKE 'CORRECT%' THEN 1 END)
+                  + COALESCE(SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
+                        LEAST(CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER), 4)
+                      END), 0) AS correct_guesses,
+                COUNT(CASE WHEN e.payload_json.result LIKE 'INCORRECT%' THEN 1 END)
+                  + COALESCE(SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
+                        4 - LEAST(CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER), 4)
+                      END), 0) AS incorrect_guesses,
+                COUNT(CASE WHEN e.payload_json.result LIKE 'INVALID%' OR e.payload_json.result = 'ONESHOT_INVALID' THEN 1 END) AS invalid_responses,
+                MAX(CASE WHEN e.payload_json.result LIKE 'ONESHOT%' THEN 'oneshot' END) AS oneshot_mode,
+                SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
+                    CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER) END) AS total_score
             FROM controllog.events e
             WHERE e.run_id IS NOT NULL
             AND e.kind = 'model_completion'
@@ -120,6 +133,10 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             COALESCE(gs.correct_guesses, 0) AS correct_guesses,
             COALESCE(gs.incorrect_guesses, 0) AS incorrect_guesses,
             COALESCE(gs.invalid_responses, 0) AS invalid_responses,
+            COALESCE(gs.oneshot_mode, 'classic') AS mode,
+            gs.total_score AS total_score,
+            CASE WHEN gs.oneshot_mode = 'oneshot'
+                 THEN 5 * COALESCE(ps.puzzles_attempted, 0) END AS max_score,
             COALESCE(ts.total_tokens, 0) AS total_tokens,
             COALESCE(ts.total_prompt_tokens, 0) AS total_prompt_tokens,
             COALESCE(ts.total_completion_tokens, 0) AS total_completion_tokens,
@@ -189,6 +206,10 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         "incorrect_guesses", 
         "invalid_responses",
         "guess_accuracy",
+        "mode",
+        "total_score",
+        "max_score",
+        "avg_score",
         "avg_time_sec",
         "total_time_sec",
         "avg_inference_sec",
@@ -218,6 +239,12 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         else:
             summary["guess_accuracy"] = 0
         
+        # Average one-shot score per puzzle (None for classic runs)
+        if summary.get("mode") == "oneshot" and summary.get("puzzles_attempted", 0) > 0:
+            summary["avg_score"] = (summary.get("total_score") or 0) / summary["puzzles_attempted"]
+        else:
+            summary["avg_score"] = None
+
         # Calculate average time per puzzle (wall clock)
         total_time = summary.get("total_time_sec", 0) or 0
         puzzles_attempted = summary.get("puzzles_attempted", 0) or 0

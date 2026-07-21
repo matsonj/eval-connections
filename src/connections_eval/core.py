@@ -345,6 +345,13 @@ class ConnectionsGame:
             Summary statistics dict
         """
         mode = mode or self.mode
+        if mode != self.mode:
+            # The prompt template is chosen at construction time from self.mode,
+            # so overriding here would send one mode's prompt and score the other.
+            raise ValueError(
+                f"run_evaluation mode {mode!r} conflicts with game mode {self.mode!r}; "
+                f"construct ConnectionsGame(mode={mode!r}) so the matching prompt template is loaded"
+            )
         is_oneshot = mode == "oneshot"
 
         # Interactive mode is inherently single-threaded (requires stdin)
@@ -995,9 +1002,13 @@ class ConnectionsGame:
                 )
 
         # Log exchange. _parse_structured_response covers thinking/confidence;
-        # extract the <answer> block content for the 'guess' field.
+        # extract the <answer> block content for the 'guess' field. Strip
+        # thinking blocks first so a decoy <answer> example inside reasoning
+        # isn't logged as the guess (scoring already does the same).
         import re
-        answer_match = re.search(r'<answer>(.*?)</answer>', content, re.IGNORECASE | re.DOTALL)
+        log_cleaned = re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', content, flags=re.IGNORECASE | re.DOTALL)
+        log_cleaned = re.sub(r'<think(?:ing)?>.*', '', log_cleaned, flags=re.IGNORECASE | re.DOTALL)
+        answer_match = re.search(r'<answer>(.*?)</answer>', log_cleaned, re.IGNORECASE | re.DOTALL)
         answer_text = answer_match.group(1).strip() if answer_match else content
         backoff_ms = int(backoff_sec * 1000)
         inference_ms = max(0, timer.elapsed_ms - backoff_ms)
@@ -1291,8 +1302,9 @@ class ConnectionsGame:
                 groups.append(words)
             return groups
 
-        # Fallback: scan for lines that look like 4 comma-separated ALL CAPS words
-        caps_pattern = r'\b[A-Z][A-Z\s]*\b(?:\s*,\s*[A-Z][A-Z\s]*\b){3}'
+        # Fallback: scan for lines that look like 4 comma-separated ALL CAPS words.
+        # Allow hyphens/apostrophes so words like FLEUR-DE-LIS survive intact.
+        caps_pattern = r"\b[A-Z][A-Z\s'\-]*\b(?:\s*,\s*[A-Z][A-Z\s'\-]*\b){3}"
         groups = []
         for line in cleaned.splitlines():
             caps_match = re.search(caps_pattern, line)
