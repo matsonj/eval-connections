@@ -787,7 +787,7 @@ class TestRankSessionIsolation:
         game ends after MAX_INVALID turns regardless of which puzzle is chosen."""
         captured = []
 
-        def fake_chat(messages, model_id, provider=None, session_id=None):
+        def fake_chat(messages, model_id, provider=None, session_id=None, reasoning_effort=None):
             captured.append(session_id)
             return {
                 "choices": [{"message": {"content": "no valid guess here"},
@@ -954,6 +954,39 @@ class TestBackoffAccumulator:
 
         clean()
         assert retry_mod.get_last_backoff_sec() == 0.0
+
+
+class TestReasoningEffort:
+    """reasoning_effort plumbs through to the OpenRouter request payload."""
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def _call_chat(self, mock_key, mock_post, model, **kwargs):
+        from connections_eval.adapters.openrouter_adapter import chat
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_post.return_value = mock_response
+
+        chat([{"role": "user", "content": "test"}], model, **kwargs)
+        return mock_post.call_args.kwargs["json"]
+
+    def test_thinking_model_defaults_to_minimal(self):
+        # openai/o3 is in the thinking section of model_mappings.yml
+        payload = self._call_chat(model="openai/o3")
+        assert payload["reasoning"] == {"effort": "minimal"}
+
+    def test_thinking_model_effort_override(self):
+        payload = self._call_chat(model="openai/o3", reasoning_effort="high")
+        assert payload["reasoning"] == {"effort": "high"}
+
+    def test_non_thinking_model_ignores_effort(self):
+        payload = self._call_chat(model="not-a-real/thinking-model", reasoning_effort="high")
+        assert "reasoning" not in payload
 
 
 class TestAdapterChoicesFix:

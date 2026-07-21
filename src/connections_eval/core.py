@@ -143,7 +143,7 @@ class ConnectionsGame:
     MAX_INVALID = 3
 
     def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None, verbose: bool = False,
-                 mode: str = "classic"):
+                 mode: str = "classic", reasoning_effort: Optional[str] = None):
         """
         Initialize the game engine.
 
@@ -153,12 +153,16 @@ class ConnectionsGame:
             seed: Random seed for reproducibility
             verbose: Whether to print logs to console
             mode: Evaluation mode, "classic" (multi-turn) or "oneshot" (single submission)
+            reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
+                'low', 'medium', 'high'); adapter defaults to 'minimal' when unset.
+                Ignored for non-thinking models.
         """
         self.inputs_path = inputs_path
         self.log_path = log_path
         self.seed = seed or int(time.time())
         self.verbose = verbose
         self.mode = mode
+        self.reasoning_effort = reasoning_effort
         self.rng = random.Random(self.seed)
 
         self.puzzles = self._load_puzzles()
@@ -436,6 +440,7 @@ class ConnectionsGame:
             "seed": self.seed,
             "threads": threads,
             "mode": mode,
+            "reasoning_effort": self.reasoning_effort,
             "avg_time_sec": round(avg_time, 1),
             "avg_inference_sec": round(avg_inference, 1),
             "total_inference_sec": round(total_inference_sec, 3),
@@ -518,7 +523,8 @@ class ConnectionsGame:
                     # provider (sticky routing) so caching also works for cloaked /
                     # non-pinnable models that have no provider slug.
                     response = adapter.chat(
-                        messages, model_id, provider=pinned_provider, session_id=session_id
+                        messages, model_id, provider=pinned_provider, session_id=session_id,
+                        reasoning_effort=self.reasoning_effort,
                     )
 
                     backoff_sec = float(response.pop("_backoff_sec", 0.0))
@@ -844,7 +850,8 @@ class ConnectionsGame:
                 # Pin to provider on all calls to enable prompt caching; session_id
                 # keeps this puzzle on one upstream provider (sticky routing).
                 response = adapter.chat(
-                    messages, model_id, provider=pinned_provider, session_id=session_id
+                    messages, model_id, provider=pinned_provider, session_id=session_id,
+                    reasoning_effort=self.reasoning_effort,
                 )
 
                 backoff_sec = float(response.pop("_backoff_sec", 0.0))

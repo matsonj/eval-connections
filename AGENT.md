@@ -7,6 +7,7 @@
 - **Run specific puzzles**: `uv run connections_eval run --model MODEL_NAME --puzzle-ids 246,283,477`
 - **Run canonical set**: `uv run connections_eval run --model MODEL_NAME --canonical`
 - **Run one-shot mode**: `uv run connections_eval run --model MODEL_NAME --mode oneshot --canonical` (single submission of all 4 groups per puzzle, scored 0/1/2/5)
+- **Set reasoning effort**: `uv run connections_eval run --model MODEL_NAME --reasoning-effort high` (thinking models only; default: minimal)
 - **List models**: `uv run connections_eval list-models`
 - **List puzzles**: `uv run connections_eval list-puzzles` (add `--difficulty` for ratings)
 - **Rank puzzles**: `uv run connections_eval rank --model MODEL_NAME --runs 5 --threads 4`

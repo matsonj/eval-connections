@@ -84,7 +84,7 @@ def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
 
 @retry_with_backoff(max_retries=5, base_delay=_chat_base_delay, exceptions=(requests.RequestException,))
 def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None,
-         session_id: Optional[str] = None) -> Dict:
+         session_id: Optional[str] = None, reasoning_effort: Optional[str] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.
 
@@ -100,6 +100,9 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             every request in the session to the same upstream provider — from the
             first call, before any cache hit. This is the only caching lever for
             cloaked/third-party-hosted models that have no pinnable provider slug.
+        reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
+            'low', 'medium', 'high'). Defaults to 'minimal' when unset — cheapest
+            solves score best. Ignored for non-thinking models.
 
     Returns:
         Raw API response JSON
@@ -180,7 +183,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     if is_thinking_model:
         if timeout < 600:
             timeout = 600
-        payload["reasoning"] = {"effort": "minimal"}
+        payload["reasoning"] = {"effort": reasoning_effort or "minimal"}
     else:
         # Standard models
         payload.update({

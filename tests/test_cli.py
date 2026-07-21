@@ -48,6 +48,12 @@ class TestCLI:
         result = self.runner.invoke(app, ["run", "--mode", "bogus"])
         assert result.exit_code == 1
         assert "Invalid mode: bogus" in result.stdout
+
+    def test_run_invalid_reasoning_effort(self):
+        """Test error when --reasoning-effort is not a recognized level."""
+        result = self.runner.invoke(app, ["run", "--reasoning-effort", "maximum"])
+        assert result.exit_code == 1
+        assert "Invalid reasoning effort: maximum" in result.stdout
     
     @patch.dict('os.environ', {}, clear=True)
     def test_run_missing_api_key(self):

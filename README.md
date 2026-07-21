@@ -28,6 +28,7 @@ This project provides a comprehensive evaluation framework for testing linguisti
 - **One-shot scoring** — 1 point per correctly matched group plus a 1-point bonus for matching all 4, giving 0/1/2/5 per puzzle (max 5 × puzzles attempted, i.e. 100 over the 20-puzzle canonical set)
 - Only one guess is allowed per puzzle in one-shot mode; a structurally invalid submission (wrong word count, duplicate/foreign words, etc.) scores 0 and is counted as invalid — there is no retry
 - `--mode classic|oneshot` flag on `run` (default `classic`); classic multi-turn behavior is unchanged
+- `--reasoning-effort minimal|low|medium|high|xhigh` flag on `run` — overrides the reasoning effort for thinking models (previously hardcoded to `minimal`; non-thinking models ignore it)
 
 ### 3.0.0 (2026-02-23)
 - **Provider pinning** for prompt caching — pins OpenRouter requests to the native provider (Anthropic, OpenAI, Google, xAI) on calls 2+, enabling prompt cache hits across multi-turn puzzle conversations

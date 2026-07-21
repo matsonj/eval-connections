@@ -28,7 +28,7 @@ def main():
 def _validate_run_args(
     model: Optional[str], interactive: bool, puzzles: Optional[int],
     puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
-    prompt_file: str, mode: str,
+    prompt_file: str, mode: str, reasoning_effort: Optional[str] = None,
 ) -> Optional[List[int]]:
     """
     Validate run command arguments and return parsed puzzle IDs.
@@ -37,6 +37,14 @@ def _validate_run_args(
     """
     if mode not in ("classic", "oneshot"):
         console.print(f"Invalid mode: {mode}. Must be 'classic' or 'oneshot'", style="red")
+        raise typer.Exit(1)
+
+    valid_efforts = ("minimal", "low", "medium", "high", "xhigh")
+    if reasoning_effort is not None and reasoning_effort not in valid_efforts:
+        console.print(
+            f"Invalid reasoning effort: {reasoning_effort}. Must be one of: {', '.join(valid_efforts)}",
+            style="red",
+        )
         raise typer.Exit(1)
 
     if not interactive and not model:
@@ -137,6 +145,11 @@ def run(
         "--mode",
         help="Evaluation mode: classic (multi-turn guessing) or oneshot (single submission of all 4 groups)"
     ),
+    reasoning_effort: Optional[str] = typer.Option(
+        None,
+        "--reasoning-effort",
+        help="Reasoning effort for thinking models: minimal, low, medium, high, xhigh (default: minimal; ignored for non-thinking models)"
+    ),
     threads: int = typer.Option(
         8,
         "--threads",
@@ -176,6 +189,7 @@ def run(
     """Run connections evaluation."""
     parsed_puzzle_ids = _validate_run_args(
         model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
+        reasoning_effort,
     )
 
     # Get model name for interactive mode
@@ -186,7 +200,8 @@ def run(
 
     # Initialize game
     try:
-        game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode)
+        game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode,
+                               reasoning_effort=reasoning_effort)
 
         # Handle canonical puzzle selection
         if canonical:
@@ -200,6 +215,8 @@ def run(
         console.print(f"Starting Connections evaluation", style="bold blue")
         console.print(f"Mode: {'Interactive' if interactive else f'AI Model ({model})'}")
         console.print(f"Evaluation Mode: {mode}")
+        if reasoning_effort:
+            console.print(f"Reasoning Effort: {reasoning_effort}")
         if parsed_puzzle_ids is not None:
             console.print(f"Puzzles: {len(parsed_puzzle_ids)} specific IDs")
         else:
@@ -279,6 +296,8 @@ def _display_summary(summary: dict, interactive: bool):
     table.add_column("Value", style="white")
 
     table.add_row("Model/Run", summary["model"])
+    if summary.get("reasoning_effort"):
+        table.add_row("Reasoning Effort", summary["reasoning_effort"])
     table.add_row("Puzzles Attempted", str(summary["puzzles_attempted"]))
     table.add_row("Puzzles Solved", str(summary["puzzles_solved"]))
 
