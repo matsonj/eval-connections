@@ -62,36 +62,49 @@ jobs:
             uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES" --threads 8
           fi
       
-      - name: Update docs - Extract summaries
-        env:
-          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
-          MOTHERDUCK_DB: ${{ secrets.MOTHERDUCK_DB }}
-        run: |
-          export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
-          uv run python scripts/extract_summaries.py
-      
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '22'
 
-      - name: Update docs - Create results table
-        run: |
-          uv run python scripts/create_results_mviz.py
-      
-      - name: Update docs - Generate logs view
+      - name: Regenerate docs and push (rebase-safe retry)
+        # docs/, results/ and README.md are DERIVED from MotherDuck, which
+        # already has this run's data. Parallel runs race on `git push`, so on
+        # every attempt we re-sync to the latest main and regenerate from
+        # MotherDuck (picking up all concurrent runs' rows) before committing.
+        # This avoids merge conflicts on the generated files entirely.
         env:
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
           MOTHERDUCK_DB: ${{ secrets.MOTHERDUCK_DB }}
         run: |
           export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
-          uv run python scripts/generate_logs_view.py
-      
-      - name: Commit and push docs changes
-        run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add docs/ results/ README.md
-          git diff --staged --quiet || git commit -m "Update docs: ${{ inputs.model }} evaluation results"
-          git push
+
+          regenerate() {
+            uv run python scripts/extract_summaries.py
+            uv run python scripts/create_results_mviz.py
+            uv run python scripts/generate_logs_view.py
+          }
+
+          for attempt in $(seq 1 8); do
+            git fetch origin main
+            git reset --hard origin/main
+            regenerate
+            git add docs/ results/ README.md
+            if git diff --staged --quiet; then
+              echo "No doc changes to commit (attempt $attempt)"
+              exit 0
+            fi
+            git commit -m "Update docs: ${{ inputs.model }} evaluation results"
+            if git push origin HEAD:main; then
+              echo "Pushed successfully on attempt $attempt"
+              exit 0
+            fi
+            backoff=$(( (RANDOM % 10) + attempt * 5 ))
+            echo "Push rejected (attempt $attempt); main moved. Retrying in ${backoff}s..."
+            sleep "$backoff"
+          done
+          echo "Failed to push after 8 attempts" >&2
+          exit 1
 
