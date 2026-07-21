@@ -46,3 +46,16 @@ policies:
     burst: 2.0
     aimd_step: 0.2
     concurrency: 3
+
+  # thinkingmachines/inkling is a newly added route with very tight upstream
+  # capacity. A 20-puzzle canonical run on 2026-07-21 with the default 8-rps /
+  # 8-concurrency load solved 0/20 and burned 1432s in 429 backoff (most puzzle
+  # turns exhausted their retry budget before landing a guess). Start as
+  # conservatively as a free-tier endpoint; AIMD will climb if capacity allows.
+  "thinkingmachines/inkling":
+    rps: 1.0
+    rps_max: 3.0
+    rps_min: 0.2
+    burst: 1.0
+    aimd_step: 0.1
+    concurrency: 2
