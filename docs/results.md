@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 86 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 87 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -239,6 +239,18 @@ Latest runs for 86 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "8.5k",
       "cost": 0.06,
       "cost_per_game": "$0.003"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-23-34_kimi-k3.html\">moonshotai/kimi-k3</a>",
+      "date": "2026-07-21",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/81",
+      "acc_pct": 0.9877,
+      "avg_time": "49s",
+      "tok_per_game": "4.1k",
+      "cost": 0.48,
+      "cost_per_game": "$0.024"
     },
     {
       "model": "<a href=\"logs/2026-06-09T20-23-20_fable-5.html\">anthropic/claude-fable-5</a>",
