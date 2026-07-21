@@ -28,13 +28,17 @@ def main():
 def _validate_run_args(
     model: Optional[str], interactive: bool, puzzles: Optional[int],
     puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
-    prompt_file: str,
+    prompt_file: str, mode: str,
 ) -> Optional[List[int]]:
     """
     Validate run command arguments and return parsed puzzle IDs.
 
     Raises typer.Exit on validation failure.
     """
+    if mode not in ("classic", "oneshot"):
+        console.print(f"Invalid mode: {mode}. Must be 'classic' or 'oneshot'", style="red")
+        raise typer.Exit(1)
+
     if not interactive and not model:
         console.print("Either --model or --interactive must be specified", style="red")
         raise typer.Exit(1)
@@ -74,7 +78,15 @@ def _validate_run_args(
         raise typer.Exit(1)
 
     puzzles_file = inputs_path / "connections_puzzles.yml"
-    template_file = inputs_path / prompt_file
+    # When mode is oneshot and --prompt-file was left at its default, the
+    # template ConnectionsGame actually loads is prompt_template_oneshot.xml
+    # (core.py's _load_prompt_template switches on mode, not prompt_file), so
+    # check existence of that file instead. An explicit --prompt-file override
+    # is respected as given.
+    effective_prompt_file = prompt_file
+    if mode == "oneshot" and prompt_file == "prompt_template.xml":
+        effective_prompt_file = "prompt_template_oneshot.xml"
+    template_file = inputs_path / effective_prompt_file
     if not puzzles_file.exists():
         console.print(f"Puzzles file not found: {puzzles_file}", style="red")
         raise typer.Exit(1)
@@ -120,6 +132,11 @@ def run(
         "--canonical",
         help="Run only canonical puzzles"
     ),
+    mode: str = typer.Option(
+        "classic",
+        "--mode",
+        help="Evaluation mode: classic (multi-turn guessing) or oneshot (single submission of all 4 groups)"
+    ),
     threads: int = typer.Option(
         8,
         "--threads",
@@ -158,7 +175,7 @@ def run(
 ):
     """Run connections evaluation."""
     parsed_puzzle_ids = _validate_run_args(
-        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file,
+        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
     )
 
     # Get model name for interactive mode
@@ -169,7 +186,7 @@ def run(
 
     # Initialize game
     try:
-        game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose)
+        game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode)
 
         # Handle canonical puzzle selection
         if canonical:
@@ -182,6 +199,7 @@ def run(
         # Show run info
         console.print(f"Starting Connections evaluation", style="bold blue")
         console.print(f"Mode: {'Interactive' if interactive else f'AI Model ({model})'}")
+        console.print(f"Evaluation Mode: {mode}")
         if parsed_puzzle_ids is not None:
             console.print(f"Puzzles: {len(parsed_puzzle_ids)} specific IDs")
         else:
@@ -273,7 +291,13 @@ def _display_summary(summary: dict, interactive: bool):
     table.add_row("Incorrect Guesses", str(summary["incorrect_guesses"]))
     table.add_row("Invalid Responses", str(summary["invalid_responses"]))
 
-    if summary["total_guesses"] > 0:
+    is_oneshot = summary.get("mode") == "oneshot"
+    if is_oneshot:
+        table.add_row("Total Score", f"{summary['total_score']} / {summary['max_score']}")
+        table.add_row("Avg Score/Puzzle", f"{summary['avg_score']:.2f}")
+    elif summary["total_guesses"] > 0:
+        # Guess Accuracy doesn't apply to one-shot mode — there's only ever one
+        # guess per puzzle, so it would just restate the solve rate.
         accuracy = summary["correct_guesses"] / summary["total_guesses"] * 100
         table.add_row("Guess Accuracy", f"{accuracy:.1f}%")
 

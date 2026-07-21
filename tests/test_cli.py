@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 from typer.testing import CliRunner
 
-from connections_eval.cli import app
+from connections_eval.cli import app, _display_summary
 
 
 class TestCLI:
@@ -42,6 +42,12 @@ class TestCLI:
         assert result.exit_code == 2
         assert "Unknown model: unknown" in result.stdout
         assert "Available models:" in result.stdout
+
+    def test_run_invalid_mode(self):
+        """Test error when --mode is neither 'classic' nor 'oneshot'."""
+        result = self.runner.invoke(app, ["run", "--mode", "bogus"])
+        assert result.exit_code == 1
+        assert "Invalid mode: bogus" in result.stdout
     
     @patch.dict('os.environ', {}, clear=True)
     def test_run_missing_api_key(self):
@@ -112,3 +118,30 @@ class TestCLI:
         mock_game.run_evaluation.assert_called_once_with(
             "grok3", max_puzzles=2, is_interactive=False, threads=8, puzzle_ids=None
         )
+
+
+class TestOneshotSummaryDisplay:
+    """_display_summary must render a one-shot summary without crashing."""
+
+    def test_oneshot_summary_display(self):
+        summary = {
+            "run_id": "test-run-oneshot",
+            "model": "grok3",
+            "mode": "oneshot",
+            "seed": 12345,
+            "puzzles_attempted": 4,
+            "puzzles_solved": 2,
+            "total_guesses": 4,
+            "correct_guesses": 6,
+            "incorrect_guesses": 0,
+            "invalid_responses": 0,
+            "avg_time_sec": 3.2,
+            "total_tokens": 800,
+            "token_count_method": "API",
+            "total_score": 12,
+            "max_score": 20,
+            "avg_score": 3.0,
+        }
+        # Should not raise, and should surface the one-shot-specific rows
+        # (Total Score / Avg Score) instead of the classic "Guess Accuracy" row.
+        _display_summary(summary, interactive=False)

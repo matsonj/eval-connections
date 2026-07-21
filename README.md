@@ -23,6 +23,12 @@ This project provides a comprehensive evaluation framework for testing linguisti
 
 ## Changelog
 
+### 3.1.0 (2026-07-21)
+- **One-shot mode** (`--mode oneshot`) — model submits all 4 groups in a single response instead of guessing one group at a time; one API call per puzzle, no feedback loop
+- **One-shot scoring** — 1 point per correctly matched group plus a 1-point bonus for matching all 4, giving 0/1/2/5 per puzzle (max 5 × puzzles attempted, i.e. 100 over the 20-puzzle canonical set)
+- Only one guess is allowed per puzzle in one-shot mode; a structurally invalid submission (wrong word count, duplicate/foreign words, etc.) scores 0 and is counted as invalid — there is no retry
+- `--mode classic|oneshot` flag on `run` (default `classic`); classic multi-turn behavior is unchanged
+
 ### 3.0.0 (2026-02-23)
 - **Provider pinning** for prompt caching — pins OpenRouter requests to the native provider (Anthropic, OpenAI, Google, xAI) on calls 2+, enabling prompt cache hits across multi-turn puzzle conversations
 - **Parallel execution** — run puzzles concurrently with `--threads N` (default 8); thread-safe RNG per puzzle
@@ -305,6 +311,7 @@ uv run connections_eval run [OPTIONS]
 | `--puzzles` | int | All | Maximum puzzles to run (random subset) |
 | `--puzzle-ids` | str | None | Comma-separated puzzle IDs to run (e.g. `246,283,477`) |
 | `--canonical` | flag | False | Run only puzzles marked `canonical: true` |
+| `--mode` | str | `classic` | Evaluation mode: `classic` (multi-turn guessing) or `oneshot` (single submission of all 4 groups) |
 | `--threads` | int | 8 | Number of parallel threads (forced to 1 for interactive) |
 | `--seed` | int | Random | Random seed for reproducibility |
 | `--verbose` | flag | False | Enable real-time exchange logging |
@@ -355,6 +362,9 @@ uv run connections_eval run --model grok4 --puzzle-ids 246,283,477,826
 
 # Canonical puzzle set
 uv run connections_eval run --model sonnet-4 --canonical
+
+# One-shot mode: single submission of all 4 groups per puzzle (scored 0/1/2/5, max 100 over canonical set)
+uv run connections_eval run --model sonnet-4 --mode oneshot --canonical
 
 # Single-threaded with fixed seed (fully reproducible)
 uv run connections_eval run --model o3 --puzzles 5 --threads 1 --seed 42

@@ -260,6 +260,262 @@ class TestConnectionsGame:
         assert stats.token_count_method == "API"
 
 
+class TestOneshotParsing:
+    """Test _parse_oneshot_response for one-shot mode."""
+
+    @pytest.fixture
+    def mock_game(self):
+        """Create a mock game with proper initialization."""
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    @pytest.fixture
+    def sample_puzzle(self):
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+        )
+
+    _WELL_FORMED_ANSWER = """<answer>
+APPLE, BANANA, CHERRY, GRAPE
+BLUE, GREEN, RED, YELLOW
+FAST, QUICK, RAPID, SWIFT
+BRIGHT, CLEVER, SMART, WISE
+</answer>"""
+
+    _EXPECTED_GROUPS = [
+        ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+        ["BLUE", "GREEN", "RED", "YELLOW"],
+        ["FAST", "QUICK", "RAPID", "SWIFT"],
+        ["BRIGHT", "CLEVER", "SMART", "WISE"],
+    ]
+
+    def test_well_formed_answer_block(self, mock_game):
+        """A properly formatted <answer> block with 4 lines parses into 4 groups of 4."""
+        groups = mock_game._parse_oneshot_response(self._WELL_FORMED_ANSWER)
+        assert groups == self._EXPECTED_GROUPS
+
+    def test_thinking_block_with_decoy_answer_is_stripped(self, mock_game):
+        """A decoy <answer> example inside <thinking> must not be picked up; the
+        real answer after the thinking block should be used instead."""
+        response = f"""<thinking>
+Here's an example of the expected format:
+<answer>
+DECOY, DECOY, DECOY, DECOY
+DECOY, DECOY, DECOY, DECOY
+DECOY, DECOY, DECOY, DECOY
+DECOY, DECOY, DECOY, DECOY
+</answer>
+Now here is my actual reasoning about the puzzle...
+</thinking>
+{self._WELL_FORMED_ANSWER}"""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == self._EXPECTED_GROUPS
+
+    def test_unclosed_think_tag_strips_to_end(self, mock_game):
+        """An unclosed <think> tag (truncated response) strips everything from
+        that point to the end of the string, including any decoy answer."""
+        response = """<think>
+This reasoning never closes...
+<answer>
+DECOY, DECOY, DECOY, DECOY
+</answer>
+"""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == []
+
+    def test_fallback_no_answer_tag_plain_caps_lines(self, mock_game):
+        """When there's no <answer> tag, fall back to scanning for lines of 4
+        comma-separated ALL CAPS words."""
+        response = """I'll just list them plainly below.
+APPLE, BANANA, CHERRY, GRAPE
+BLUE, GREEN, RED, YELLOW
+FAST, QUICK, RAPID, SWIFT
+BRIGHT, CLEVER, SMART, WISE
+Done."""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == self._EXPECTED_GROUPS
+
+    def test_garbage_input_fails_scoring(self, mock_game, sample_puzzle):
+        """Garbage input may parse into something, but it must fail scoring."""
+        groups = mock_game._parse_oneshot_response("This is just garbage nonsense text with no structure.")
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_lowercase_words_are_upper_cased(self, mock_game):
+        """Lowercase words in the answer block are normalized to upper case."""
+        response = """<answer>
+apple, banana, cherry, grape
+blue, green, red, yellow
+fast, quick, rapid, swift
+bright, clever, smart, wise
+</answer>"""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == self._EXPECTED_GROUPS
+
+
+class TestOneshotScoring:
+    """Test _score_oneshot for one-shot mode."""
+
+    @pytest.fixture
+    def mock_game(self):
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    @pytest.fixture
+    def sample_puzzle(self):
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+        )
+
+    def test_all_four_correct(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 5)
+
+    def test_two_correct_two_swapped(self, mock_game, sample_puzzle):
+        """Two groups intact; the other two have words swapped between them so
+        neither matches any puzzle group."""
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],   # correct (Fruits)
+            ["BLUE", "GREEN", "RED", "YELLOW"],       # correct (Colors)
+            ["FAST", "QUICK", "SMART", "WISE"],       # 2 from Speed + 2 from Smart
+            ["RAPID", "SWIFT", "BRIGHT", "CLEVER"],   # remaining 2 from Speed + 2 from Smart
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (2, 2)
+
+    def test_one_correct(self, mock_game, sample_puzzle):
+        """One group intact; the other 12 words are 3-cycled across the
+        remaining three groups so none of them matches any puzzle group."""
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],   # correct (Fruits)
+            ["GREEN", "RED", "YELLOW", "BRIGHT"],     # Colors minus BLUE, plus BRIGHT
+            ["QUICK", "RAPID", "SWIFT", "BLUE"],      # Speed minus FAST, plus BLUE
+            ["CLEVER", "SMART", "WISE", "FAST"],      # Smart minus BRIGHT, plus FAST
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (1, 1)
+
+    def test_zero_correct_valid_partition(self, mock_game, sample_puzzle):
+        """A full derangement: every group has exactly one word swapped in from
+        the cyclically-next group, so all 16 words are used once but no
+        submitted group matches any puzzle group."""
+        groups = [
+            ["BLUE", "BANANA", "CHERRY", "GRAPE"],
+            ["FAST", "GREEN", "RED", "YELLOW"],
+            ["BRIGHT", "QUICK", "RAPID", "SWIFT"],
+            ["APPLE", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_wrong_word_not_in_puzzle(self, mock_game, sample_puzzle):
+        """A word that doesn't belong to the puzzle at all is a structural failure."""
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "ORANGE"],  # ORANGE isn't in the puzzle
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_duplicate_word_one_missing(self, mock_game, sample_puzzle):
+        """A word appearing twice (with another word missing) is a structural failure."""
+        groups = [
+            ["APPLE", "APPLE", "CHERRY", "GRAPE"],  # APPLE duplicated, BANANA missing
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_three_groups_only(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_five_groups(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+            ["EXTRA", "GROUP", "NOT", "ALLOWED"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_group_with_three_words(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY"],  # only 3 words
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_word_order_within_group_irrelevant(self, mock_game, sample_puzzle):
+        """Groups are compared as sets, so word order within a group doesn't matter."""
+        groups = [
+            ["GRAPE", "CHERRY", "BANANA", "APPLE"],
+            ["YELLOW", "RED", "GREEN", "BLUE"],
+            ["SWIFT", "RAPID", "QUICK", "FAST"],
+            ["WISE", "SMART", "CLEVER", "BRIGHT"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 5)
+
+
+class TestOneshotStats:
+    """EvalStats.accumulate() one-shot score accumulation."""
+
+    def test_accumulate_adds_score(self):
+        stats = EvalStats()
+        result = PuzzleResult(
+            won=True, guess_count=1, mistake_count=0, invalid_count=0,
+            solved_groups=["green", "yellow", "blue", "purple"], time_sec=5.0,
+            total_tokens=500, score=5, groups_correct=4,
+        )
+        stats.accumulate(result)
+        assert stats.total_score == 5
+
+    def test_accumulate_classic_result_leaves_score_zero(self):
+        """Classic-mode results default score=0, so total_score stays at 0."""
+        stats = EvalStats()
+        result = PuzzleResult(
+            won=True, guess_count=4, mistake_count=0, invalid_count=0,
+            solved_groups=["green", "yellow", "blue", "purple"], time_sec=10.0,
+            total_tokens=1000,
+        )
+        stats.accumulate(result)
+        assert stats.total_score == 0
+
+
+class TestConnectionsGameMode:
+    """ConnectionsGame(mode=...) selects the correct prompt template."""
+
+    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+
+    def test_oneshot_mode_loads_oneshot_template(self):
+        game = ConnectionsGame(self._INPUTS, Path("logs"), mode="oneshot")
+        assert game.mode == "oneshot"
+        assert "<answer>" in game.prompt_template
+        assert "<guess>" not in game.prompt_template
+
+    def test_default_mode_loads_classic_template(self):
+        game = ConnectionsGame(self._INPUTS, Path("logs"))
+        assert game.mode == "classic"
+        assert "<guess>" in game.prompt_template
+        assert "<answer>" not in game.prompt_template
+
+
 class TestProviderPinning:
     """Test provider slug extraction."""
 
