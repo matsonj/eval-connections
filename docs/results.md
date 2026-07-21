@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 87 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 88 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -1103,6 +1103,18 @@ Latest runs for 87 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "10.6k",
       "cost": 0.68,
       "cost_per_game": "$0.034"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-24-03_inkling.html\">thinkingmachines/inkling</a>",
+      "date": "2026-07-21",
+      "w": "0",
+      "win_pct": 0.0,
+      "hit_att": "7/9",
+      "acc_pct": 0.7778,
+      "avg_time": "14s",
+      "tok_per_game": "0.2k",
+      "cost": 0.01,
+      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-29-16_ernie-4.5.html\">baidu/ernie-4.5-21b-a3b-thinking</a>",
