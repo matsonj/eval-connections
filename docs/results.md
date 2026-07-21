@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 85 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 86 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -155,6 +155,18 @@ Latest runs for 85 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "4.7k",
       "cost": 0.95,
       "cost_per_game": "$0.048"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-24-25_muse-spark-1.1.html\">meta/muse-spark-1.1</a>",
+      "date": "2026-07-21",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/89",
+      "acc_pct": 0.8989,
+      "avg_time": "23s",
+      "tok_per_game": "5.9k",
+      "cost": 0.28,
+      "cost_per_game": "$0.014"
     },
     {
       "model": "<a href=\"logs/2026-07-10T17-52-33_gpt5.6-terra-pro.html\">openai/gpt-5.6-terra-pro</a>",
