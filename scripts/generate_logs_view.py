@@ -434,6 +434,7 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 steps.append({
                     "type": "response",
                     "text": p.get("response_text", ""),
+                    "result": p.get("result"),
                     "puzzle_id": puzzle_id,
                     "tokens": summarize_tokens_and_cost(ev.postings),
                     "ts": ev.event_time,
@@ -644,6 +645,41 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
 
     puzzle_step_groups.sort(key=puzzle_audit_sort_key)
 
+    def oneshot_score_breakdown(p_steps: List[Dict[str, Any]]) -> Optional[str]:
+        """Human-readable scoring breakdown for a one-shot puzzle, parsed from
+        the ONESHOT_* verdict on the puzzle's response step. None for classic
+        puzzles (no ONESHOT verdict present)."""
+        verdict = None
+        for s in p_steps:
+            res = str(s.get("result") or "").upper()
+            if res.startswith("ONESHOT"):
+                verdict = res
+        if verdict is None:
+            return None
+        if verdict.startswith("ONESHOT_INVALID"):
+            return "Invalid submission: 0 pts (trap bonus forfeited)"
+        if verdict.startswith("ONESHOT_API_ERROR"):
+            return "API error: 0 pts"
+        m = re.search(r"ONESHOT_SCORE_(\d+)", verdict)
+        if not m:
+            return None
+        score = int(m.group(1))
+        g = re.search(r"GROUPS_(\d+)", verdict)
+        t = re.search(r"TRAP_(\d+)", verdict)
+        mx = re.search(r"MAX_(\d+)", verdict)
+        if g is None:
+            # Legacy pre-trap verdict: score only
+            return f"Score: {score} pts (legacy scoring)"
+        groups = int(g.group(1))
+        trap = int(t.group(1)) if t else 0
+        base = score - trap
+        max_pts = int(mx.group(1)) if mx else 5
+        bits = [f"{groups} correct combination{'s' if groups != 1 else ''} solved: +{base} pts"]
+        if max_pts >= 5:
+            bits.append(f"Trap solved: +{trap} pts" if trap else "Trap not found: +0 pts")
+        bits.append(f"Total: {score}/{max_pts} pts")
+        return " · ".join(bits)
+
     for puzzle_pid, p_steps in puzzle_step_groups:
         # Build summary stats for the collapsed header
         ps = puzzle_stats.get(str(puzzle_pid), {}) if puzzle_pid is not None else {}
@@ -676,6 +712,7 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
             f"</summary>"
         )
 
+        breakdown_shown = False
         for step in p_steps:
             st = step.get("type")
             if st == "state":
@@ -685,6 +722,11 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 to_state = str(step.get("to", "")).upper()
                 pill_class = "endpill failed" if to_state in ("FAILED", "ERROR") else "endpill"
                 parts.append(f"<div class=\"{pill_class}\">{escape_html(step.get('text'))} <span class=\"meta\">({escape_html(step.get('from',''))} → {escape_html(step.get('to',''))})</span></div>")
+                if not breakdown_shown:
+                    breakdown = oneshot_score_breakdown(p_steps)
+                    if breakdown:
+                        parts.append(f"<div class=\"stats\"><strong>Scoring:</strong> {escape_html(breakdown)}</div>")
+                        breakdown_shown = True
                 fe = step.get("final_eval", {})
                 if fe:
                     gi = fe.get("guess_index")
