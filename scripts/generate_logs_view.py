@@ -702,17 +702,25 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         else:
             outcome_class = ""
 
+        # One-shot puzzles show the scoring breakdown in the header; classic
+        # puzzles keep the correct/guesses ratio (which is meaningless for
+        # one-shot: groups-matched over a single completion reads as "4/1").
+        breakdown = oneshot_score_breakdown(p_steps)
+        if breakdown:
+            stats_inline = f"{breakdown} · ${cost:0.4f}"
+        else:
+            stats_inline = f"{correct}/{guesses} correct ({pct}) · ${cost:0.4f}"
+
         parts.append(f"<details class=\"puzzle-block{outcome_class}\">")
         parts.append(
             f"<summary class=\"puzzle-summary\">"
             f"<span class=\"pill\">Puzzle {escape_html(puzzle_pid)}</span>"
             f"<span class=\"puzzle-stats-inline\">"
-            f"{correct}/{guesses} correct ({pct}) · ${cost:0.4f}"
+            f"{escape_html(stats_inline)}"
             f"</span>"
             f"</summary>"
         )
 
-        breakdown_shown = False
         for step in p_steps:
             st = step.get("type")
             if st == "state":
@@ -722,11 +730,6 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 to_state = str(step.get("to", "")).upper()
                 pill_class = "endpill failed" if to_state in ("FAILED", "ERROR") else "endpill"
                 parts.append(f"<div class=\"{pill_class}\">{escape_html(step.get('text'))} <span class=\"meta\">({escape_html(step.get('from',''))} → {escape_html(step.get('to',''))})</span></div>")
-                if not breakdown_shown:
-                    breakdown = oneshot_score_breakdown(p_steps)
-                    if breakdown:
-                        parts.append(f"<div class=\"stats\"><strong>Scoring:</strong> {escape_html(breakdown)}</div>")
-                        breakdown_shown = True
                 fe = step.get("final_eval", {})
                 if fe:
                     gi = fe.get("guess_index")
