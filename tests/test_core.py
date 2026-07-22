@@ -740,6 +740,16 @@ class TestOneshotTraps:
     def test_wrong_size_claim_voids(self, mock_game, trap_puzzle):
         assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID"]]) == 0
 
+    def test_full_superset_claim_scores(self, mock_game, trap_puzzle):
+        """A 5-word claim matching the annotated superset exactly scores."""
+        claims = [["BRIGHT", "CLEVER", "SMART", "WISE", "QUICK"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
+
+    def test_oversized_claim_not_subset_voids(self, mock_game, trap_puzzle):
+        """A 5-word claim that isn't inside any annotated trap voids."""
+        claims = [["FAST", "QUICK", "RAPID", "SMART", "APPLE"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
+
     def test_canonical_yaml_traps_load(self):
         """The real YAML annotations load into Puzzle.trap_groups."""
         inputs = Path(__file__).resolve().parent.parent / "inputs"

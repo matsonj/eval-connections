@@ -1445,7 +1445,7 @@ class ConnectionsGame:
           (claims is None): 0.
         - Explicit "no traps" claim ([]): +2 iff the puzzle truly has no traps.
         - Otherwise, up to the first 2 distinct claims are judged. A claim is
-          correct when it is exactly 4 words, is a subset of an annotated trap
+          correct when it has 4 or more words, is a subset of an annotated trap
           set, and is not a real group. ALL judged claims must be correct for
           the +2 — any false claim voids the bonus.
         """
@@ -1466,7 +1466,7 @@ class ConnectionsGame:
         # judged, matching the "up to two" contract.
         for claim in distinct[:2]:
             correct = (
-                len(claim) == 4
+                len(claim) >= 4
                 and claim not in group_sets
                 and any(claim <= trap for trap in trap_sets)
             )
