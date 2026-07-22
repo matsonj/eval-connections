@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest runs for 88 models (20 games each, sorted by solve rate, avg time, cost)
+Latest runs for 89 models (20 games each, sorted by solve rate, avg time, cost)
 
 ```table
 {
@@ -1055,6 +1055,18 @@ Latest runs for 88 models (20 games each, sorted by solve rate, avg time, cost)
       "tok_per_game": "0.9k",
       "cost": 0.03,
       "cost_per_game": "$0.002"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T21-57-01_laguna-s-2.1.html\">poolside/laguna-s-2.1</a>",
+      "date": "2026-07-21",
+      "w": "2",
+      "win_pct": 0.1,
+      "hit_att": "14/91",
+      "acc_pct": 0.1538,
+      "avg_time": "43m54s",
+      "tok_per_game": "322.5k",
+      "cost": 0.02,
+      "cost_per_game": "$0.001"
     },
     {
       "model": "<a href=\"logs/2025-12-20T01-18-27_nova-pro.html\">amazon/nova-pro-v1</a>",
