@@ -45,8 +45,12 @@ def load_reverse_mapping() -> dict[str, str]:
     return reverse
 
 
-def select_models(df: pd.DataFrame) -> tuple[list[str], set[str]]:
-    """Return (selected OpenRouter IDs, already-backfilled IDs)."""
+def select_models(df: pd.DataFrame, select_all: bool = False) -> tuple[list[str], set[str]]:
+    """Return (selected OpenRouter IDs, already-backfilled IDs).
+
+    select_all=True selects every model with any 20-puzzle classic run;
+    default is the targeted subset (recent OR high solve rate).
+    """
     if "mode" not in df.columns:
         df = df.assign(mode="classic")
     df = df.assign(mode=df["mode"].fillna("classic"))
@@ -58,12 +62,15 @@ def select_models(df: pd.DataFrame) -> tuple[list[str], set[str]]:
     )
 
     classic = df[df["mode"] == "classic"]
-    first_run = classic.groupby("model")["start_timestamp"].min()
-    latest = classic.loc[classic.groupby("model")["start_timestamp"].idxmax()]
-
-    cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_DAYS)
-    recent = set(first_run[first_run >= cutoff].index)
-    high = set(latest[latest["solve_rate"] >= SOLVE_RATE_FLOOR]["model"])
+    if select_all:
+        selected = set(classic["model"])
+    else:
+        first_run = classic.groupby("model")["start_timestamp"].min()
+        latest = classic.loc[classic.groupby("model")["start_timestamp"].idxmax()]
+        cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_DAYS)
+        recent = set(first_run[first_run >= cutoff].index)
+        high = set(latest[latest["solve_rate"] >= SOLVE_RATE_FLOOR]["model"])
+        selected = recent | high
 
     # Only trap-scored runs count as backfilled — legacy pre-trap smoke runs
     # used a different scoring scale and must be re-run.
@@ -71,7 +78,7 @@ def select_models(df: pd.DataFrame) -> tuple[list[str], set[str]]:
     if "trap_scored" in oneshot.columns:
         oneshot = oneshot[oneshot["trap_scored"].fillna(0) == 1]
     done = set(oneshot["model"])
-    return sorted(recent | high), done
+    return sorted(selected), done
 
 
 def main() -> int:
@@ -80,17 +87,22 @@ def main() -> int:
                         help="Print the resolved model list and exit (no API calls)")
     parser.add_argument("--threads", type=int, default=8,
                         help="Threads per eval run (default: 8)")
+    parser.add_argument("--all", action="store_true",
+                        help="Select every model with a 20-puzzle classic run (not just recent/high-scoring)")
+    parser.add_argument("--force", action="store_true",
+                        help="Re-run models that already have a trap-scored one-shot run "
+                             "(needed after scoring-rule or prompt changes)")
     args = parser.parse_args()
 
     df = pd.read_csv(RUN_SUMMARIES_CSV)
-    selected, done = select_models(df)
+    selected, done = select_models(df, select_all=args.all)
     reverse = load_reverse_mapping()
 
     runnable: list[tuple[str, str]] = []  # (openrouter_id, cli_name)
     unmapped: list[str] = []
     skipped: list[str] = []
     for openrouter_id in selected:
-        if openrouter_id in done:
+        if openrouter_id in done and not args.force:
             skipped.append(openrouter_id)
             continue
         # CSV IDs may carry variant suffixes (":free"); mapping keys are stripped.
@@ -100,8 +112,10 @@ def main() -> int:
             continue
         runnable.append((openrouter_id, cli_name))
 
-    print(f"Selection: {len(selected)} models "
-          f"(first run < {RECENT_DAYS}d ago OR solve rate >= {SOLVE_RATE_FLOOR:.0%})")
+    criteria = ("all models with a 20-puzzle classic run" if args.all
+                else f"first run < {RECENT_DAYS}d ago OR solve rate >= {SOLVE_RATE_FLOOR:.0%}")
+    print(f"Selection: {len(selected)} models ({criteria})"
+          + (" [--force: re-running existing one-shot runs]" if args.force else ""))
     if skipped:
         print(f"\nAlready backfilled ({len(skipped)}), skipping:")
         for m in skipped:
