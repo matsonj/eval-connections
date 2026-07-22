@@ -252,23 +252,27 @@ def write_mviz_markdown(
         indent=2,
     )
 
-    # Scatter of points vs cost above the one-shot table — labeled per model
-    # so the cost/quality frontier reads at a glance.
+    # Scatter of points vs cost-efficiency above the one-shot table — labeled
+    # per model so the frontier reads at a glance. X is inverted from raw cost
+    # to "games per $10" so right = cheaper (fugu-ultra ~32, flash-lite ~1700).
     chart_block = ""
     if mode == "oneshot":
         chart_data = [
             {
                 "model": row["model"],
-                "cost": round(float(row["eval_cost"]), 2),
+                "games per $10": round(
+                    float(row["puzzles_attempted"]) * 10 / float(row["eval_cost"])
+                ),
                 "pts": int(row["total_score"]),
             }
             for _, row in df.iterrows()
+            if float(row["eval_cost"]) > 0
         ]
         scatter_spec = json.dumps(
             {
                 "type": "scatter",
-                "title": "Points vs Cost",
-                "x": "cost",
+                "title": "Points vs Efficiency (games per $10)",
+                "x": "games per $10",
                 "y": "pts",
                 "label": "model",
                 "showLabels": True,
