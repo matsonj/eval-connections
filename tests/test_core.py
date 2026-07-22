@@ -637,6 +637,23 @@ class TestOneshotEndToEnd:
         assert summary["max_score"] == 5
         assert summary["total_trap_bonus"] == 2
 
+    def test_api_error_still_counts_max_score(self, tmp_path):
+        """An API-error puzzle contributes its per-puzzle max (annotated -> 5)
+        so a partially-failed run's max_score stays honest."""
+        puzzle = self._make_puzzle()
+        puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
+        game = self._make_game(tmp_path, puzzle)
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   side_effect=RuntimeError("boom")):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["mode"] == "oneshot"
+        assert summary["puzzles_attempted"] == 1
+        assert summary["total_score"] == 0
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 0
+
     def test_mode_override_mismatch_raises(self, tmp_path):
         """run_evaluation(mode=...) must match the mode the game was built with,
         since the prompt template is selected at construction time."""
@@ -773,6 +790,22 @@ class TestOneshotFallbackPunctuation:
              patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
              patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
             return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    def test_tagless_answer_with_traps_block(self, mock_game):
+        """A tagless 4-line answer followed by a <traps> block must parse as
+        exactly 4 groups — trap-claim lines look like answer lines and must
+        not be scanned as extra groups (would force a structural invalid)."""
+        response = (
+            "APPLE, BANANA, CHERRY, GRAPE\n"
+            "BLUE, GREEN, RED, YELLOW\n"
+            "FAST, QUICK, RAPID, SWIFT\n"
+            "BRIGHT, CLEVER, SMART, WISE\n"
+            "<traps>\nFAST, QUICK, RAPID, SMART\n</traps>\n"
+            "<confidence>0.9</confidence>"
+        )
+        groups = mock_game._parse_oneshot_response(response)
+        assert len(groups) == 4
+        assert groups[0] == ["APPLE", "BANANA", "CHERRY", "GRAPE"]
 
     def test_hyphenated_word_survives_fallback(self, mock_game):
         response = (

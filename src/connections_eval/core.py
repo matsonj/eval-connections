@@ -943,7 +943,7 @@ class ConnectionsGame:
                     trap_bonus = 0
                     trap_claims = None
                     solved_groups: List[str] = []
-                    result = "ONESHOT_INVALID"
+                    result = f"ONESHOT_INVALID_MAX_{puzzle_max}"
                 else:
                     invalid_count = 0
                     mistake_count = 4 - groups_correct
@@ -956,7 +956,9 @@ class ConnectionsGame:
                     trap_claims = self._parse_oneshot_traps(content)
                     trap_bonus = self._score_trap_claims(puzzle, trap_claims)
                     score += trap_bonus
-                    result = f"ONESHOT_SCORE_{score}_GROUPS_{groups_correct}_TRAP_{trap_bonus}"
+                    # MAX carries the per-puzzle ceiling (5 reviewed / 3 unreviewed)
+                    # so downstream aggregation doesn't have to guess it.
+                    result = f"ONESHOT_SCORE_{score}_GROUPS_{groups_correct}_TRAP_{trap_bonus}_MAX_{puzzle_max}"
 
             except Exception as e:
                 elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
@@ -993,6 +995,11 @@ class ConnectionsGame:
                             "phase": "error",
                             "wall_ms": elapsed_ms,
                             "response_text": str(e),
+                            # Mode marker: without it, a run whose every call
+                            # errors has no ONESHOT_* completion strings and the
+                            # MotherDuck aggregation would misclassify it as
+                            # classic. MAX carries the per-puzzle score ceiling.
+                            "result": f"ONESHOT_API_ERROR_MAX_{5 if puzzle.trap_groups is not None else 3}",
                         },
                         project_id="connections_eval",
                         source="runtime",
@@ -1361,6 +1368,12 @@ class ConnectionsGame:
             return groups
 
         # Fallback: scan for lines that look like 4 comma-separated ALL CAPS words.
+        # Strip <traps>/<confidence> blocks first — trap-claim lines look exactly
+        # like answer lines and would otherwise be scanned as extra groups,
+        # turning a valid tagless answer into a structural invalid.
+        cleaned = re.sub(r'<traps>.*?</traps>', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r'<traps>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r'<confidence>.*?</confidence>', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
         # Allow hyphens/apostrophes so words like FLEUR-DE-LIS survive intact.
         caps_pattern = r"\b[A-Z][A-Z\s'\-]*\b(?:\s*,\s*[A-Z][A-Z\s'\-]*\b){3}"
         groups = []
