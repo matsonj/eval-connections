@@ -1172,23 +1172,16 @@ class ConnectionsGame:
             and set(submitted_words) == set(w.upper() for w in puzzle.words)
         )
 
-        # Trap claims (only when the puzzle has been reviewed for traps)
+        # Trap claim (only when the puzzle has been reviewed for traps)
         trap_bonus = 0
         if puzzle.trap_groups is not None and is_valid:
-            print("\nTraps: enter up to 2 lines of 4 comma-separated words,")
+            print("\nTrap: enter your single most likely trap set (4 comma-separated words),")
             print("'N/A' if you believe there are none, or blank to skip.")
-            trap_lines = []
-            for i in range(2):
-                try:
-                    line = input(f"Trap {i + 1}/2 (blank to stop): ").strip()
-                except (KeyboardInterrupt, EOFError):
-                    break
-                if not line:
-                    break
-                trap_lines.append(line)
-                if line.upper().rstrip('.') in ("N/A", "NA", "NONE"):
-                    break
-            trap_text = "<traps>\n" + "\n".join(trap_lines) + "\n</traps>" if trap_lines else ""
+            try:
+                line = input("Trap set: ").strip()
+            except (KeyboardInterrupt, EOFError):
+                line = ""
+            trap_text = f"<traps>\n{line}\n</traps>" if line else ""
             trap_claims = self._parse_oneshot_traps(trap_text)
             trap_bonus = self._score_trap_claims(puzzle, trap_claims)
             score += trap_bonus
@@ -1457,10 +1450,11 @@ class ConnectionsGame:
         - Puzzle not reviewed for traps (trap_groups is None) or no claim made
           (claims is None): 0.
         - Explicit "no traps" claim ([]): +2 iff the puzzle truly has no traps.
-        - Otherwise, up to the first 2 distinct claims are judged. A claim is
-          correct when it has 4 or more words, is a subset of an annotated trap
-          set, and is not a real group. ALL judged claims must be correct for
-          the +2 — any false claim voids the bonus.
+        - Otherwise ONLY THE FIRST claim is judged (the prompt asks for a single
+          best trap set; extra lines are ignored). The claim is correct — and
+          earns +2 — when it is exactly 4 words, is a subset of an annotated
+          trap set (supersets of 5+ mark overloaded categories), and is not a
+          real group. An incorrect claim scores 0.
         """
         if puzzle.trap_groups is None or claims is None:
             return 0
@@ -1470,22 +1464,13 @@ class ConnectionsGame:
             return 2 if not trap_sets else 0
 
         group_sets = [frozenset(w.upper() for w in g.words) for g in puzzle.groups]
-        distinct = []
-        for claim in claims:
-            fs = frozenset(claim)
-            if fs not in distinct:
-                distinct.append(fs)
-        # The prompt allows at most 2 claims; extras are ignored rather than
-        # judged, matching the "up to two" contract.
-        for claim in distinct[:2]:
-            correct = (
-                len(claim) >= 4
-                and claim not in group_sets
-                and any(claim <= trap for trap in trap_sets)
-            )
-            if not correct:
-                return 0
-        return 2
+        claim = frozenset(claims[0])
+        correct = (
+            len(claim) == 4
+            and claim not in group_sets
+            and any(claim <= trap for trap in trap_sets)
+        )
+        return 2 if correct else 0
 
     def _validate_guess(self, state: GameState, words: List[str]) -> Optional[str]:
         """

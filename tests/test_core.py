@@ -604,13 +604,13 @@ class TestOneshotEndToEnd:
         assert summary["puzzles_solved"] == 1
 
     def test_false_trap_claim_voids_bonus(self, tmp_path):
-        """A false trap claim scores base only, even alongside a correct one."""
+        """A false first trap claim scores base only (only the first is judged)."""
         puzzle = self._make_puzzle()
         puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
         game = self._make_game(tmp_path, puzzle)
         answer = "<answer>\n" + "\n".join(
             ", ".join(g.words) for g in puzzle.groups
-        ) + "\n</answer>\n<traps>\nFAST, QUICK, RAPID, SMART\nAPPLE, BLUE, FAST, WISE\n</traps>"
+        ) + "\n</answer>\n<traps>\nAPPLE, BLUE, FAST, WISE\nFAST, QUICK, RAPID, SMART\n</traps>"
 
         with patch("connections_eval.core.openrouter_adapter.chat",
                    return_value=self._mock_response(answer)):
@@ -719,24 +719,15 @@ class TestOneshotTraps:
         # The real Smart group is inside the superset but is NOT a trap
         assert mock_game._score_trap_claims(trap_puzzle, [["BRIGHT", "CLEVER", "SMART", "WISE"]]) == 0
 
-    def test_false_claim_voids_even_with_correct_one(self, mock_game, trap_puzzle):
+    def test_only_first_claim_judged_bogus_second_ignored(self, mock_game, trap_puzzle):
+        # Single-claim rule: a junk extra line no longer voids a correct first claim
         claims = [["FAST", "QUICK", "RAPID", "SMART"], ["APPLE", "BLUE", "FAST", "WISE"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
+
+    def test_only_first_claim_judged_correct_second_ignored(self, mock_game, trap_puzzle):
+        # ...and a correct second claim can't rescue a wrong first one
+        claims = [["APPLE", "BLUE", "FAST", "WISE"], ["FAST", "QUICK", "RAPID", "SMART"]]
         assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
-
-    def test_two_correct_claims(self, mock_game, trap_puzzle):
-        claims = [["FAST", "QUICK", "RAPID", "SMART"], ["BRIGHT", "CLEVER", "WISE", "QUICK"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
-
-    def test_extra_claims_ignored(self, mock_game, trap_puzzle):
-        # Only the first 2 distinct claims are judged; a bogus 3rd is ignored
-        claims = [["FAST", "QUICK", "RAPID", "SMART"],
-                  ["BRIGHT", "CLEVER", "WISE", "QUICK"],
-                  ["APPLE", "BLUE", "FAST", "WISE"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
-
-    def test_duplicate_claims_deduped(self, mock_game, trap_puzzle):
-        claims = [["FAST", "QUICK", "RAPID", "SMART"], ["SMART", "RAPID", "QUICK", "FAST"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
 
     def test_na_correct_on_trapless(self, mock_game):
         p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
@@ -757,14 +748,9 @@ class TestOneshotTraps:
     def test_wrong_size_claim_voids(self, mock_game, trap_puzzle):
         assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID"]]) == 0
 
-    def test_full_superset_claim_scores(self, mock_game, trap_puzzle):
-        """A 5-word claim matching the annotated superset exactly scores."""
+    def test_five_word_claim_rejected(self, mock_game, trap_puzzle):
+        """Claims must be EXACTLY 4 words — a full 5-word superset claim scores 0."""
         claims = [["BRIGHT", "CLEVER", "SMART", "WISE", "QUICK"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
-
-    def test_oversized_claim_not_subset_voids(self, mock_game, trap_puzzle):
-        """A 5-word claim that isn't inside any annotated trap voids."""
-        claims = [["FAST", "QUICK", "RAPID", "SMART", "APPLE"]]
         assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
 
     def test_canonical_yaml_traps_load(self):
@@ -772,7 +758,7 @@ class TestOneshotTraps:
         inputs = Path(__file__).resolve().parent.parent / "inputs"
         game = ConnectionsGame(inputs, Path("logs"))
         by_id = {p.id: p for p in game.puzzles}
-        assert by_id[246].trap_groups is not None and len(by_id[246].trap_groups) == 3
+        assert by_id[246].trap_groups is not None and len(by_id[246].trap_groups) == 4
         assert by_id[837].trap_groups == []  # reviewed, trap-free
         assert by_id[828].trap_groups == []
         # Superset annotation present (476 OVER-___ 5-set)
