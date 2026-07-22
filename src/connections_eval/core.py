@@ -144,7 +144,7 @@ class ConnectionsGame:
     """Main game engine for Connections puzzles."""
 
     # Version for tracking evaluation framework changes
-    VERSION = "4.0.0"  # One-shot mode becomes the primary eval (single submission, scored 0/1/2/5)
+    VERSION = "4.0.0"  # One-shot mode becomes the primary eval (single submission, base 0/1/2/3 + 2-pt trap bonus)
 
     # Model configuration loaded from YAML file
     MODEL_CONFIG = {}
@@ -820,7 +820,8 @@ class ConnectionsGame:
         """Run a single puzzle in one-shot mode with an AI model.
 
         Modeled on _run_puzzle_ai but makes a single API call: the model submits
-        all 4 groups at once and there is no feedback loop. Scored 0/1/2/5.
+        all 4 groups at once and there is no feedback loop. Base score 0/1/2/3
+        (perfect = 3) plus a 2-point trap bonus.
 
         attempt: optional trial index. See _run_puzzle_ai for the session_id
             rationale — repeated attempts get independent sticky-routing sessions.
@@ -1433,7 +1434,10 @@ class ConnectionsGame:
         lines = [ln.strip() for ln in traps_match.group(1).splitlines() if ln.strip()]
         if not lines:
             return None
-        if len(lines) == 1 and re.fullmatch(r'(?:N/?A|NONE)\.?', lines[0], re.IGNORECASE):
+        # Sentinel on the FIRST line wins regardless of trailing lines — only
+        # the first claim is ever judged, so extra lines after N/A are ignored
+        # just like extra claims after a word set.
+        if re.fullmatch(r'(?:N/?A|NONE)\.?', lines[0], re.IGNORECASE):
             return []
 
         claims = []
@@ -1466,7 +1470,10 @@ class ConnectionsGame:
         group_sets = [frozenset(w.upper() for w in g.words) for g in puzzle.groups]
         claim = frozenset(claims[0])
         correct = (
-            len(claim) == 4
+            # Exactly 4 words as SUBMITTED — a 5-token line with a duplicate
+            # collapses to a 4-element set and must not sneak past the gate.
+            len(claims[0]) == 4
+            and len(claim) == 4
             and claim not in group_sets
             and any(claim <= trap for trap in trap_sets)
         )

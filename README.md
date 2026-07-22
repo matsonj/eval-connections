@@ -368,7 +368,7 @@ uv run connections_eval run --model grok4 --puzzle-ids 246,283,477,826
 # Canonical puzzle set
 uv run connections_eval run --model sonnet-4 --canonical
 
-# One-shot mode: single submission of all 4 groups per puzzle (scored 0/1/2/5, max 100 over canonical set)
+# One-shot mode: single submission of all 4 groups per puzzle (base 0/1/2/3 + 2-pt trap bonus, max 100 over canonical set)
 uv run connections_eval run --model sonnet-4 --mode oneshot --canonical
 
 # Single-threaded with fixed seed (fully reproducible)

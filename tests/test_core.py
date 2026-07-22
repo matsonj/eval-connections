@@ -753,6 +753,42 @@ class TestOneshotTraps:
         claims = [["BRIGHT", "CLEVER", "SMART", "WISE", "QUICK"]]
         assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
 
+    def test_duplicate_word_padding_rejected(self, mock_game, trap_puzzle):
+        """A 5-token claim with a duplicate collapses to a 4-set but must not
+        pass the exactly-4-words gate."""
+        claims = [["FAST", "QUICK", "RAPID", "SMART", "SMART"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
+
+    def test_na_first_line_wins_despite_trailing_lines(self, mock_game):
+        """N/A on the first line is the judged claim even with extra lines after
+        (consistent with first-claim-only judging)."""
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups(), trap_groups=[])
+        claims = mock_game._parse_oneshot_traps(
+            "<traps>\nN/A\nFAST, QUICK, RAPID, SMART\n</traps>")
+        assert claims == []
+        assert mock_game._score_trap_claims(p, claims) == 2
+
+    def test_real_yaml_246_superset_real_group_excluded(self):
+        """Against the real YAML: 246's 12-Monkeys superset scores for a
+        MONKEY-containing 4-subset but not for the real movie group."""
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        p246 = {p.id: p for p in game.puzzles}[246]
+        # Real group inside the superset: rejected
+        assert game._score_trap_claims(
+            p246, [["APOLLO", "CANDLES", "FANTASTIC", "SAMURAI"]]) == 0
+        # 4-subset swapping MONKEY in: scores
+        assert game._score_trap_claims(
+            p246, [["APOLLO", "CANDLES", "FANTASTIC", "MONKEY"]]) == 2
+
+    def test_real_yaml_839_corn_trap(self):
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        p839 = {p.id: p for p in game.puzzles}[839]
+        assert game._score_trap_claims(
+            p839, [["SWEET", "KETTLE", "FRITTER", "POPPER"]]) == 2
+
     def test_canonical_yaml_traps_load(self):
         """The real YAML annotations load into Puzzle.trap_groups."""
         inputs = Path(__file__).resolve().parent.parent / "inputs"
