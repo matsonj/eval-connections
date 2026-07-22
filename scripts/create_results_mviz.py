@@ -28,6 +28,7 @@ def load_and_filter_data(
         "total_trap_bonus",
         "max_score",
         "avg_score",
+        "trap_scored",
     ):
         if col not in df.columns:
             df[col] = pd.NA
@@ -42,6 +43,12 @@ def load_and_filter_data(
         & (df["total_cost"].notna())
         & (df["mode"] == mode)
     ].copy()
+
+    # Legacy pre-trap one-shot smoke runs (no _TRAP_ in result strings) used a
+    # different scoring scale — exclude them so the board only compares
+    # trap-scored runs.
+    if mode == "oneshot":
+        filtered_df = filtered_df[filtered_df["trap_scored"].fillna(0) == 1]
 
     if filtered_df.empty:
         return filtered_df

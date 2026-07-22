@@ -65,7 +65,12 @@ def select_models(df: pd.DataFrame) -> tuple[list[str], set[str]]:
     recent = set(first_run[first_run >= cutoff].index)
     high = set(latest[latest["solve_rate"] >= SOLVE_RATE_FLOOR]["model"])
 
-    done = set(df[df["mode"] == "oneshot"]["model"])
+    # Only trap-scored runs count as backfilled — legacy pre-trap smoke runs
+    # used a different scoring scale and must be re-run.
+    oneshot = df[df["mode"] == "oneshot"]
+    if "trap_scored" in oneshot.columns:
+        oneshot = oneshot[oneshot["trap_scored"].fillna(0) == 1]
+    done = set(oneshot["model"])
     return sorted(recent | high), done
 
 

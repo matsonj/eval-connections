@@ -86,7 +86,10 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
                 -- MAX_ tag count 5 each.
                 SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT%' THEN
                     COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'MAX_([0-9]+)', 1), '') AS INTEGER), 5)
-                    END) AS oneshot_max_score
+                    END) AS oneshot_max_score,
+                -- Distinguishes trap-scoring runs (result carries _TRAP_) from
+                -- legacy pre-trap smoke runs whose scores aren't comparable.
+                MAX(CASE WHEN e.payload_json.result LIKE '%\\_TRAP\\_%' ESCAPE '\\' THEN 1 ELSE 0 END) AS trap_scored
             FROM controllog.events e
             WHERE e.run_id IS NOT NULL
             AND e.kind IN ('model_completion', 'model_response_error')
@@ -158,6 +161,8 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
                  THEN COALESCE(gs.total_trap_bonus, 0) END AS total_trap_bonus,
             CASE WHEN gs.oneshot_mode = 'oneshot'
                  THEN COALESCE(gs.oneshot_max_score, 5 * COALESCE(ps.puzzles_attempted, 0)) END AS max_score,
+            CASE WHEN gs.oneshot_mode = 'oneshot'
+                 THEN COALESCE(gs.trap_scored, 0) END AS trap_scored,
             COALESCE(ts.total_tokens, 0) AS total_tokens,
             COALESCE(ts.total_prompt_tokens, 0) AS total_prompt_tokens,
             COALESCE(ts.total_completion_tokens, 0) AS total_completion_tokens,
@@ -232,6 +237,7 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         "total_trap_bonus",
         "max_score",
         "avg_score",
+        "trap_scored",
         "avg_time_sec",
         "total_time_sec",
         "avg_inference_sec",
