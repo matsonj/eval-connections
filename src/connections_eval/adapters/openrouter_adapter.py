@@ -28,6 +28,14 @@ def _load_thinking_models() -> Set[str]:
         return set()
 
 
+class InsufficientCreditsError(RuntimeError):
+    """OpenRouter returned 402 — credits exhausted or pre-auth too large.
+
+    Never resolves within a retry window, so it skips retries and aborts
+    the whole run (a credit wall poisons every subsequent puzzle)."""
+    non_retryable = True
+
+
 # Cache the thinking models set
 _THINKING_MODELS = _load_thinking_models()
 
@@ -248,6 +256,20 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         limiter.release(openrouter_model)
         # Let the retry decorator handle the actual sleep + retry loop.
         response.raise_for_status()
+
+    # 402 = insufficient credits. Retrying can't fix it and every subsequent
+    # puzzle would fail the same way — abort the run with the API's own
+    # explanation (it includes the exact affordable token count).
+    if response.status_code == 402:
+        try:
+            detail = response.json().get("error", {}).get("message", "")
+        except Exception:
+            detail = ""
+        limiter.release(openrouter_model)
+        raise InsufficientCreditsError(
+            f"OpenRouter credits exhausted (402): {detail or 'Payment Required'} — "
+            f"top up at https://openrouter.ai/settings/credits"
+        )
 
     # Check for OpenRouter-specific errors before raising
     if not response.ok:

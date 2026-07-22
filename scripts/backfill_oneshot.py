@@ -171,6 +171,15 @@ def main() -> int:
         ok = proc.returncode == 0
         results.append((cli_name, ok))
         print(f"[{i}/{len(runnable)}] {cli_name}: {'OK' if ok else f'FAILED (exit {proc.returncode})'}")
+        if proc.returncode == 3:
+            # Insufficient OpenRouter credits — every remaining model would
+            # fail the same way. Stop the fleet.
+            remaining = [c for _, c in runnable[i:]]
+            print(f"\n!! ABORTING BACKFILL: OpenRouter credits exhausted. "
+                  f"{len(remaining)} models not attempted: {', '.join(remaining)}")
+            print("Top up at https://openrouter.ai/settings/credits, then re-run "
+                  "this script (completed models are skipped unless --force).")
+            break
 
     print("\n===== Backfill summary =====")
     passed = [m for m, ok in results if ok]

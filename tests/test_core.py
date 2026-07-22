@@ -1213,6 +1213,55 @@ class TestBackoffAccumulator:
         assert retry_mod.get_last_backoff_sec() == 0.0
 
 
+class TestInsufficientCreditsAbort:
+    """402 aborts the run immediately: no retries, no partial summary."""
+
+    def test_retry_decorator_does_not_retry_non_retryable(self):
+        from connections_eval.utils.retry import retry_with_backoff
+        from connections_eval.adapters.openrouter_adapter import InsufficientCreditsError
+        calls = []
+
+        @retry_with_backoff(max_retries=5, base_delay=0.01)
+        def boom():
+            calls.append(1)
+            raise InsufficientCreditsError("no credits")
+
+        with pytest.raises(InsufficientCreditsError):
+            boom()
+        assert len(calls) == 1  # exactly one attempt, no retries
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    def test_chat_raises_credits_error_on_402(self, mock_post, mock_key):
+        from connections_eval.adapters.openrouter_adapter import chat, InsufficientCreditsError
+        resp = MagicMock()
+        resp.ok = False
+        resp.status_code = 402
+        resp.json.return_value = {"error": {"message": "can only afford 100 tokens"}}
+        mock_post.return_value = resp
+        with pytest.raises(InsufficientCreditsError, match="can only afford"):
+            chat([{"role": "user", "content": "x"}], "openai/o3")
+        assert mock_post.call_count == 1  # no retry loop
+
+    def test_run_evaluation_aborts_without_summary(self, tmp_path):
+        """A credit wall mid-run raises out of run_evaluation (no summary,
+        so nothing partial lands on the leaderboard)."""
+        from connections_eval.adapters.openrouter_adapter import InsufficientCreditsError
+        puzzle = Puzzle(id=477, date="2024-09-30", difficulty=3.8,
+                        words=list(_TEST_WORDS), groups=_make_test_groups(),
+                        trap_groups=[])
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
+             patch.object(ConnectionsGame, '_load_model_mappings',
+                          return_value={"test-model": "test/model"}):
+            game = ConnectionsGame(
+                Path(__file__).resolve().parent.parent / "inputs",
+                tmp_path, seed=42, mode="oneshot")
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   side_effect=InsufficientCreditsError("no credits")):
+            with pytest.raises(InsufficientCreditsError):
+                game.run_evaluation("test-model", puzzle_ids=[477])
+
+
 class TestModelPreflight:
     """assert_model_exists fails fast on bad slugs, skips on catalog errors."""
 

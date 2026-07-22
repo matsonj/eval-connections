@@ -292,6 +292,10 @@ def run(
     except KeyboardInterrupt:
         console.print("\nEvaluation interrupted", style="red")
         raise typer.Exit(1)
+    except openrouter_adapter.InsufficientCreditsError as e:
+        # Distinct exit code so batch drivers (backfill) can stop the fleet.
+        console.print(str(e), style="red")
+        raise typer.Exit(3)
     except Exception as e:
         console.print(f"Error: {e}", style="red")
         raise typer.Exit(1)

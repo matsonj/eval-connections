@@ -409,6 +409,9 @@ class ConnectionsGame:
                                   else self._run_puzzle_ai(puzzle, model_name, self.rng))
                     stats.accumulate(result)
                 except Exception as e:
+                    if getattr(e, "non_retryable", False):
+                        # e.g. insufficient credits — abort the run, no summary
+                        raise
                     self.logger.error(f"Error running puzzle {puzzle.id}: {e}")
                     break
         else:
@@ -427,6 +430,10 @@ class ConnectionsGame:
                 for future in as_completed(futures):
                     results.append(future.result())
 
+            for puzzle_id, result, exc in results:
+                if exc is not None and getattr(exc, "non_retryable", False):
+                    # e.g. insufficient credits — abort the run, no summary
+                    raise exc
             for puzzle_id, result, exc in results:
                 if exc is not None:
                     self.logger.error(f"Error running puzzle {puzzle_id}: {exc}")
@@ -595,6 +602,8 @@ class ConnectionsGame:
                     result = self._process_guess(state, content)
 
                 except Exception as e:
+                    if getattr(e, "non_retryable", False):
+                        raise
                     elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
                     backoff_sec = get_last_backoff_sec()
                     total_backoff_sec += backoff_sec
@@ -962,6 +971,8 @@ class ConnectionsGame:
                     result = f"ONESHOT_SCORE_{score}_GROUPS_{groups_correct}_TRAP_{trap_bonus}_MAX_{puzzle_max}"
 
             except Exception as e:
+                if getattr(e, "non_retryable", False):
+                    raise
                 elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
                 backoff_sec = get_last_backoff_sec()
                 total_backoff_sec += backoff_sec
