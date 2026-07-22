@@ -435,6 +435,7 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                     "type": "response",
                     "text": p.get("response_text", ""),
                     "result": p.get("result"),
+                    "wall_ms": p.get("wall_ms"),
                     "puzzle_id": puzzle_id,
                     "tokens": summarize_tokens_and_cost(ev.postings),
                     "ts": ev.event_time,
@@ -657,9 +658,10 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         if verdict is None:
             return None
         if verdict.startswith("ONESHOT_INVALID"):
-            return "Invalid submission: 0 pts (trap bonus forfeited)"
+            mx = re.search(r"MAX_(\d+)", verdict)
+            return f"Invalid · Base: 0 · Bonus: 0 · Total: 0/{mx.group(1) if mx else 5}"
         if verdict.startswith("ONESHOT_API_ERROR"):
-            return "API error: 0 pts"
+            return "API error · Total: 0"
         m = re.search(r"ONESHOT_SCORE_(\d+)", verdict)
         if not m:
             return None
@@ -669,15 +671,14 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         mx = re.search(r"MAX_(\d+)", verdict)
         if g is None:
             # Legacy pre-trap verdict: score only
-            return f"Score: {score} pts (legacy scoring)"
-        groups = int(g.group(1))
+            return f"Total: {score} (legacy scoring)"
         trap = int(t.group(1)) if t else 0
         base = score - trap
         max_pts = int(mx.group(1)) if mx else 5
-        bits = [f"{groups} correct combination{'s' if groups != 1 else ''} solved: +{base} pts"]
+        bits = [f"Base: {base}"]
         if max_pts >= 5:
-            bits.append(f"Trap solved: +{trap} pts" if trap else "Trap not found: +0 pts")
-        bits.append(f"Total: {score}/{max_pts} pts")
+            bits.append(f"Bonus: {trap}")
+        bits.append(f"Total: {score}/{max_pts}")
         return " · ".join(bits)
 
     for puzzle_pid, p_steps in puzzle_step_groups:
@@ -707,7 +708,17 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         # one-shot: groups-matched over a single completion reads as "4/1").
         breakdown = oneshot_score_breakdown(p_steps)
         if breakdown:
-            stats_inline = f"{breakdown} · ${cost:0.4f}"
+            # One-shot inference time comes from the completion's wall_ms —
+            # state-move timestamps all land post-response and read as 0s.
+            wall_ms = 0
+            for s in p_steps:
+                try:
+                    wall_ms += int(s.get("wall_ms") or 0)
+                except (TypeError, ValueError):
+                    pass
+            stats_inline = f"{breakdown} · Cost: ${cost:0.4f}"
+            if wall_ms:
+                stats_inline += f" · Time: {wall_ms / 1000:.1f}s"
         else:
             stats_inline = f"{correct}/{guesses} correct ({pct}) · ${cost:0.4f}"
 
