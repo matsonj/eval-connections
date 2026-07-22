@@ -252,60 +252,6 @@ def write_mviz_markdown(
         indent=2,
     )
 
-    # Scatter of points vs cost-efficiency above the one-shot table — labeled
-    # per model so the frontier reads at a glance. X is inverted from raw cost
-    # to "games per $10" so right = cheaper (fugu-ultra ~32, flash-lite ~1700).
-    chart_block = ""
-    if mode == "oneshot":
-        chart_data = [
-            {
-                "model": row["model"],
-                "games per $10": round(
-                    float(row["puzzles_attempted"]) * 10 / float(row["eval_cost"])
-                ),
-                "pts": int(row["total_score"]),
-            }
-            for _, row in df.iterrows()
-            if float(row["eval_cost"]) > 0
-        ]
-        scatter_spec = json.dumps(
-            {
-                "type": "scatter",
-                "title": "Points vs Efficiency (games per $10)",
-                "x": "games per $10",
-                "y": "pts",
-                "label": "model",
-                "showLabels": True,
-                "data": chart_data,
-            },
-            indent=2,
-        )
-        # Horizontal bars, lowest score at the bottom of the category axis so
-        # the leader renders on top.
-        bar_spec = json.dumps(
-            {
-                "type": "bar",
-                "title": "Points",
-                "x": "model",
-                "y": "pts",
-                "horizontal": True,
-                "data": [
-                    {"model": row["model"], "pts": int(row["total_score"])}
-                    for _, row in df.iloc[::-1].iterrows()
-                ],
-            },
-            indent=2,
-        )
-        # No blank line between the two blocks — they share the row.
-        chart_block = f"""```scatter size=[8,10]
-{scatter_spec}
-```
-```bar size=[8,10]
-{bar_spec}
-```
-
-"""
-
     md_content = f"""---
 theme: light
 title: {title}
@@ -315,7 +261,7 @@ continuous: true
 
 {intro}
 
-{chart_block}```table
+```table
 {table_spec}
 ```
 """

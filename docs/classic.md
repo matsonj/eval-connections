@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve rate, avg time, cost) · [← One-shot leaderboard](index.html)
+Latest classic (multi-turn) runs for 90 models (20 games each, sorted by solve rate, avg time, cost) · [← One-shot leaderboard](index.html)
 
 ```table
 {
@@ -85,6 +85,18 @@ Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve r
       "cost_per_game": "$0.023"
     },
     {
+      "model": "<a href=\"logs/2026-07-21T17-23-12_gemini-3.6-flash.html\">google/gemini-3.6-flash</a>",
+      "date": "2026-07-21",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/81",
+      "acc_pct": 0.9877,
+      "avg_time": "12s",
+      "tok_per_game": "6.0k",
+      "cost": 0.34,
+      "cost_per_game": "$0.017"
+    },
+    {
       "model": "<a href=\"logs/2026-03-10T02-52-45_gpt5.4.html\">openai/gpt-5.4</a>",
       "date": "2026-03-10",
       "w": "20",
@@ -143,6 +155,18 @@ Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve r
       "tok_per_game": "4.7k",
       "cost": 0.95,
       "cost_per_game": "$0.048"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-24-25_muse-spark-1.1.html\">meta/muse-spark-1.1</a>",
+      "date": "2026-07-21",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/89",
+      "acc_pct": 0.8989,
+      "avg_time": "23s",
+      "tok_per_game": "5.9k",
+      "cost": 0.28,
+      "cost_per_game": "$0.014"
     },
     {
       "model": "<a href=\"logs/2026-07-10T17-52-33_gpt5.6-terra-pro.html\">openai/gpt-5.6-terra-pro</a>",
@@ -215,6 +239,30 @@ Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve r
       "tok_per_game": "8.5k",
       "cost": 0.06,
       "cost_per_game": "$0.003"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-10T18-06-38_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
+      "date": "2026-07-10",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/81",
+      "acc_pct": 0.9877,
+      "avg_time": "43s",
+      "tok_per_game": "7.9k",
+      "cost": 0.75,
+      "cost_per_game": "$0.037"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-23-34_kimi-k3.html\">moonshotai/kimi-k3</a>",
+      "date": "2026-07-21",
+      "w": "20",
+      "win_pct": 1.0,
+      "hit_att": "80/81",
+      "acc_pct": 0.9877,
+      "avg_time": "49s",
+      "tok_per_game": "4.1k",
+      "cost": 0.48,
+      "cost_per_game": "$0.024"
     },
     {
       "model": "<a href=\"logs/2026-06-09T20-23-20_fable-5.html\">anthropic/claude-fable-5</a>",
@@ -601,18 +649,6 @@ Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve r
       "cost_per_game": "$0.027"
     },
     {
-      "model": "<a href=\"logs/2026-07-10T16-58-47_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
-      "date": "2026-07-10",
-      "w": "17",
-      "win_pct": 0.85,
-      "hit_att": "74/89",
-      "acc_pct": 0.8315,
-      "avg_time": "17s",
-      "tok_per_game": "3.6k",
-      "cost": 0.21,
-      "cost_per_game": "$0.010"
-    },
-    {
       "model": "<a href=\"logs/2025-12-19T01-11-11_sonnet-4.5.html\">anthropic/claude-4.5-sonnet</a>",
       "date": "2025-12-19",
       "w": "17",
@@ -647,6 +683,18 @@ Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve r
       "tok_per_game": "17.9k",
       "cost": 0.65,
       "cost_per_game": "$0.032"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T17-12-18_gemini-3.5-flash-lite.html\">google/gemini-3.5-flash-lite</a>",
+      "date": "2026-07-21",
+      "w": "16",
+      "win_pct": 0.8,
+      "hit_att": "69/88",
+      "acc_pct": 0.7841,
+      "avg_time": "8s",
+      "tok_per_game": "8.3k",
+      "cost": 0.14,
+      "cost_per_game": "$0.007"
     },
     {
       "model": "<a href=\"logs/2026-03-10T02-45-04_gemini-3.1-flash-lite.html\">google/gemini-3.1-flash-lite-preview</a>",
@@ -997,6 +1045,30 @@ Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve r
       "cost_per_game": "$0.004"
     },
     {
+      "model": "<a href=\"logs/2026-07-21T17-41-19_inkling.html\">thinkingmachines/inkling</a>",
+      "date": "2026-07-21",
+      "w": "2",
+      "win_pct": 0.1,
+      "hit_att": "20/28",
+      "acc_pct": 0.7143,
+      "avg_time": "1m40s",
+      "tok_per_game": "0.9k",
+      "cost": 0.03,
+      "cost_per_game": "$0.002"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T21-57-01_laguna-s-2.1.html\">poolside/laguna-s-2.1</a>",
+      "date": "2026-07-21",
+      "w": "2",
+      "win_pct": 0.1,
+      "hit_att": "14/91",
+      "acc_pct": 0.1538,
+      "avg_time": "43m54s",
+      "tok_per_game": "322.5k",
+      "cost": 0.02,
+      "cost_per_game": "$0.001"
+    },
+    {
       "model": "<a href=\"logs/2025-12-20T01-18-27_nova-pro.html\">amazon/nova-pro-v1</a>",
       "date": "2025-12-20",
       "w": "1",
@@ -1055,6 +1127,18 @@ Latest classic (multi-turn) runs for 83 models (20 games each, sorted by solve r
       "tok_per_game": "10.6k",
       "cost": 0.68,
       "cost_per_game": "$0.034"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-21T21-33-16_kimi-k3.html\">unknown</a>",
+      "date": "2026-07-21",
+      "w": "0",
+      "win_pct": 0.0,
+      "hit_att": "0/0",
+      "acc_pct": 0.0,
+      "avg_time": "0s",
+      "tok_per_game": "0.0k",
+      "cost": 0.0,
+      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-29-16_ernie-4.5.html\">baidu/ernie-4.5-21b-a3b-thinking</a>",
