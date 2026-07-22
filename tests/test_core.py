@@ -586,13 +586,12 @@ class TestOneshotEndToEnd:
     def test_trap_bonus_end_to_end(self, tmp_path):
         """Perfect answer + correct trap claim on an annotated puzzle scores 5/5."""
         puzzle = self._make_puzzle()
-        # Annotate a superset trap: FAST/QUICK/RAPID/SWIFT (real group) + SMART
-        # would be wrong — use a synthetic 4-set crossing two groups instead.
-        puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
+        # Cross-cutting 4-set: 2 Speed + 2 Smart words
+        puzzle.trap_groups = [["FAST", "QUICK", "BRIGHT", "CLEVER"]]
         game = self._make_game(tmp_path, puzzle)
         answer = "<answer>\n" + "\n".join(
             ", ".join(g.words) for g in puzzle.groups
-        ) + "\n</answer>\n<traps>\nFAST, QUICK, RAPID, SMART\n</traps>"
+        ) + "\n</answer>\n<traps>\nFAST, QUICK, BRIGHT, CLEVER\n</traps>"
 
         with patch("connections_eval.core.openrouter_adapter.chat",
                    return_value=self._mock_response(answer)):
@@ -606,11 +605,11 @@ class TestOneshotEndToEnd:
     def test_false_trap_claim_voids_bonus(self, tmp_path):
         """A false first trap claim scores base only (only the first is judged)."""
         puzzle = self._make_puzzle()
-        puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
+        puzzle.trap_groups = [["FAST", "QUICK", "BRIGHT", "CLEVER"]]
         game = self._make_game(tmp_path, puzzle)
         answer = "<answer>\n" + "\n".join(
             ", ".join(g.words) for g in puzzle.groups
-        ) + "\n</answer>\n<traps>\nAPPLE, BLUE, FAST, WISE\nFAST, QUICK, RAPID, SMART\n</traps>"
+        ) + "\n</answer>\n<traps>\nAPPLE, BLUE, FAST, WISE\nFAST, QUICK, BRIGHT, CLEVER\n</traps>"
 
         with patch("connections_eval.core.openrouter_adapter.chat",
                    return_value=self._mock_response(answer)):
@@ -676,13 +675,14 @@ class TestOneshotTraps:
 
     @pytest.fixture
     def trap_puzzle(self):
-        """Puzzle with one 4-set trap and one 5-word superset trap."""
+        """Puzzle with one 4-set trap and one 5-word superset trap, both
+        cross-cutting (never 3+ words from one real group)."""
         return Puzzle(
             id=477, date="2024-09-30", difficulty=3.8,
             words=list(_TEST_WORDS), groups=_make_test_groups(),
             trap_groups=[
-                ["FAST", "QUICK", "RAPID", "SMART"],           # 4-set
-                ["BRIGHT", "CLEVER", "SMART", "WISE", "QUICK"] # superset: real group + QUICK
+                ["FAST", "QUICK", "BRIGHT", "CLEVER"],           # 2 Speed + 2 Smart
+                ["RED", "YELLOW", "APPLE", "BANANA", "WISE"],    # 2/2/1 superset
             ],
         )
 
@@ -709,11 +709,11 @@ class TestOneshotTraps:
     # --- scoring ---
 
     def test_correct_4set_claim(self, mock_game, trap_puzzle):
-        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID", "SMART"]]) == 2
+        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "BRIGHT", "CLEVER"]]) == 2
 
     def test_subset_of_superset_claim(self, mock_game, trap_puzzle):
         # Any 4-subset of the 5-word superset that isn't the real group scores
-        assert mock_game._score_trap_claims(trap_puzzle, [["BRIGHT", "CLEVER", "SMART", "QUICK"]]) == 2
+        assert mock_game._score_trap_claims(trap_puzzle, [["RED", "YELLOW", "APPLE", "WISE"]]) == 2
 
     def test_real_group_subset_of_superset_rejected(self, mock_game, trap_puzzle):
         # The real Smart group is inside the superset but is NOT a trap
@@ -721,12 +721,12 @@ class TestOneshotTraps:
 
     def test_only_first_claim_judged_bogus_second_ignored(self, mock_game, trap_puzzle):
         # Single-claim rule: a junk extra line no longer voids a correct first claim
-        claims = [["FAST", "QUICK", "RAPID", "SMART"], ["APPLE", "BLUE", "FAST", "WISE"]]
+        claims = [["FAST", "QUICK", "BRIGHT", "CLEVER"], ["APPLE", "BLUE", "FAST", "WISE"]]
         assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
 
     def test_only_first_claim_judged_correct_second_ignored(self, mock_game, trap_puzzle):
         # ...and a correct second claim can't rescue a wrong first one
-        claims = [["APPLE", "BLUE", "FAST", "WISE"], ["FAST", "QUICK", "RAPID", "SMART"]]
+        claims = [["APPLE", "BLUE", "FAST", "WISE"], ["FAST", "QUICK", "BRIGHT", "CLEVER"]]
         assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
 
     def test_na_correct_on_trapless(self, mock_game):
@@ -743,20 +743,20 @@ class TestOneshotTraps:
     def test_unreviewed_puzzle_inactive(self, mock_game):
         p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
                    groups=_make_test_groups())  # trap_groups=None
-        assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "RAPID", "SMART"]]) == 0
+        assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "BRIGHT", "CLEVER"]]) == 0
 
     def test_wrong_size_claim_voids(self, mock_game, trap_puzzle):
         assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID"]]) == 0
 
     def test_five_word_claim_rejected(self, mock_game, trap_puzzle):
         """Claims must be EXACTLY 4 words — a full 5-word superset claim scores 0."""
-        claims = [["BRIGHT", "CLEVER", "SMART", "WISE", "QUICK"]]
+        claims = [["RED", "YELLOW", "APPLE", "BANANA", "WISE"]]
         assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
 
     def test_duplicate_word_padding_rejected(self, mock_game, trap_puzzle):
         """A 5-token claim with a duplicate collapses to a 4-set but must not
         pass the exactly-4-words gate."""
-        claims = [["FAST", "QUICK", "RAPID", "SMART", "SMART"]]
+        claims = [["FAST", "QUICK", "BRIGHT", "CLEVER", "CLEVER"]]
         assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
 
     def test_na_first_line_wins_despite_trailing_lines(self, mock_game):
@@ -769,18 +769,47 @@ class TestOneshotTraps:
         assert claims == []
         assert mock_game._score_trap_claims(p, claims) == 2
 
-    def test_real_yaml_246_superset_real_group_excluded(self):
-        """Against the real YAML: 246's 12-Monkeys superset scores for a
-        MONKEY-containing 4-subset but not for the real movie group."""
+    def test_real_yaml_246_traps(self):
+        """Against the real YAML: 246's cross-cutting imitate trap scores;
+        the removed 12-Monkeys overload (3 words from the movie group) doesn't."""
         inputs = Path(__file__).resolve().parent.parent / "inputs"
         game = ConnectionsGame(inputs, Path("logs"))
         p246 = {p.id: p for p in game.puzzles}[246]
-        # Real group inside the superset: rejected
         assert game._score_trap_claims(
-            p246, [["APOLLO", "CANDLES", "FANTASTIC", "SAMURAI"]]) == 0
-        # 4-subset swapping MONKEY in: scores
+            p246, [["ECHO", "MIME", "MONKEY", "PARROT"]]) == 2
         assert game._score_trap_claims(
-            p246, [["APOLLO", "CANDLES", "FANTASTIC", "MONKEY"]]) == 2
+            p246, [["APOLLO", "CANDLES", "FANTASTIC", "MONKEY"]]) == 0
+
+    def test_three_from_one_group_never_scores_even_if_annotated(self, mock_game):
+        """The no-3-from-one-category rule is enforced in the scorer, so a bad
+        annotation (real group + one swap) still can't score."""
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups(),
+                   trap_groups=[["FAST", "QUICK", "RAPID", "SMART"]])  # 3 Speed words
+        assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "RAPID", "SMART"]]) == 0
+
+    def test_all_yaml_annotations_satisfy_no3_rule(self):
+        """Every annotation must offer at least one scorable claim: a 4-subset
+        that isn't a real group and takes <=2 words from any single group.
+        4-set annotations must comply directly."""
+        from itertools import combinations
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        for p in game.puzzles:
+            if not p.trap_groups:
+                continue
+            group_sets = [frozenset(w.upper() for w in g.words) for g in p.groups]
+            for t in p.trap_groups:
+                ws = frozenset(w.upper() for w in t)
+                scorable = [
+                    frozenset(c) for c in combinations(sorted(ws), 4)
+                    if frozenset(c) not in group_sets
+                    and all(len(frozenset(c) & g) <= 2 for g in group_sets)
+                ]
+                assert scorable, f"puzzle {p.id} trap {sorted(ws)} has no scorable claim"
+                if len(ws) == 4:
+                    assert frozenset(ws) in scorable, \
+                        f"puzzle {p.id} 4-set trap {sorted(ws)} violates the no-3 rule"
 
     def test_real_yaml_839_corn_trap(self):
         inputs = Path(__file__).resolve().parent.parent / "inputs"
@@ -794,7 +823,7 @@ class TestOneshotTraps:
         inputs = Path(__file__).resolve().parent.parent / "inputs"
         game = ConnectionsGame(inputs, Path("logs"))
         by_id = {p.id: p for p in game.puzzles}
-        assert by_id[246].trap_groups is not None and len(by_id[246].trap_groups) == 4
+        assert by_id[246].trap_groups is not None and len(by_id[246].trap_groups) == 2
         assert by_id[837].trap_groups == []  # reviewed, trap-free
         assert by_id[828].trap_groups == []
         # Superset annotation present (476 OVER-___ 5-set)

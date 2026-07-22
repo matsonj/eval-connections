@@ -1457,8 +1457,9 @@ class ConnectionsGame:
         - Otherwise ONLY THE FIRST claim is judged (the prompt asks for a single
           best trap set; extra lines are ignored). The claim is correct — and
           earns +2 — when it is exactly 4 words, is a subset of an annotated
-          trap set (supersets of 5+ mark overloaded categories), and is not a
-          real group. An incorrect claim scores 0.
+          trap set (supersets of 5+ mark overloaded categories), is not a real
+          group, and takes at most 2 words from any single real group (a "real
+          group with one swap" is not a trap). An incorrect claim scores 0.
         """
         if puzzle.trap_groups is None or claims is None:
             return 0
@@ -1475,6 +1476,9 @@ class ConnectionsGame:
             len(claims[0]) == 4
             and len(claim) == 4
             and claim not in group_sets
+            # A trap is a cross-cutting category: never 3+ words from a single
+            # real group. Enforced here so annotation mistakes can't score.
+            and all(len(claim & g) <= 2 for g in group_sets)
             and any(claim <= trap for trap in trap_sets)
         )
         return 2 if correct else 0
