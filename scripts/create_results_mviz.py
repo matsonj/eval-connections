@@ -280,8 +280,28 @@ def write_mviz_markdown(
             },
             indent=2,
         )
-        chart_block = f"""```scatter size=[16,10]
+        # Horizontal bars, lowest score at the bottom of the category axis so
+        # the leader renders on top.
+        bar_spec = json.dumps(
+            {
+                "type": "bar",
+                "title": "Points",
+                "x": "model",
+                "y": "pts",
+                "horizontal": True,
+                "data": [
+                    {"model": row["model"], "pts": int(row["total_score"])}
+                    for _, row in df.iloc[::-1].iterrows()
+                ],
+            },
+            indent=2,
+        )
+        # No blank line between the two blocks — they share the row.
+        chart_block = f"""```scatter size=[8,10]
 {scatter_spec}
+```
+```bar size=[8,10]
+{bar_spec}
 ```
 
 """
