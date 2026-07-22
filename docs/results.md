@@ -179,16 +179,16 @@ Latest one-shot runs for 14 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.023"
     },
     {
-      "model": "<a href=\"logs/2026-07-22T04-40-41_gemini-3-flash.html\">google/gemini-3-flash-preview</a>",
+      "model": "<a href=\"logs/2026-07-22T16-15-46_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
       "date": "2026-07-22",
-      "pts": 75,
-      "pts_pct": 0.75,
-      "w": "19",
-      "grp": "78/80",
-      "trap": "16",
+      "pts": 72,
+      "pts_pct": 0.72,
+      "w": "15",
+      "grp": "67/80",
+      "trap": "20",
       "inv": "0",
-      "avg_time": "15s",
-      "tok_per_game": "3.5k",
+      "avg_time": "22s",
+      "tok_per_game": "2.0k",
       "cost": 0.18,
       "cost_per_game": "$0.009"
     },
@@ -207,18 +207,18 @@ Latest one-shot runs for 14 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.033"
     },
     {
-      "model": "<a href=\"logs/2026-07-22T05-42-38_sonnet-5.html\">anthropic/claude-sonnet-5</a>",
+      "model": "<a href=\"logs/2026-07-22T16-10-34_gemini-3-flash.html\">google/gemini-3-flash-preview</a>",
       "date": "2026-07-22",
-      "pts": 68,
-      "pts_pct": 0.68,
-      "w": "18",
-      "grp": "76/80",
-      "trap": "10",
-      "inv": "0",
-      "avg_time": "13s",
-      "tok_per_game": "2.1k",
-      "cost": 0.28,
-      "cost_per_game": "$0.014"
+      "pts": 67,
+      "pts_pct": 0.67,
+      "w": "14",
+      "grp": "61/80",
+      "trap": "20",
+      "inv": "1",
+      "avg_time": "30s",
+      "tok_per_game": "7.0k",
+      "cost": 0.39,
+      "cost_per_game": "$0.019"
     },
     {
       "model": "<a href=\"logs/2026-07-22T05-44-26_opus-4.7.html\">anthropic/claude-opus-4.7</a>",
@@ -235,6 +235,20 @@ Latest one-shot runs for 14 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.024"
     },
     {
+      "model": "<a href=\"logs/2026-07-22T16-01-31_sonnet-5.html\">anthropic/claude-sonnet-5</a>",
+      "date": "2026-07-22",
+      "pts": 64,
+      "pts_pct": 0.64,
+      "w": "17",
+      "grp": "73/80",
+      "trap": "8",
+      "inv": "0",
+      "avg_time": "14s",
+      "tok_per_game": "2.2k",
+      "cost": 0.29,
+      "cost_per_game": "$0.014"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T05-28-27_gemini-3.5-flash.html\">google/gemini-3.5-flash</a>",
       "date": "2026-07-22",
       "pts": 63,
@@ -247,20 +261,6 @@ Latest one-shot runs for 14 models (20 games each, one submission per game, max 
       "tok_per_game": "2.1k",
       "cost": 0.3,
       "cost_per_game": "$0.015"
-    },
-    {
-      "model": "<a href=\"logs/2026-07-22T05-29-58_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
-      "date": "2026-07-22",
-      "pts": 62,
-      "pts_pct": 0.62,
-      "w": "14",
-      "grp": "66/80",
-      "trap": "10",
-      "inv": "0",
-      "avg_time": "13s",
-      "tok_per_game": "1.9k",
-      "cost": 0.17,
-      "cost_per_game": "$0.008"
     },
     {
       "model": "<a href=\"logs/2026-07-22T05-29-12_gemini-3.5-flash-lite.html\">google/gemini-3.5-flash-lite</a>",
