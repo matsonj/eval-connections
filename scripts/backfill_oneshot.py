@@ -126,9 +126,25 @@ def main() -> int:
         for m in unmapped:
             print(f"  !! {m}")
 
-    print(f"\nTo run ({len(runnable)} models x 20 one-shot calls each):")
+    # Run fastest models first (per-puzzle avg from each model's latest run)
+    # so results start landing early; models with no timing history go last.
+    timing: dict[str, float] = {}
+    t = df.assign(
+        start_timestamp=pd.to_datetime(df["start_timestamp"], format="ISO8601", utc=True)
+    ).sort_values("start_timestamp")
+    for _, row in t.iterrows():
+        avg = row.get("avg_inference_sec")
+        if pd.isna(avg):
+            avg = row.get("avg_time_sec")
+        if pd.notna(avg):
+            timing[row["model"]] = float(avg)  # last write wins = latest run
+    runnable.sort(key=lambda mc: timing.get(mc[0], float("inf")))
+
+    print(f"\nTo run ({len(runnable)} models x 20 one-shot calls each, fastest first):")
     for openrouter_id, cli_name in runnable:
-        print(f"  - {cli_name}  ({openrouter_id})")
+        est = timing.get(openrouter_id)
+        est_str = f"~{est:.0f}s/puzzle" if est is not None else "no timing history"
+        print(f"  - {cli_name:24s} ({openrouter_id})  {est_str}")
 
     if args.dry_run:
         print("\n--dry-run: no evaluations executed")
