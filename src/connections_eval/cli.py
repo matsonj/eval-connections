@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .core import ConnectionsGame
+from .adapters import openrouter_adapter
 from .utils.motherduck import (
     upload_controllog_to_motherduck,
     validate_upload,
@@ -202,6 +203,15 @@ def run(
     try:
         game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode,
                                reasoning_effort=reasoning_effort)
+
+        # Fail fast on a bad OpenRouter slug instead of burning the retry
+        # budget on every puzzle.
+        if not interactive:
+            try:
+                openrouter_adapter.assert_model_exists(game.MODEL_CONFIG[model_name])
+            except ValueError as e:
+                console.print(str(e), style="red")
+                raise typer.Exit(2)
 
         # Handle canonical puzzle selection
         if canonical:
@@ -466,6 +476,12 @@ def rank(
 
     if model not in game.MODEL_CONFIG:
         console.print(f"Unknown model: {model}", style="red")
+        raise typer.Exit(2)
+
+    try:
+        openrouter_adapter.assert_model_exists(game.MODEL_CONFIG[model])
+    except ValueError as e:
+        console.print(str(e), style="red")
         raise typer.Exit(2)
 
     if puzzle_id is not None:

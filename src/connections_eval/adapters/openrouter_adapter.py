@@ -31,6 +31,41 @@ def _load_thinking_models() -> Set[str]:
 # Cache the thinking models set
 _THINKING_MODELS = _load_thinking_models()
 
+# Cache of OpenRouter's live model catalog (fetched once per process)
+_MODEL_CATALOG: Optional[Set[str]] = None
+
+
+def assert_model_exists(model_id: str) -> None:
+    """
+    Fail fast when a model ID isn't in OpenRouter's live catalog.
+
+    A bad slug otherwise burns the full retry budget on every puzzle (6
+    attempts x 20 puzzles of 400s) before finishing with zeros. Raises
+    ValueError with a clear message. If the catalog fetch itself fails
+    (network hiccup), logs a warning and skips the check rather than
+    blocking an otherwise-valid run.
+    """
+    global _MODEL_CATALOG
+    if _MODEL_CATALOG is None:
+        try:
+            resp = requests.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {_get_api_key()}"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            _MODEL_CATALOG = {m["id"] for m in resp.json().get("data", [])}
+        except Exception as e:
+            logger.warning(f"Could not fetch OpenRouter model catalog ({e}); skipping model preflight")
+            return
+    base = model_id.split(":")[0]
+    if model_id in _MODEL_CATALOG or base in _MODEL_CATALOG:
+        return
+    raise ValueError(
+        f"Model ID '{model_id}' not found in OpenRouter's catalog — "
+        f"check the mapping in inputs/model_mappings.yml"
+    )
+
 # Mapping from OpenRouter model ID prefix to provider slug for pinning.
 # Only includes providers where the slug is known and prompt caching benefits.
 # Provider slugs do NOT always match model ID prefixes (e.g. x-ai/ -> "xai").

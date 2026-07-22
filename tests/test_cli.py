@@ -74,8 +74,9 @@ class TestCLI:
         assert "Inputs path does not exist" in result.stdout
     
     @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'})
+    @patch('connections_eval.cli.openrouter_adapter.assert_model_exists')
     @patch('connections_eval.cli.ConnectionsGame')
-    def test_run_success(self, mock_game_class):
+    def test_run_success(self, mock_game_class, mock_preflight):
         """Test successful run."""
         # Mock the game instance
         mock_game = MagicMock()

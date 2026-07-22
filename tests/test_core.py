@@ -1213,6 +1213,55 @@ class TestBackoffAccumulator:
         assert retry_mod.get_last_backoff_sec() == 0.0
 
 
+class TestModelPreflight:
+    """assert_model_exists fails fast on bad slugs, skips on catalog errors."""
+
+    def _reset_cache(self):
+        import connections_eval.adapters.openrouter_adapter as oa
+        oa._MODEL_CATALOG = None
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get")
+    def test_known_model_passes(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        mock_get.return_value = MagicMock(
+            ok=True, **{"json.return_value": {"data": [{"id": "openai/o3"}]},
+                        "raise_for_status.return_value": None})
+        assert_model_exists("openai/o3")  # no raise
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get")
+    def test_free_variant_matches_base(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        mock_get.return_value = MagicMock(
+            ok=True, **{"json.return_value": {"data": [{"id": "poolside/laguna-m.1"}]},
+                        "raise_for_status.return_value": None})
+        assert_model_exists("poolside/laguna-m.1:free")  # base id match, no raise
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get")
+    def test_unknown_model_raises(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        mock_get.return_value = MagicMock(
+            ok=True, **{"json.return_value": {"data": [{"id": "openai/o3"}]},
+                        "raise_for_status.return_value": None})
+        with pytest.raises(ValueError, match="not found in OpenRouter"):
+            assert_model_exists("openai/gpt-99-typo")
+        self._reset_cache()
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get",
+           side_effect=Exception("network down"))
+    def test_catalog_fetch_failure_skips_check(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        assert_model_exists("anything/at-all")  # warns, does not raise
+        self._reset_cache()
+
+
 class TestReasoningEffort:
     """reasoning_effort plumbs through to the OpenRouter request payload."""
 
