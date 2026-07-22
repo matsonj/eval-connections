@@ -53,24 +53,30 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
         guess_stats AS (
             -- Aggregate guess statistics from model_completion events.
             -- Classic results: CORRECT / INCORRECT / INVALID prefixes.
-            -- One-shot results: ONESHOT_SCORE_N (N in 0,1,2,5) / ONESHOT_INVALID.
-            -- groups_correct is derivable from N (N=5 -> 4 groups, else N), which
-            -- keeps correct/incorrect semantics aligned with EvalStats.accumulate.
+            -- One-shot results (4.0 trap scoring): ONESHOT_SCORE_S_GROUPS_G_TRAP_T
+            -- (S = total incl. trap bonus, G = groups matched, T = 0|2) or
+            -- ONESHOT_INVALID. Legacy pre-trap runs used bare ONESHOT_SCORE_N
+            -- (N in 0,1,2,5; groups = LEAST(N, 4)) — the fallback below.
             SELECT
                 e.run_id,
                 COUNT(*) AS total_guesses,
                 COUNT(CASE WHEN e.payload_json.result = 'CORRECT' OR e.payload_json.result LIKE 'CORRECT%' THEN 1 END)
                   + COALESCE(SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
-                        LEAST(CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER), 4)
+                        COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'GROUPS_([0-9]+)', 1), '') AS INTEGER),
+                                 LEAST(CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER), 4))
                       END), 0) AS correct_guesses,
                 COUNT(CASE WHEN e.payload_json.result LIKE 'INCORRECT%' THEN 1 END)
                   + COALESCE(SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
-                        4 - LEAST(CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER), 4)
+                        4 - COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'GROUPS_([0-9]+)', 1), '') AS INTEGER),
+                                     LEAST(CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER), 4))
                       END), 0) AS incorrect_guesses,
                 COUNT(CASE WHEN e.payload_json.result LIKE 'INVALID%' OR e.payload_json.result = 'ONESHOT_INVALID' THEN 1 END) AS invalid_responses,
                 MAX(CASE WHEN e.payload_json.result LIKE 'ONESHOT%' THEN 'oneshot' END) AS oneshot_mode,
                 SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
-                    CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER) END) AS total_score
+                    CAST(regexp_extract(e.payload_json.result, 'ONESHOT_SCORE_([0-9]+)', 1) AS INTEGER) END) AS total_score,
+                SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
+                    COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'TRAP_([0-9]+)', 1), '') AS INTEGER), 0)
+                    END) AS total_trap_bonus
             FROM controllog.events e
             WHERE e.run_id IS NOT NULL
             AND e.kind = 'model_completion'
@@ -135,6 +141,7 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             COALESCE(gs.invalid_responses, 0) AS invalid_responses,
             COALESCE(gs.oneshot_mode, 'classic') AS mode,
             gs.total_score AS total_score,
+            gs.total_trap_bonus AS total_trap_bonus,
             CASE WHEN gs.oneshot_mode = 'oneshot'
                  THEN 5 * COALESCE(ps.puzzles_attempted, 0) END AS max_score,
             COALESCE(ts.total_tokens, 0) AS total_tokens,
@@ -208,6 +215,7 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
         "guess_accuracy",
         "mode",
         "total_score",
+        "total_trap_bonus",
         "max_score",
         "avg_score",
         "avg_time_sec",

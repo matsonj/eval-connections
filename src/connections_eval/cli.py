@@ -314,6 +314,8 @@ def _display_summary(summary: dict, interactive: bool):
     if is_oneshot:
         table.add_row("Total Score", f"{summary['total_score']} / {summary['max_score']}")
         table.add_row("Avg Score/Puzzle", f"{summary['avg_score']:.2f}")
+        if summary.get("total_trap_bonus") is not None:
+            table.add_row("Trap Bonus", str(summary["total_trap_bonus"]))
     elif summary["total_guesses"] > 0:
         # Guess Accuracy doesn't apply to one-shot mode — there's only ever one
         # guess per puzzle, so it would just restate the solve rate.

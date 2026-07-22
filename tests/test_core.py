@@ -379,7 +379,7 @@ class TestOneshotScoring:
             ["FAST", "QUICK", "RAPID", "SWIFT"],
             ["BRIGHT", "CLEVER", "SMART", "WISE"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 5)
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 3)
 
     def test_two_correct_two_swapped(self, mock_game, sample_puzzle):
         """Two groups intact; the other two have words swapped between them so
@@ -470,7 +470,7 @@ class TestOneshotScoring:
             ["SWIFT", "RAPID", "QUICK", "FAST"],
             ["WISE", "SMART", "CLEVER", "BRIGHT"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 5)
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 3)
 
 
 class TestOneshotStats:
@@ -556,9 +556,11 @@ class TestOneshotEndToEnd:
         assert summary["mode"] == "oneshot"
         assert summary["puzzles_attempted"] == 1
         assert summary["puzzles_solved"] == 1
-        assert summary["total_score"] == 5
-        assert summary["max_score"] == 5
-        assert summary["avg_score"] == 5.0
+        # Puzzle has no trap annotations (trap_groups=None): base-only scoring,
+        # perfect solve = 3 and per-puzzle max is 3.
+        assert summary["total_score"] == 3
+        assert summary["max_score"] == 3
+        assert summary["avg_score"] == 3.0
         assert summary["total_guesses"] == 1
         assert summary["correct_guesses"] == 4
         assert summary["incorrect_guesses"] == 0
@@ -576,10 +578,64 @@ class TestOneshotEndToEnd:
         assert summary["mode"] == "oneshot"
         assert summary["puzzles_solved"] == 0
         assert summary["total_score"] == 0
-        assert summary["max_score"] == 5
+        assert summary["max_score"] == 3
         assert summary["avg_score"] == 0.0
         assert summary["invalid_responses"] == 1
         assert summary["incorrect_guesses"] == 0
+
+    def test_trap_bonus_end_to_end(self, tmp_path):
+        """Perfect answer + correct trap claim on an annotated puzzle scores 5/5."""
+        puzzle = self._make_puzzle()
+        # Annotate a superset trap: FAST/QUICK/RAPID/SWIFT (real group) + SMART
+        # would be wrong — use a synthetic 4-set crossing two groups instead.
+        puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>\n<traps>\nFAST, QUICK, RAPID, SMART\n</traps>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["total_score"] == 5
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 2
+        assert summary["puzzles_solved"] == 1
+
+    def test_false_trap_claim_voids_bonus(self, tmp_path):
+        """A false trap claim scores base only, even alongside a correct one."""
+        puzzle = self._make_puzzle()
+        puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>\n<traps>\nFAST, QUICK, RAPID, SMART\nAPPLE, BLUE, FAST, WISE\n</traps>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["total_score"] == 3
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 0
+
+    def test_na_on_trapless_puzzle_earns_bonus(self, tmp_path):
+        """Explicit N/A on a reviewed trap-free puzzle earns the +2."""
+        puzzle = self._make_puzzle()
+        puzzle.trap_groups = []  # reviewed, no traps
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>\n<traps>\nN/A\n</traps>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["total_score"] == 5
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 2
 
     def test_mode_override_mismatch_raises(self, tmp_path):
         """run_evaluation(mode=...) must match the mode the game was built with,
@@ -589,6 +645,113 @@ class TestOneshotEndToEnd:
 
         with pytest.raises(ValueError, match="conflicts with game mode"):
             game.run_evaluation("test-model", puzzle_ids=[477], mode="oneshot")
+
+
+class TestOneshotTraps:
+    """Trap claim parsing and scoring rules."""
+
+    @pytest.fixture
+    def mock_game(self):
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    @pytest.fixture
+    def trap_puzzle(self):
+        """Puzzle with one 4-set trap and one 5-word superset trap."""
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+            trap_groups=[
+                ["FAST", "QUICK", "RAPID", "SMART"],           # 4-set
+                ["BRIGHT", "CLEVER", "SMART", "WISE", "QUICK"] # superset: real group + QUICK
+            ],
+        )
+
+    # --- parsing ---
+
+    def test_parse_traps_block(self, mock_game):
+        claims = mock_game._parse_oneshot_traps(
+            "<answer>x</answer>\n<traps>\nFAST, QUICK, RAPID, SMART\napple, blue, red, wise\n</traps>")
+        assert claims == [["FAST", "QUICK", "RAPID", "SMART"], ["APPLE", "BLUE", "RED", "WISE"]]
+
+    def test_parse_traps_na(self, mock_game):
+        assert mock_game._parse_oneshot_traps("<traps>\nN/A\n</traps>") == []
+        assert mock_game._parse_oneshot_traps("<traps>none</traps>") == []
+        assert mock_game._parse_oneshot_traps("<traps>NA.</traps>") == []
+
+    def test_parse_traps_missing_block(self, mock_game):
+        assert mock_game._parse_oneshot_traps("<answer>stuff</answer>") is None
+
+    def test_parse_traps_ignores_decoy_in_thinking(self, mock_game):
+        claims = mock_game._parse_oneshot_traps(
+            "<thinking><traps>DECOY, DECOY, DECOY, DECOY</traps></thinking>\n<traps>N/A</traps>")
+        assert claims == []
+
+    # --- scoring ---
+
+    def test_correct_4set_claim(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID", "SMART"]]) == 2
+
+    def test_subset_of_superset_claim(self, mock_game, trap_puzzle):
+        # Any 4-subset of the 5-word superset that isn't the real group scores
+        assert mock_game._score_trap_claims(trap_puzzle, [["BRIGHT", "CLEVER", "SMART", "QUICK"]]) == 2
+
+    def test_real_group_subset_of_superset_rejected(self, mock_game, trap_puzzle):
+        # The real Smart group is inside the superset but is NOT a trap
+        assert mock_game._score_trap_claims(trap_puzzle, [["BRIGHT", "CLEVER", "SMART", "WISE"]]) == 0
+
+    def test_false_claim_voids_even_with_correct_one(self, mock_game, trap_puzzle):
+        claims = [["FAST", "QUICK", "RAPID", "SMART"], ["APPLE", "BLUE", "FAST", "WISE"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
+
+    def test_two_correct_claims(self, mock_game, trap_puzzle):
+        claims = [["FAST", "QUICK", "RAPID", "SMART"], ["BRIGHT", "CLEVER", "WISE", "QUICK"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
+
+    def test_extra_claims_ignored(self, mock_game, trap_puzzle):
+        # Only the first 2 distinct claims are judged; a bogus 3rd is ignored
+        claims = [["FAST", "QUICK", "RAPID", "SMART"],
+                  ["BRIGHT", "CLEVER", "WISE", "QUICK"],
+                  ["APPLE", "BLUE", "FAST", "WISE"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
+
+    def test_duplicate_claims_deduped(self, mock_game, trap_puzzle):
+        claims = [["FAST", "QUICK", "RAPID", "SMART"], ["SMART", "RAPID", "QUICK", "FAST"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
+
+    def test_na_correct_on_trapless(self, mock_game):
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups(), trap_groups=[])
+        assert mock_game._score_trap_claims(p, []) == 2
+
+    def test_na_wrong_when_traps_exist(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, []) == 0
+
+    def test_no_claim_no_bonus(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, None) == 0
+
+    def test_unreviewed_puzzle_inactive(self, mock_game):
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups())  # trap_groups=None
+        assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "RAPID", "SMART"]]) == 0
+
+    def test_wrong_size_claim_voids(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID"]]) == 0
+
+    def test_canonical_yaml_traps_load(self):
+        """The real YAML annotations load into Puzzle.trap_groups."""
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        by_id = {p.id: p for p in game.puzzles}
+        assert by_id[246].trap_groups is not None and len(by_id[246].trap_groups) == 3
+        assert by_id[837].trap_groups == []  # reviewed, trap-free
+        assert by_id[828].trap_groups == []
+        # Superset annotation present (476 OVER-___ 5-set)
+        assert any(len(t) == 5 for t in by_id[476].trap_groups)
+        # Non-canonical puzzles are unreviewed
+        assert all(p.trap_groups is None for p in game.puzzles if not p.canonical)
 
 
 class TestOneshotFallbackPunctuation:

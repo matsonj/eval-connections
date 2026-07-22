@@ -452,10 +452,16 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 if res and "INVALID_RESPONSE" not in res_u:
                     ps["guesses"] += 1
                 if res_u.startswith("ONESHOT_SCORE_"):
-                    # One-shot verdict: N = score (0/1/2/5); groups matched = min(N, 4).
+                    # One-shot verdict. Trap-scoring format ONESHOT_SCORE_S_GROUPS_G_TRAP_T
+                    # carries groups matched as G; legacy bare ONESHOT_SCORE_N implies
+                    # groups = min(N, 4).
+                    m = re.search(r"GROUPS_(\d+)", res_u)
                     try:
-                        ps["correct"] += min(int(res_u.rsplit("_", 1)[1]), 4)
-                    except ValueError:
+                        if m:
+                            ps["correct"] += int(m.group(1))
+                        else:
+                            ps["correct"] += min(int(res_u.split("ONESHOT_SCORE_")[1].split("_")[0]), 4)
+                    except (ValueError, IndexError):
                         pass
                 elif "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1
@@ -481,10 +487,16 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 if res and "INVALID_RESPONSE" not in res_u:
                     ps["guesses"] += 1
                 if res_u.startswith("ONESHOT_SCORE_"):
-                    # One-shot verdict: N = score (0/1/2/5); groups matched = min(N, 4).
+                    # One-shot verdict. Trap-scoring format ONESHOT_SCORE_S_GROUPS_G_TRAP_T
+                    # carries groups matched as G; legacy bare ONESHOT_SCORE_N implies
+                    # groups = min(N, 4).
+                    m = re.search(r"GROUPS_(\d+)", res_u)
                     try:
-                        ps["correct"] += min(int(res_u.rsplit("_", 1)[1]), 4)
-                    except ValueError:
+                        if m:
+                            ps["correct"] += int(m.group(1))
+                        else:
+                            ps["correct"] += min(int(res_u.split("ONESHOT_SCORE_")[1].split("_")[0]), 4)
+                    except (ValueError, IndexError):
                         pass
                 elif "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1

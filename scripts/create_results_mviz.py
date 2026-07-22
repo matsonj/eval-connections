@@ -25,6 +25,7 @@ def load_and_filter_data(
         "total_inference_sec",
         "total_backoff_sec",
         "total_score",
+        "total_trap_bonus",
         "max_score",
         "avg_score",
     ):
@@ -155,6 +156,8 @@ def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, 
                 if max_score is not None and not pd.isna(max_score)
                 else 5 * int(row["puzzles_attempted"])
             )
+            trap_bonus = row.get("total_trap_bonus")
+            trap_cell = "—" if trap_bonus is None or pd.isna(trap_bonus) else str(int(trap_bonus))
             rows.append({
                 "model": model_cell,
                 "date": date,
@@ -162,6 +165,7 @@ def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, 
                 "pts_pct": round(float(row["total_score"]) / max_score, 4) if max_score else 0.0,
                 "w": str(int(row["puzzles_solved"])),
                 "grp": f"{grp_hit}/{grp_max}",
+                "trap": trap_cell,
                 "inv": str(int(row["invalid_responses"])),
                 **common_tail,
             })
@@ -209,6 +213,7 @@ def write_mviz_markdown(
             {"id": "pts_pct", "title": "PTS%", "align": "right", "type": "heatmap", "higherIsBetter": True, "fmt": "pct1"},
             {"id": "w", "title": "W", "align": "right"},
             {"id": "grp", "title": "GRP", "align": "right"},
+            {"id": "trap", "title": "TRAP", "align": "right"},
             {"id": "inv", "title": "INV", "align": "right"},
             *common_tail_columns,
         ]

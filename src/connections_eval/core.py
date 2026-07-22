@@ -34,6 +34,11 @@ class Puzzle:
     words: List[str]
     groups: List[PuzzleGroup]
     canonical: bool = False
+    # One-shot trap ground truth. None = puzzle not reviewed for traps
+    # (trap scoring inactive); [] = reviewed, no traps ("N/A" is correct);
+    # each entry is a word set of size >= 4 — any 4-word subset that isn't
+    # a real group is a valid trap claim.
+    trap_groups: Optional[List[List[str]]] = None
 
 
 @dataclass
@@ -53,9 +58,12 @@ class PuzzleResult:
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
     total_backoff_sec: float = 0.0
-    # One-shot mode only: per-puzzle score (0/1/2/5) and count of correctly matched groups
+    # One-shot mode only. score = base (0/1/2, perfect=3) + trap_bonus (0 or 2).
+    # max_score is 5 when the puzzle has trap annotations, else 3 (0 in classic).
     score: int = 0
     groups_correct: int = 0
+    trap_bonus: int = 0
+    max_score: int = 0
 
 
 @dataclass
@@ -76,9 +84,10 @@ class EvalStats:
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
     total_backoff_sec: float = 0.0
-    # One-shot mode only: sum of per-puzzle scores and the theoretical max (set in run_evaluation)
+    # One-shot mode only: sum of per-puzzle scores and per-puzzle maxima
     total_score: int = 0
     max_score: int = 0
+    total_trap_bonus: int = 0
 
     def accumulate(self, result: PuzzleResult) -> None:
         """Accumulate a single puzzle result into totals."""
@@ -97,8 +106,10 @@ class EvalStats:
         self.total_cost += result.total_cost
         self.total_upstream_cost += result.total_upstream_cost
         self.total_backoff_sec += result.total_backoff_sec
-        # One-shot score always accumulates (stays 0 in classic mode); max_score is set in run_evaluation
+        # One-shot fields always accumulate (all stay 0 in classic mode)
         self.total_score += result.score
+        self.max_score += result.max_score
+        self.total_trap_bonus += result.trap_bonus
         if result.token_count_method == "API":
             self.token_count_method = "API"
 
@@ -197,6 +208,7 @@ class ConnectionsGame:
                 words=puzzle_data["words"],
                 groups=groups,
                 canonical=puzzle_data.get("canonical", False),
+                trap_groups=puzzle_data.get("valid_trap_groups"),
             )
             puzzles.append(puzzle)
 
@@ -429,9 +441,8 @@ class ConnectionsGame:
         avg_inference = (total_inference_sec / stats.puzzles_attempted
                          if stats.puzzles_attempted > 0 else 0.0)
 
-        # Set max_score before asdict so the dataclass dump and summary agree.
-        if is_oneshot:
-            stats.max_score = 5 * stats.puzzles_attempted
+        # max_score accumulates per puzzle in stats (5 with trap annotations,
+        # 3 without), so nothing to recompute here.
 
         summary = {
             "run_id": self.run_id,
@@ -911,7 +922,8 @@ class ConnectionsGame:
                 # Parse and score the single submission
                 groups = self._parse_oneshot_response(content)
                 groups_correct, score = self._score_oneshot(puzzle, groups)
-                won = (score == 5)
+                won = (groups_correct == 4)
+                puzzle_max = 5 if puzzle.trap_groups is not None else 3
 
                 # Structural validity mirrors _score_oneshot's gate: exactly 4
                 # groups of 4 words that together equal the puzzle's 16 words.
@@ -924,8 +936,12 @@ class ConnectionsGame:
                 )
 
                 if not is_valid:
+                    # A structurally invalid answer scores 0 overall — the trap
+                    # bonus is forfeited along with the base score.
                     invalid_count = 1
                     mistake_count = 0
+                    trap_bonus = 0
+                    trap_claims = None
                     solved_groups: List[str] = []
                     result = "ONESHOT_INVALID"
                 else:
@@ -937,7 +953,10 @@ class ConnectionsGame:
                         grp.color for grp in puzzle.groups
                         if set(w.upper() for w in grp.words) in submitted_sets
                     ]
-                    result = f"ONESHOT_SCORE_{score}"
+                    trap_claims = self._parse_oneshot_traps(content)
+                    trap_bonus = self._score_trap_claims(puzzle, trap_claims)
+                    score += trap_bonus
+                    result = f"ONESHOT_SCORE_{score}_GROUPS_{groups_correct}_TRAP_{trap_bonus}"
 
             except Exception as e:
                 elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
@@ -1006,6 +1025,8 @@ class ConnectionsGame:
                     total_backoff_sec=total_backoff_sec,
                     score=0,
                     groups_correct=0,
+                    trap_bonus=0,
+                    max_score=5 if puzzle.trap_groups is not None else 3,
                 )
 
         # Log exchange. _parse_structured_response covers thinking/confidence;
@@ -1037,6 +1058,9 @@ class ConnectionsGame:
             "result": result,
             "score": score,
             "groups_correct": groups_correct,
+            "trap_bonus": trap_bonus,
+            "trap_claims": ([] if trap_claims is None
+                            else [", ".join(c) for c in trap_claims] or ["N/A"]),
         }
 
         if cost is not None:
@@ -1056,7 +1080,8 @@ class ConnectionsGame:
             prompt_tokens, completion_tokens, timer.elapsed_ms,
             cost, upstream_cost, result,
             backoff_ms=backoff_ms,
-            extra_payload={"score": score, "groups_correct": groups_correct},
+            extra_payload={"score": score, "groups_correct": groups_correct,
+                           "trap_bonus": trap_bonus},
         )
 
         time_sec = time.time() - start_time
@@ -1092,6 +1117,8 @@ class ConnectionsGame:
             total_backoff_sec=total_backoff_sec,
             score=score,
             groups_correct=groups_correct,
+            trap_bonus=trap_bonus,
+            max_score=puzzle_max,
         )
 
     def _run_puzzle_oneshot_interactive(self, puzzle: Puzzle) -> PuzzleResult:
@@ -1127,8 +1154,7 @@ class ConnectionsGame:
             groups.append(words)
 
         groups_correct, score = self._score_oneshot(puzzle, groups)
-        won = (score == 5)
-        time_sec = time.time() - start_time
+        won = (groups_correct == 4)
 
         # Structural validity mirrors _score_oneshot's gate.
         submitted_words = [w for g in groups for w in g]
@@ -1139,7 +1165,30 @@ class ConnectionsGame:
             and set(submitted_words) == set(w.upper() for w in puzzle.words)
         )
 
-        print(f"\nScore: {score} ({groups_correct}/4 groups correct)")
+        # Trap claims (only when the puzzle has been reviewed for traps)
+        trap_bonus = 0
+        if puzzle.trap_groups is not None and is_valid:
+            print("\nTraps: enter up to 2 lines of 4 comma-separated words,")
+            print("'N/A' if you believe there are none, or blank to skip.")
+            trap_lines = []
+            for i in range(2):
+                try:
+                    line = input(f"Trap {i + 1}/2 (blank to stop): ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    break
+                if not line:
+                    break
+                trap_lines.append(line)
+                if line.upper().rstrip('.') in ("N/A", "NA", "NONE"):
+                    break
+            trap_text = "<traps>\n" + "\n".join(trap_lines) + "\n</traps>" if trap_lines else ""
+            trap_claims = self._parse_oneshot_traps(trap_text)
+            trap_bonus = self._score_trap_claims(puzzle, trap_claims)
+            score += trap_bonus
+
+        time_sec = time.time() - start_time
+        puzzle_max = 5 if puzzle.trap_groups is not None else 3
+        print(f"\nScore: {score}/{puzzle_max} ({groups_correct}/4 groups correct, trap bonus {trap_bonus})")
 
         # Show solution
         print("\nSolution:")
@@ -1164,6 +1213,8 @@ class ConnectionsGame:
             token_count_method="N/A",
             score=score,
             groups_correct=groups_correct,
+            trap_bonus=trap_bonus,
+            max_score=puzzle_max,
         )
 
     def _process_guess(self, state: GameState, response: str) -> str:
@@ -1326,10 +1377,12 @@ class ConnectionsGame:
         Score a one-shot submission.
 
         Returns:
-            (groups_correct, score). Any structural failure returns (0, 0):
+            (groups_correct, base_score). Any structural failure returns (0, 0):
             not exactly 4 groups, not exactly 4 words per group, or the 16 words
             (upper-cased) not exactly equal to the puzzle's words. Otherwise
-            score = matches + (1 bonus if all 4 groups match).
+            base_score = matches for 0/1/2, and 3 for a perfect solve (exactly
+            3 matches is impossible — the 4th group is forced). Trap bonus is
+            scored separately by _score_trap_claims.
         """
         # Structural validation: exactly 4 groups of 4 words
         if len(groups) != 4 or any(len(group) != 4 for group in groups):
@@ -1349,8 +1402,77 @@ class ConnectionsGame:
             if set(group) in puzzle_group_sets:
                 matches += 1
 
-        score = matches + (1 if matches == 4 else 0)
+        score = 3 if matches == 4 else matches
         return (matches, score)
+
+    def _parse_oneshot_traps(self, response: str) -> Optional[List[List[str]]]:
+        """
+        Parse the optional <traps> block from a one-shot response.
+
+        Returns:
+            None when no <traps> block is present (no claim made — no bonus,
+            not voided). [] when the model explicitly claims there are no traps
+            (a line reading N/A, NA, or NONE). Otherwise one word-list per
+            non-empty line (validity is judged in _score_trap_claims).
+        """
+        import re
+
+        cleaned = re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', response, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r'<think(?:ing)?>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
+
+        traps_match = re.search(r'<traps>(.*?)</traps>', cleaned, re.IGNORECASE | re.DOTALL)
+        if not traps_match:
+            return None
+
+        lines = [ln.strip() for ln in traps_match.group(1).splitlines() if ln.strip()]
+        if not lines:
+            return None
+        if len(lines) == 1 and re.fullmatch(r'(?:N/?A|NONE)\.?', lines[0], re.IGNORECASE):
+            return []
+
+        claims = []
+        for line in lines:
+            words = [w.strip().upper() for w in line.split(',')]
+            claims.append([w for w in words if w])
+        return claims
+
+    def _score_trap_claims(self, puzzle: Puzzle, claims: Optional[List[List[str]]]) -> int:
+        """
+        Score trap claims against the puzzle's annotated trap ground truth.
+
+        Rules (max one bonus of 2 per puzzle):
+        - Puzzle not reviewed for traps (trap_groups is None) or no claim made
+          (claims is None): 0.
+        - Explicit "no traps" claim ([]): +2 iff the puzzle truly has no traps.
+        - Otherwise, up to the first 2 distinct claims are judged. A claim is
+          correct when it is exactly 4 words, is a subset of an annotated trap
+          set, and is not a real group. ALL judged claims must be correct for
+          the +2 — any false claim voids the bonus.
+        """
+        if puzzle.trap_groups is None or claims is None:
+            return 0
+
+        trap_sets = [frozenset(w.upper() for w in t) for t in puzzle.trap_groups]
+        if claims == []:
+            return 2 if not trap_sets else 0
+
+        group_sets = [frozenset(w.upper() for w in g.words) for g in puzzle.groups]
+        distinct = []
+        for claim in claims:
+            fs = frozenset(claim)
+            if fs not in distinct:
+                distinct.append(fs)
+        # The prompt allows at most 2 claims; extras are ignored rather than
+        # judged, matching the "up to two" contract.
+        for claim in distinct[:2]:
+            correct = (
+                len(claim) == 4
+                and claim not in group_sets
+                and any(claim <= trap for trap in trap_sets)
+            )
+            if not correct:
+                return 0
+        return 2
 
     def _validate_guess(self, state: GameState, words: List[str]) -> Optional[str]:
         """

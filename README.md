@@ -25,8 +25,9 @@ This project provides a comprehensive evaluation framework for testing linguisti
 
 ### 4.0.0 (2026-07-21)
 - **One-shot mode** (`--mode oneshot`) — model submits all 4 groups in a single response instead of guessing one group at a time; one API call per puzzle, no feedback loop
-- **One-shot scoring** — 1 point per correctly matched group plus a 1-point bonus for matching all 4, giving 0/1/2/5 per puzzle (max 5 × puzzles attempted, i.e. 100 over the 20-puzzle canonical set)
-- Only one guess is allowed per puzzle in one-shot mode; a structurally invalid submission (wrong word count, duplicate/foreign words, etc.) scores 0 and is counted as invalid — there is no retry
+- **One-shot scoring** — 1 point per correctly matched group, 3 points for a perfect solve (exactly-3 is impossible), giving base scores of 0/1/2/3 per puzzle
+- **Trap detection bonus** — canonical puzzles are annotated with `valid_trap_groups` (human-reviewed "trap sets": coherent 4-word categories that aren't real groups; supersets of 5+ mark overloaded categories where any non-group 4-subset counts). Models may claim up to 2 traps per puzzle (or `N/A`): +2 if every claim matches a designed trap or `N/A` is correctly claimed on a trap-free puzzle; any false claim forfeits the bonus. Max 5/puzzle → 100 over the 20-puzzle canonical set
+- Only one guess is allowed per puzzle in one-shot mode; a structurally invalid submission (wrong word count, duplicate/foreign words, etc.) scores 0 including the trap bonus — there is no retry
 - `--mode classic|oneshot` flag on `run` (default `classic`); classic multi-turn behavior is unchanged
 - **One-shot is now the primary eval** — the leaderboard (`docs/index.html`) shows one-shot runs only; the classic multi-turn leaderboard moved to `docs/classic.html`, and the GitHub Action defaults to `mode: oneshot`
 - **Backfill driver** (`scripts/backfill_oneshot.py`) — runs the canonical set in one-shot mode for models first seen in the last 90 days or scoring ≥75% in classic; `--dry-run` to preview
