@@ -245,6 +245,36 @@ def write_mviz_markdown(
         indent=2,
     )
 
+    # Scatter of points vs cost above the one-shot table — labeled per model
+    # so the cost/quality frontier reads at a glance.
+    chart_block = ""
+    if mode == "oneshot":
+        chart_data = [
+            {
+                "model": row["model"],
+                "cost": round(float(row["eval_cost"]), 2),
+                "pts": int(row["total_score"]),
+            }
+            for _, row in df.iterrows()
+        ]
+        scatter_spec = json.dumps(
+            {
+                "type": "scatter",
+                "title": "Points vs Cost",
+                "x": "cost",
+                "y": "pts",
+                "label": "model",
+                "showLabels": True,
+                "data": chart_data,
+            },
+            indent=2,
+        )
+        chart_block = f"""```scatter size=[16,10]
+{scatter_spec}
+```
+
+"""
+
     md_content = f"""---
 theme: light
 title: {title}
@@ -254,7 +284,7 @@ continuous: true
 
 {intro}
 
-```table
+{chart_block}```table
 {table_spec}
 ```
 """
