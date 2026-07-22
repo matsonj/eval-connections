@@ -77,7 +77,7 @@ export OPENROUTER_API_KEY="your-key-here"
 uv run connections_eval run --model gpt5 --puzzles 5 --verbose
 
 # Run specific puzzles for consistent comparison
-uv run connections_eval run --model grok4 --puzzle-ids 246,283,477
+uv run connections_eval run --model grok-4.5 --puzzle-ids 246,283,477
 
 # Run canonical puzzle set
 uv run connections_eval run --model gemini --canonical
@@ -132,13 +132,11 @@ Models are configured in `inputs/model_mappings.yml`. Here are some popular opti
 | `gpt-oss-20b` | `openai/gpt-oss-20b`         | Reasoning              | OpenAI GPT OSS 20B              |
 | `o3`          | `openai/o3`                  | Reasoning              | OpenAI o3                       |
 | `o3-mini`     | `openai/o3-mini`             | Reasoning              | OpenAI o3-mini                  |
-| `grok4`       | `x-ai/grok-4`                | Reasoning              | xAI Grok-4                      |
-| `grok3`       | `x-ai/grok-3`                | Standard               | xAI Grok-3                      |
-| `grok3-mini`  | `x-ai/grok-3-mini`           | Reasoning              | xAI Grok-3 Mini                 |
-| `opus-4.1`    | `anthropic/claude-opus-4.1`  | Standard               | Anthropic Claude Opus 4.1       |
+| `grok-4.5`    | `x-ai/grok-4.5`              | Reasoning              | xAI Grok-4.5                    |
+| `opus-4.8`    | `anthropic/claude-opus-4.8`  | Reasoning              | Anthropic Claude Opus 4.8       |
 | `fable-5`     | `anthropic/claude-fable-5`   | Reasoning              | Anthropic Claude Fable 5        |
-| `sonnet`      | `anthropic/claude-3.5-sonnet`| Standard               | Anthropic Claude 3.5 Sonnet     |
-| `gemini`      | `google/gemini-2.5-pro`      | Reasoning              | Google Gemini 2.5 Pro           |
+| `sonnet-5`    | `anthropic/claude-sonnet-5`  | Reasoning              | Anthropic Claude Sonnet 5       |
+| `gemini-2.5`  | `google/gemini-2.5-pro`      | Reasoning              | Google Gemini 2.5 Pro           |
 
 **Reasoning Models**: Automatically handled with special parameter configurations (no `max_tokens`, `temperature`, etc.)
 
@@ -236,7 +234,7 @@ This project also emits accounting-style telemetry as structured, balanced event
 - Files: `logs/controllog/YYYY-MM-DD/events.jsonl` and `logs/controllog/YYYY-MM-DD/postings.jsonl`
 - IDs: UUIDv7 for `event_id` and `posting_id` (sortable by time)
 - Run/Task identifiers:
-  - `run_id`: e.g., `2025-10-01T12-30-00_grok3`
+  - `run_id`: e.g., `2025-10-01T12-30-00_kimi-k3`
   - `task_id`: `T{puzzle_id}:{run_id}` (one task per puzzle attempt)
   - `agent_id`: `agent:connections_eval`
 - Accounts used (balanced per event):
@@ -263,7 +261,7 @@ The evaluation automatically uploads controllog files to MotherDuck after each r
 
 2. Run an evaluation - upload happens automatically:
    ```bash
-   uv run connections_eval run --model grok3 --puzzles 2
+   uv run connections_eval run --model gemini-3.6-flash --puzzles 2
    ```
 
 The upload process:
@@ -363,7 +361,7 @@ uv run connections_eval run --model gpt5
 uv run connections_eval run --model gemini --puzzles 3 --verbose
 
 # Specific puzzles for model comparison
-uv run connections_eval run --model grok4 --puzzle-ids 246,283,477,826
+uv run connections_eval run --model grok-4.5 --puzzle-ids 246,283,477,826
 
 # Canonical puzzle set
 uv run connections_eval run --model sonnet-4 --canonical
@@ -451,7 +449,7 @@ You can run evaluations automatically via GitHub Actions workflow dispatch. This
    - Go to the "Actions" tab in your GitHub repository
    - Select "Run Model Evaluation" workflow
    - Click "Run workflow"
-   - Enter the model name (e.g., `gpt5`, `grok4`)
+   - Enter the model name (e.g., `gpt5.6-sol`, `grok-4.5`)
    - Optionally specify the number of puzzles to run
    - Click "Run workflow"
 

@@ -19,7 +19,7 @@ class TestCLI:
         """Test listing available models."""
         result = self.runner.invoke(app, ["list-models"])
         assert result.exit_code == 0
-        assert "grok3" in result.stdout
+        assert "grok-4.5" in result.stdout
         assert "o3" in result.stdout
         assert "gemini" in result.stdout
         assert "sonnet" in result.stdout
@@ -58,7 +58,7 @@ class TestCLI:
     @patch.dict('os.environ', {}, clear=True)
     def test_run_missing_api_key(self):
         """Test error when API key missing."""
-        result = self.runner.invoke(app, ["run", "--model", "grok3"])
+        result = self.runner.invoke(app, ["run", "--model", "kimi-k3"])
         assert result.exit_code == 1
         assert "OPENROUTER_API_KEY environment variable not set" in result.stdout
     

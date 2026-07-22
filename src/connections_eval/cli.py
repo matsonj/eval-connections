@@ -119,7 +119,7 @@ def run(
     model: Optional[str] = typer.Option(
         None,
         "--model",
-        help="Model to evaluate (grok3, grok4, o3, o4-mini, gpt4, gpt4-turbo, gemini, sonnet, opus)"
+        help="Model to evaluate (e.g. fable-5, gpt5.6-sol, gemini-3.6-flash, grok-4.5, kimi-k3; see list-models)"
     ),
     interactive: bool = typer.Option(
         False,

@@ -33,11 +33,18 @@ RECENT_DAYS = 90
 SOLVE_RATE_FLOOR = 0.75
 
 
+# Historical CSV rows recorded under old/renamed slugs -> current CLI name,
+# so a mapping fix doesn't orphan a model's run history.
+LEGACY_SLUG_ALIASES = {
+    "anthropic/claude-4.5-sonnet": "sonnet-4.5",  # slug-order typo fixed 2026-07-22
+}
+
+
 def load_reverse_mapping() -> dict[str, str]:
     """OpenRouter model ID -> CLI name, from model_mappings.yml."""
     with open(MODEL_MAPPINGS_YML) as f:
         data = yaml.safe_load(f)
-    reverse: dict[str, str] = {}
+    reverse: dict[str, str] = dict(LEGACY_SLUG_ALIASES)
     for section in data["models"].values():
         for cli_name, openrouter_id in section.items():
             # Strip variant suffixes like ":free" so CSV IDs still match.
