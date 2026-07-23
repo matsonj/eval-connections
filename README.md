@@ -80,7 +80,7 @@ uv run connections_eval run --model gpt5 --puzzles 5 --verbose
 uv run connections_eval run --model grok-4.5 --puzzle-ids 246,283,477
 
 # Run canonical puzzle set
-uv run connections_eval run --model gemini --canonical
+uv run connections_eval run --model gemini-2.5 --canonical
 ```
 
 ### List and Rank Puzzles
@@ -103,7 +103,7 @@ uv run connections_eval run --interactive
 
 ```bash
 uv run connections_eval run \
-  --model gemini \
+  --model gemini-2.5 \
   --puzzles 3 \
   --threads 4 \
   --seed 42 \
@@ -358,7 +358,7 @@ uv run connections_eval list-models
 uv run connections_eval run --model gpt5
 
 # Limited run with verbose logging
-uv run connections_eval run --model gemini --puzzles 3 --verbose
+uv run connections_eval run --model gemini-2.5 --puzzles 3 --verbose
 
 # Specific puzzles for model comparison
 uv run connections_eval run --model grok-4.5 --puzzle-ids 246,283,477,826

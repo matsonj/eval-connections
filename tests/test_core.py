@@ -858,6 +858,20 @@ class TestOneshotFallbackPunctuation:
         assert len(groups) == 4
         assert groups[0] == ["APPLE", "BANANA", "CHERRY", "GRAPE"]
 
+    def test_punctuated_canonical_words_survive_fallback(self, mock_game):
+        """Canonical grids contain N.F.L., GREEK/ROMAN GOD, FOUR-LETTER WORDS —
+        the tagless fallback must not reject lines containing them."""
+        response = (
+            "NASA, N.F.L., PARAMOUNT, SUBARU\n"
+            "FICTIONAL BOXER, GREEK/ROMAN GOD, SPACECRAFT, THEATER\n"
+            "EXPLETIVES, FOUR-LETTER WORDS, PROFANITY, SWEARING\n"
+            "ABLE, CANE, EAVE, NOAA"
+        )
+        groups = mock_game._parse_oneshot_response(response)
+        assert len(groups) == 4
+        assert groups[0] == ["NASA", "N.F.L.", "PARAMOUNT", "SUBARU"]
+        assert groups[1][1] == "GREEK/ROMAN GOD"
+
     def test_hyphenated_word_survives_fallback(self, mock_game):
         response = (
             "FLEUR-DE-LIS, BANANA, CHERRY, GRAPE\n"

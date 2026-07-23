@@ -87,9 +87,13 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
                 SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT%' THEN
                     COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'MAX_([0-9]+)', 1), '') AS INTEGER), 5)
                     END) AS oneshot_max_score,
-                -- Distinguishes trap-scoring runs (result carries _TRAP_) from
-                -- legacy pre-trap smoke runs whose scores aren't comparable.
-                MAX(CASE WHEN e.payload_json.result LIKE '%\\_TRAP\\_%' ESCAPE '\\' THEN 1 ELSE 0 END) AS trap_scored
+                -- Distinguishes trap-scoring runs from legacy pre-trap smoke
+                -- runs whose scores aren't comparable. Trap-era results carry
+                -- _TRAP_ (scored) or _MAX_ (invalid/API-error verdicts), so an
+                -- all-invalid run still counts as trap-era.
+                MAX(CASE WHEN e.payload_json.result LIKE '%\\_TRAP\\_%' ESCAPE '\\'
+                          OR e.payload_json.result LIKE '%\\_MAX\\_%' ESCAPE '\\'
+                     THEN 1 ELSE 0 END) AS trap_scored
             FROM controllog.events e
             WHERE e.run_id IS NOT NULL
             AND e.kind IN ('model_completion', 'model_response_error')

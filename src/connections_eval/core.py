@@ -425,15 +425,22 @@ class ConnectionsGame:
                     return (p.id, None, e)
 
             results: List[Tuple[int, Optional[PuzzleResult], Optional[Exception]]] = []
+            abort_exc: Optional[Exception] = None
             with ThreadPoolExecutor(max_workers=threads) as executor:
                 futures = {executor.submit(_run_one, p): p for p in puzzles_to_run}
                 for future in as_completed(futures):
-                    results.append(future.result())
+                    pid, result, exc = future.result()
+                    if exc is not None and getattr(exc, "non_retryable", False):
+                        # e.g. insufficient credits — cancel every queued puzzle
+                        # so remaining API calls never start (in-flight threads
+                        # finish their current call), then abort with no summary.
+                        abort_exc = exc
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    results.append((pid, result, exc))
+            if abort_exc is not None:
+                raise abort_exc
 
-            for puzzle_id, result, exc in results:
-                if exc is not None and getattr(exc, "non_retryable", False):
-                    # e.g. insufficient credits — abort the run, no summary
-                    raise exc
             for puzzle_id, result, exc in results:
                 if exc is not None:
                     self.logger.error(f"Error running puzzle {puzzle_id}: {exc}")
@@ -1372,21 +1379,23 @@ class ConnectionsGame:
                 groups.append(words)
             return groups
 
-        # Fallback: scan for lines that look like 4 comma-separated ALL CAPS words.
+        # Fallback: scan for ALL-CAPS lines of exactly 4 comma-separated words.
         # Strip <traps>/<confidence> blocks first — trap-claim lines look exactly
         # like answer lines and would otherwise be scanned as extra groups,
         # turning a valid tagless answer into a structural invalid.
         cleaned = re.sub(r'<traps>.*?</traps>', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
         cleaned = re.sub(r'<traps>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
         cleaned = re.sub(r'<confidence>.*?</confidence>', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
-        # Allow hyphens/apostrophes so words like FLEUR-DE-LIS survive intact.
-        caps_pattern = r"\b[A-Z][A-Z\s'\-]*\b(?:\s*,\s*[A-Z][A-Z\s'\-]*\b){3}"
+        # Comma-split rather than a letters-only regex so canonical words with
+        # punctuation (N.F.L., GREEK/ROMAN GOD, FOUR-LETTER WORDS) survive.
+        # Requiring the line to be its own uppercase keeps prose out.
         groups = []
         for line in cleaned.splitlines():
-            caps_match = re.search(caps_pattern, line)
-            if caps_match:
-                words = [word.strip().upper() for word in caps_match.group().split(',')]
-                words = [word for word in words if word]
+            line = line.strip()
+            if not line or ',' not in line or line != line.upper():
+                continue
+            words = [w.strip() for w in line.split(',') if w.strip()]
+            if len(words) == 4:
                 groups.append(words)
         return groups
 

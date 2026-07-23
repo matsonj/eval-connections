@@ -221,6 +221,24 @@ def run(
                 raise typer.Exit(1)
             console.print(f"Running {len(parsed_puzzle_ids)} canonical puzzles", style="dim")
 
+        # One-shot trap scoring only applies to puzzles reviewed for traps
+        # (valid_trap_groups present). Unreviewed puzzles score base-only with
+        # a max of 3, while the prompt promises a 5-point ceiling — warn so
+        # ad-hoc non-canonical runs aren't misread.
+        if mode == "oneshot":
+            candidates = (set(parsed_puzzle_ids) if parsed_puzzle_ids is not None
+                          else {p.id for p in game.puzzles})
+            unreviewed = sorted(
+                p.id for p in game.puzzles
+                if p.id in candidates and p.trap_groups is None
+            )
+            if unreviewed:
+                console.print(
+                    f"Warning: {len(unreviewed)} selected puzzle(s) have no trap review "
+                    f"(max 3 pts each, prompt's trap bonus is inert): {unreviewed}",
+                    style="yellow",
+                )
+
         # Show run info
         console.print(f"Starting Connections evaluation", style="bold blue")
         console.print(f"Mode: {'Interactive' if interactive else f'AI Model ({model})'}")
