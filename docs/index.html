@@ -405,6 +405,17 @@
           </div>
           <div class="row">
             
+    <div class="grid-item" style="--col-span: 8; grid-column: span 8;">
+      <h3 class="chart-title">Points vs Efficiency (puzzles per $10)</h3>
+      <div id="chart_2" style="width: 100%; height: 360px;"></div>
+    </div>
+    <div class="grid-item" style="--col-span: 8; grid-column: span 8;">
+      <h3 class="chart-title">Points by model</h3>
+      <div id="chart_3" style="width: 100%; height: 360px;"></div>
+    </div>
+          </div>
+          <div class="row">
+            
     <div class="grid-item" style="--col-span: 16; grid-column: span 16;">
       
       <div class="mviz-table-toolbar" style="margin-bottom: 6px;"><input type="search" class="mviz-filter-global" data-table="mviz-dash-table-1" placeholder="Filter by any value…" style="font-family: inherit; font-size: 11px; padding: 4px 8px; width: 240px; max-width: 100%; border: 1px solid #d4d4d4; border-radius: 3px; background: #f8f8f8; color: #231f20;" /></div>
@@ -436,7 +447,1529 @@
       }
     }
 
-    (function(){var s=document.createElement('style');s.textContent="th.sortable { cursor: pointer; }\nth.sortable[data-sort-dir] { color: inherit; }\n/*\n * Reserve the arrow's width always so adding ▲/▼ on sort doesn't widen the\n * column and push the rest of the header row around.\n */\n.mviz-sort-ind {\n  display: inline-block;\n  min-width: 0.9em;\n  margin-left: 2px;\n  font-size: 9px;\n  opacity: 0.7;\n  text-align: left;\n  white-space: nowrap;\n}";document.head.appendChild(s);})();(function() {
+    
+    (function() {
+      var chart = echarts.init(document.getElementById('chart_2'), null, {renderer: 'svg'});
+      window.chartInstances = window.chartInstances || {};
+      window.chartOptions = window.chartOptions || {};
+      window.chartInstances['chart_2'] = chart;
+      window.chartOptions['chart_2'] = {
+        light: {
+  "backgroundColor": "transparent",
+  "animation": false,
+  "color": [
+    "#0777b3",
+    "#bd4e35",
+    "#2d7a00",
+    "#e18727",
+    "#638CAD",
+    "#adadad"
+  ],
+  "tooltip": {
+    "trigger": "item",
+    "backgroundColor": "#ffffff",
+    "borderColor": "#d4d4d4",
+    "textStyle": {
+      "color": "#231f20"
+    },
+    "formatter": function(params) {
+    var d = params.value || params.data;
+    var result = '';
+    var label = d[2]; if (label) result += '<strong>' + label + '</strong><br/>';
+    var value = d[0]; result += "puzzles per $10" + ': ' + value + '<br/>';
+    var value = d[1]; result += "pts" + ': ' + value;
+    return result;
+  }
+  },
+  "grid": {
+    "left": "2%",
+    "right": "4%",
+    "top": "12%",
+    "bottom": "10%",
+    "containLabel": true
+  },
+  "xAxis": {
+    "type": "value",
+    "name": "puzzles per $10",
+    "nameLocation": "middle",
+    "nameGap": 24,
+    "nameTextStyle": {
+      "color": "#6a6a6a",
+      "fontSize": 10
+    },
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#6a6a6a",
+      "formatter": function(value) {
+  if (value == null) return '';
+  var abs = Math.abs(value);
+  var neg = value < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = p + lf(s,1) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = p + lf(s,1) + 'm';
+  } else if (abs >= 1e3) {
+    var s = abs / 1e3;
+    r = p + lf(s,1) + 'k';
+  } else {
+    r = abs === Math.floor(abs) ? p + Math.floor(abs) : p + lf(abs,1);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#d4d4d4",
+        "type": [
+          2,
+          3
+        ],
+        "opacity": 0.6
+      }
+    }
+  },
+  "yAxis": {
+    "type": "value",
+    "name": "pts",
+    "nameLocation": "middle",
+    "nameGap": 40,
+    "nameTextStyle": {
+      "color": "#6a6a6a",
+      "fontSize": 10
+    },
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#6a6a6a",
+      "formatter": function(value) {
+  if (value == null) return '';
+  var abs = Math.abs(value);
+  var neg = value < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = p + lf(s,1) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = p + lf(s,1) + 'm';
+  } else if (abs >= 1e3) {
+    var s = abs / 1e3;
+    r = p + lf(s,1) + 'k';
+  } else {
+    r = abs === Math.floor(abs) ? p + Math.floor(abs) : p + lf(abs,1);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#d4d4d4",
+        "type": [
+          2,
+          3
+        ],
+        "opacity": 0.6
+      }
+    }
+  },
+  "series": [
+    {
+      "type": "scatter",
+      "name": "meta",
+      "data": [
+        [
+          476,
+          90,
+          "meta/muse-spark-1.1"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#0777b3",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "google",
+      "data": [
+        [
+          479,
+          86,
+          "google/gemini-3.1-pro-preview"
+        ],
+        [
+          1541,
+          84,
+          "google/gemini-3-flash-preview"
+        ],
+        [
+          560,
+          69,
+          "google/gemini-3.6-flash"
+        ],
+        [
+          1701,
+          67,
+          "google/gemini-3.5-flash-lite"
+        ],
+        [
+          479,
+          67,
+          "google/gemini-3.5-flash"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#bd4e35",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "openai",
+      "data": [
+        [
+          424,
+          86,
+          "openai/gpt-5.6-terra"
+        ],
+        [
+          75,
+          84,
+          "openai/gpt-5.6-sol-pro"
+        ],
+        [
+          317,
+          83,
+          "openai/gpt-5.6-sol"
+        ],
+        [
+          101,
+          77,
+          "openai/gpt-5.6-terra-pro"
+        ],
+        [
+          295,
+          68,
+          "openai/gpt-5.6-luna-pro"
+        ],
+        [
+          1008,
+          62,
+          "openai/gpt-5.6-luna"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#2d7a00",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "anthropic",
+      "data": [
+        [
+          184,
+          85,
+          "anthropic/claude-fable-5"
+        ],
+        [
+          661,
+          71,
+          "anthropic/claude-sonnet-5"
+        ],
+        [
+          110,
+          70,
+          "anthropic/claude-opus-4.5"
+        ],
+        [
+          410,
+          65,
+          "anthropic/claude-opus-4.7"
+        ],
+        [
+          517,
+          60,
+          "anthropic/claude-haiku-4.5"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#e18727",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "moonshotai",
+      "data": [
+        [
+          366,
+          84,
+          "moonshotai/kimi-k3"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#638CAD",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "sakana",
+      "data": [
+        [
+          21,
+          84,
+          "sakana/fugu-ultra"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#adadad",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "x-ai",
+      "data": [
+        [
+          534,
+          82,
+          "x-ai/grok-4.20"
+        ],
+        [
+          459,
+          76,
+          "x-ai/grok-4.5"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#0777b3",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "z-ai",
+      "data": [
+        [
+          458,
+          74,
+          "z-ai/glm-5v-turbo"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#bd4e35",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "thinkingmachines",
+      "data": [
+        [
+          902,
+          67,
+          "thinkingmachines/inkling"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#2d7a00",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "stepfun",
+      "data": [
+        [
+          628,
+          63,
+          "stepfun/step-3.7-flash"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#e18727",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "deepseek",
+      "data": [
+        [
+          2844,
+          63,
+          "deepseek/deepseek-v4-flash"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#638CAD",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "inception",
+      "data": [
+        [
+          6135,
+          39,
+          "inception/mercury-2"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#adadad",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "poolside",
+      "data": [
+        [
+          4382,
+          17,
+          "poolside/laguna-xs-2.1"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#0777b3",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "ibm-granite",
+      "data": [
+        [
+          86257,
+          5,
+          "ibm-granite/granite-4.1-8b"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#bd4e35",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#6a6a6a"
+      }
+    }
+  ],
+  "legend": {
+    "show": true,
+    "data": [
+      "meta",
+      "google",
+      "openai",
+      "anthropic",
+      "moonshotai",
+      "sakana",
+      "x-ai",
+      "z-ai",
+      "thinkingmachines",
+      "stepfun",
+      "deepseek",
+      "inception",
+      "poolside",
+      "ibm-granite"
+    ],
+    "top": 0,
+    "textStyle": {
+      "color": "#6a6a6a",
+      "fontSize": 10
+    }
+  },
+  "textStyle": {
+    "fontFamily": "'Helvetica Neue', Helvetica, Arial, sans-serif"
+  }
+},
+        dark: {
+  "backgroundColor": "transparent",
+  "animation": false,
+  "color": [
+    "#3da8e0",
+    "#e06b4e",
+    "#6ed020",
+    "#f5a84a",
+    "#7faac4",
+    "#c0c0c0"
+  ],
+  "tooltip": {
+    "trigger": "item",
+    "backgroundColor": "#424242",
+    "borderColor": "#3a3a3a",
+    "textStyle": {
+      "color": "#ffffff"
+    },
+    "formatter": function(params) {
+    var d = params.value || params.data;
+    var result = '';
+    var label = d[2]; if (label) result += '<strong>' + label + '</strong><br/>';
+    var value = d[0]; result += "puzzles per $10" + ': ' + value + '<br/>';
+    var value = d[1]; result += "pts" + ': ' + value;
+    return result;
+  }
+  },
+  "grid": {
+    "left": "2%",
+    "right": "4%",
+    "top": "12%",
+    "bottom": "10%",
+    "containLabel": true
+  },
+  "xAxis": {
+    "type": "value",
+    "name": "puzzles per $10",
+    "nameLocation": "middle",
+    "nameGap": 24,
+    "nameTextStyle": {
+      "color": "#888888",
+      "fontSize": 10
+    },
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#888888",
+      "formatter": function(value) {
+  if (value == null) return '';
+  var abs = Math.abs(value);
+  var neg = value < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = p + lf(s,1) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = p + lf(s,1) + 'm';
+  } else if (abs >= 1e3) {
+    var s = abs / 1e3;
+    r = p + lf(s,1) + 'k';
+  } else {
+    r = abs === Math.floor(abs) ? p + Math.floor(abs) : p + lf(abs,1);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#3a3a3a",
+        "type": [
+          2,
+          3
+        ],
+        "opacity": 0.6
+      }
+    }
+  },
+  "yAxis": {
+    "type": "value",
+    "name": "pts",
+    "nameLocation": "middle",
+    "nameGap": 40,
+    "nameTextStyle": {
+      "color": "#888888",
+      "fontSize": 10
+    },
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#888888",
+      "formatter": function(value) {
+  if (value == null) return '';
+  var abs = Math.abs(value);
+  var neg = value < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = p + lf(s,1) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = p + lf(s,1) + 'm';
+  } else if (abs >= 1e3) {
+    var s = abs / 1e3;
+    r = p + lf(s,1) + 'k';
+  } else {
+    r = abs === Math.floor(abs) ? p + Math.floor(abs) : p + lf(abs,1);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#3a3a3a",
+        "type": [
+          2,
+          3
+        ],
+        "opacity": 0.6
+      }
+    }
+  },
+  "series": [
+    {
+      "type": "scatter",
+      "name": "meta",
+      "data": [
+        [
+          476,
+          90,
+          "meta/muse-spark-1.1"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#3da8e0",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "google",
+      "data": [
+        [
+          479,
+          86,
+          "google/gemini-3.1-pro-preview"
+        ],
+        [
+          1541,
+          84,
+          "google/gemini-3-flash-preview"
+        ],
+        [
+          560,
+          69,
+          "google/gemini-3.6-flash"
+        ],
+        [
+          1701,
+          67,
+          "google/gemini-3.5-flash-lite"
+        ],
+        [
+          479,
+          67,
+          "google/gemini-3.5-flash"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#e06b4e",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "openai",
+      "data": [
+        [
+          424,
+          86,
+          "openai/gpt-5.6-terra"
+        ],
+        [
+          75,
+          84,
+          "openai/gpt-5.6-sol-pro"
+        ],
+        [
+          317,
+          83,
+          "openai/gpt-5.6-sol"
+        ],
+        [
+          101,
+          77,
+          "openai/gpt-5.6-terra-pro"
+        ],
+        [
+          295,
+          68,
+          "openai/gpt-5.6-luna-pro"
+        ],
+        [
+          1008,
+          62,
+          "openai/gpt-5.6-luna"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#6ed020",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "anthropic",
+      "data": [
+        [
+          184,
+          85,
+          "anthropic/claude-fable-5"
+        ],
+        [
+          661,
+          71,
+          "anthropic/claude-sonnet-5"
+        ],
+        [
+          110,
+          70,
+          "anthropic/claude-opus-4.5"
+        ],
+        [
+          410,
+          65,
+          "anthropic/claude-opus-4.7"
+        ],
+        [
+          517,
+          60,
+          "anthropic/claude-haiku-4.5"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#f5a84a",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "moonshotai",
+      "data": [
+        [
+          366,
+          84,
+          "moonshotai/kimi-k3"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#7faac4",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "sakana",
+      "data": [
+        [
+          21,
+          84,
+          "sakana/fugu-ultra"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#c0c0c0",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "x-ai",
+      "data": [
+        [
+          534,
+          82,
+          "x-ai/grok-4.20"
+        ],
+        [
+          459,
+          76,
+          "x-ai/grok-4.5"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#3da8e0",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "z-ai",
+      "data": [
+        [
+          458,
+          74,
+          "z-ai/glm-5v-turbo"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#e06b4e",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "thinkingmachines",
+      "data": [
+        [
+          902,
+          67,
+          "thinkingmachines/inkling"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#6ed020",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "stepfun",
+      "data": [
+        [
+          628,
+          63,
+          "stepfun/step-3.7-flash"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#f5a84a",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "deepseek",
+      "data": [
+        [
+          2844,
+          63,
+          "deepseek/deepseek-v4-flash"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#7faac4",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "inception",
+      "data": [
+        [
+          6135,
+          39,
+          "inception/mercury-2"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#c0c0c0",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "poolside",
+      "data": [
+        [
+          4382,
+          17,
+          "poolside/laguna-xs-2.1"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#3da8e0",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    },
+    {
+      "type": "scatter",
+      "name": "ibm-granite",
+      "data": [
+        [
+          86257,
+          5,
+          "ibm-granite/granite-4.1-8b"
+        ]
+      ],
+      "symbolSize": 10,
+      "itemStyle": {
+        "color": "#e06b4e",
+        "opacity": 0.75
+      },
+      "label": {
+        "show": true,
+        "formatter": function(params) { return params.value[2] || ""; },
+        "position": "right",
+        "fontSize": 10,
+        "color": "#888888"
+      }
+    }
+  ],
+  "legend": {
+    "show": true,
+    "data": [
+      "meta",
+      "google",
+      "openai",
+      "anthropic",
+      "moonshotai",
+      "sakana",
+      "x-ai",
+      "z-ai",
+      "thinkingmachines",
+      "stepfun",
+      "deepseek",
+      "inception",
+      "poolside",
+      "ibm-granite"
+    ],
+    "top": 0,
+    "textStyle": {
+      "color": "#888888",
+      "fontSize": 10
+    }
+  },
+  "textStyle": {
+    "fontFamily": "'Helvetica Neue', Helvetica, Arial, sans-serif"
+  }
+}
+      };
+      var currentTheme = document.body.classList.contains('theme-dark') ? 'dark' : 'light';
+      chart.setOption(window.chartOptions['chart_2'][currentTheme]);
+      window.addEventListener('resize', function() { chart.resize(); });
+    })();
+    (function() {
+      var chart = echarts.init(document.getElementById('chart_3'), null, {renderer: 'svg'});
+      window.chartInstances = window.chartInstances || {};
+      window.chartOptions = window.chartOptions || {};
+      window.chartInstances['chart_3'] = chart;
+      window.chartOptions['chart_3'] = {
+        light: {
+  "backgroundColor": "transparent",
+  "color": ["#bd4e35", "#0777b3", "#adadad", "#e18727", "#2d7a00", "#638CAD", "#e18727", "#e18727", "#2d7a00", "#bd4e35", "#bd4e35", "#2d7a00", "#bd4e35", "#e18727", "#e18727", "#bd4e35", "#0777b3", "#2d7a00", "#0777b3", "#2d7a00", "#adadad", "#638CAD", "#2d7a00", "#bd4e35", "#e18727", "#2d7a00", "#bd4e35", "#0777b3"],
+  "animation": false,
+  "tooltip": {
+    "trigger": "axis",
+    "axisPointer": {
+      "type": "shadow"
+    },
+    "backgroundColor": "#ffffff",
+    "borderColor": "#d4d4d4",
+    "textStyle": {
+      "color": "#231f20"
+    }
+  },
+  "grid": {
+    "left": "2%",
+    "right": "2%",
+    "top": "6%",
+    "bottom": "8%",
+    "containLabel": true
+  },
+  "xAxis": {
+    "type": "value",
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#6a6a6a",
+      "fontSize": 11,
+      "margin": 10,
+      "hideOverlap": true,
+      "formatter": function(value) {
+  if (value == null) return '';
+  var abs = Math.abs(value);
+  var neg = value < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = p + lf(s,1) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = p + lf(s,1) + 'm';
+  } else if (abs >= 1e3) {
+    var s = abs / 1e3;
+    r = p + lf(s,1) + 'k';
+  } else {
+    r = abs === Math.floor(abs) ? p + Math.floor(abs) : p + lf(abs,1);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#d4d4d4",
+        "type": [
+          2,
+          3
+        ],
+        "opacity": 0.6
+      }
+    }
+  },
+  "yAxis": {
+    "type": "category",
+    "data": [
+      "ibm-granite/granite-4.1-8b",
+      "poolside/laguna-xs-2.1",
+      "inception/mercury-2",
+      "anthropic/claude-haiku-4.5",
+      "openai/gpt-5.6-luna",
+      "deepseek/deepseek-v4-flash",
+      "stepfun/step-3.7-flash",
+      "anthropic/claude-opus-4.7",
+      "thinkingmachines/inkling",
+      "google/gemini-3.5-flash",
+      "google/gemini-3.5-flash-lite",
+      "openai/gpt-5.6-luna-pro",
+      "google/gemini-3.6-flash",
+      "anthropic/claude-opus-4.5",
+      "anthropic/claude-sonnet-5",
+      "z-ai/glm-5v-turbo",
+      "x-ai/grok-4.5",
+      "openai/gpt-5.6-terra-pro",
+      "x-ai/grok-4.20",
+      "openai/gpt-5.6-sol",
+      "sakana/fugu-ultra",
+      "moonshotai/kimi-k3",
+      "openai/gpt-5.6-sol-pro",
+      "google/gemini-3-flash-preview",
+      "anthropic/claude-fable-5",
+      "openai/gpt-5.6-terra",
+      "google/gemini-3.1-pro-preview",
+      "meta/muse-spark-1.1"
+    ],
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#6a6a6a",
+      "fontSize": 11,
+      "margin": 10,
+      "interval": 0,
+      "rotate": 45,
+      "overflow": "truncate",
+      "ellipsis": "...",
+      "width": 100
+    }
+  },
+  "series": [
+    {
+      "name": "pts",
+      "type": "bar",
+      "data": [
+        5,
+        17,
+        39,
+        60,
+        62,
+        63,
+        63,
+        65,
+        67,
+        67,
+        67,
+        68,
+        69,
+        70,
+        71,
+        74,
+        76,
+        77,
+        82,
+        83,
+        84,
+        84,
+        84,
+        84,
+        85,
+        86,
+        86,
+        90
+      ],
+      "barMaxWidth": 32,
+      "colorBy": "data",
+      "label": {
+        "show": false,
+        "position": "right",
+        "color": "#6a6a6a",
+        "fontSize": 10,
+        "offset": [
+          2,
+          0
+        ],
+        "formatter": function(params) {
+  var v = params.value;
+  if (v == null) return '';
+  if (Array.isArray(v)) v = v[1];
+  var abs = Math.abs(v);
+  var neg = v < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = s >= 100 ? p + lf(s,1) + 'b' : s >= 10 ? p + lf(s,2) + 'b' : p + lf(s,3) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = s >= 100 ? p + lf(s,1) + 'm' : s >= 10 ? p + lf(s,2) + 'm' : p + lf(s,3) + 'm';
+  } else if (abs >= 1e4) {
+    var s = abs / 1e3;
+    r = s >= 100 ? p + lf(s,1) + 'k' : p + lf(s,2) + 'k';
+  } else if (abs >= 1e3) {
+    r = p + abs.toLocaleString("en-US", {maximumFractionDigits: 0});
+  } else {
+    r = abs === Math.floor(abs) ? p + abs : p + lf(abs,2);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+      }
+    }
+  ],
+  "textStyle": {
+    "fontFamily": "'Helvetica Neue', Helvetica, Arial, sans-serif"
+  }
+},
+        dark: {
+  "backgroundColor": "transparent",
+  "color": ["#e06b4e", "#3da8e0", "#c0c0c0", "#f5a84a", "#6ed020", "#7faac4", "#f5a84a", "#f5a84a", "#6ed020", "#e06b4e", "#e06b4e", "#6ed020", "#e06b4e", "#f5a84a", "#f5a84a", "#e06b4e", "#3da8e0", "#6ed020", "#3da8e0", "#6ed020", "#c0c0c0", "#7faac4", "#6ed020", "#e06b4e", "#f5a84a", "#6ed020", "#e06b4e", "#3da8e0"],
+  "animation": false,
+  "tooltip": {
+    "trigger": "axis",
+    "axisPointer": {
+      "type": "shadow"
+    },
+    "backgroundColor": "#424242",
+    "borderColor": "#3a3a3a",
+    "textStyle": {
+      "color": "#ffffff"
+    }
+  },
+  "grid": {
+    "left": "2%",
+    "right": "2%",
+    "top": "6%",
+    "bottom": "8%",
+    "containLabel": true
+  },
+  "xAxis": {
+    "type": "value",
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#888888",
+      "fontSize": 11,
+      "margin": 10,
+      "hideOverlap": true,
+      "formatter": function(value) {
+  if (value == null) return '';
+  var abs = Math.abs(value);
+  var neg = value < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = p + lf(s,1) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = p + lf(s,1) + 'm';
+  } else if (abs >= 1e3) {
+    var s = abs / 1e3;
+    r = p + lf(s,1) + 'k';
+  } else {
+    r = abs === Math.floor(abs) ? p + Math.floor(abs) : p + lf(abs,1);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#3a3a3a",
+        "type": [
+          2,
+          3
+        ],
+        "opacity": 0.6
+      }
+    }
+  },
+  "yAxis": {
+    "type": "category",
+    "data": [
+      "ibm-granite/granite-4.1-8b",
+      "poolside/laguna-xs-2.1",
+      "inception/mercury-2",
+      "anthropic/claude-haiku-4.5",
+      "openai/gpt-5.6-luna",
+      "deepseek/deepseek-v4-flash",
+      "stepfun/step-3.7-flash",
+      "anthropic/claude-opus-4.7",
+      "thinkingmachines/inkling",
+      "google/gemini-3.5-flash",
+      "google/gemini-3.5-flash-lite",
+      "openai/gpt-5.6-luna-pro",
+      "google/gemini-3.6-flash",
+      "anthropic/claude-opus-4.5",
+      "anthropic/claude-sonnet-5",
+      "z-ai/glm-5v-turbo",
+      "x-ai/grok-4.5",
+      "openai/gpt-5.6-terra-pro",
+      "x-ai/grok-4.20",
+      "openai/gpt-5.6-sol",
+      "sakana/fugu-ultra",
+      "moonshotai/kimi-k3",
+      "openai/gpt-5.6-sol-pro",
+      "google/gemini-3-flash-preview",
+      "anthropic/claude-fable-5",
+      "openai/gpt-5.6-terra",
+      "google/gemini-3.1-pro-preview",
+      "meta/muse-spark-1.1"
+    ],
+    "axisLine": {
+      "show": false
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#888888",
+      "fontSize": 11,
+      "margin": 10,
+      "interval": 0,
+      "rotate": 45,
+      "overflow": "truncate",
+      "ellipsis": "...",
+      "width": 100
+    }
+  },
+  "series": [
+    {
+      "name": "pts",
+      "type": "bar",
+      "data": [
+        5,
+        17,
+        39,
+        60,
+        62,
+        63,
+        63,
+        65,
+        67,
+        67,
+        67,
+        68,
+        69,
+        70,
+        71,
+        74,
+        76,
+        77,
+        82,
+        83,
+        84,
+        84,
+        84,
+        84,
+        85,
+        86,
+        86,
+        90
+      ],
+      "barMaxWidth": 32,
+      "colorBy": "data",
+      "label": {
+        "show": false,
+        "position": "right",
+        "color": "#ffffff",
+        "fontSize": 10,
+        "offset": [
+          2,
+          0
+        ],
+        "formatter": function(params) {
+  var v = params.value;
+  if (v == null) return '';
+  if (Array.isArray(v)) v = v[1];
+  var abs = Math.abs(v);
+  var neg = v < 0;
+  var p = false ? "$" : '';
+  var lf = function(v, d) { return v.toFixed(d); };
+  var r;
+  if (abs >= 1e9) {
+    var s = abs / 1e9;
+    r = s >= 100 ? p + lf(s,1) + 'b' : s >= 10 ? p + lf(s,2) + 'b' : p + lf(s,3) + 'b';
+  } else if (abs >= 1e6) {
+    var s = abs / 1e6;
+    r = s >= 100 ? p + lf(s,1) + 'm' : s >= 10 ? p + lf(s,2) + 'm' : p + lf(s,3) + 'm';
+  } else if (abs >= 1e4) {
+    var s = abs / 1e3;
+    r = s >= 100 ? p + lf(s,1) + 'k' : p + lf(s,2) + 'k';
+  } else if (abs >= 1e3) {
+    r = p + abs.toLocaleString("en-US", {maximumFractionDigits: 0});
+  } else {
+    r = abs === Math.floor(abs) ? p + abs : p + lf(abs,2);
+  }
+  return neg ? '(' + r + ')' : r;
+}
+      }
+    }
+  ],
+  "textStyle": {
+    "fontFamily": "'Helvetica Neue', Helvetica, Arial, sans-serif"
+  }
+}
+      };
+      var currentTheme = document.body.classList.contains('theme-dark') ? 'dark' : 'light';
+      chart.setOption(window.chartOptions['chart_3'][currentTheme]);
+      window.addEventListener('resize', function() { chart.resize(); });
+    })();(function(){var s=document.createElement('style');s.textContent="th.sortable { cursor: pointer; }\nth.sortable[data-sort-dir] { color: inherit; }\n/*\n * Reserve the arrow's width always so adding ▲/▼ on sort doesn't widen the\n * column and push the rest of the header row around.\n */\n.mviz-sort-ind {\n  display: inline-block;\n  min-width: 0.9em;\n  margin-left: 2px;\n  font-size: 9px;\n  opacity: 0.7;\n  text-align: left;\n  white-space: nowrap;\n}";document.head.appendChild(s);})();(function() {
   if (window.mvizTableInit) return;
   function compareCells(a, b) {
     var an = parseFloat(a), bn = parseFloat(b);
