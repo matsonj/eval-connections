@@ -28,8 +28,51 @@ def _load_thinking_models() -> Set[str]:
         return set()
 
 
+class InsufficientCreditsError(RuntimeError):
+    """OpenRouter returned 402 — credits exhausted or pre-auth too large.
+
+    Never resolves within a retry window, so it skips retries and aborts
+    the whole run (a credit wall poisons every subsequent puzzle)."""
+    non_retryable = True
+
+
 # Cache the thinking models set
 _THINKING_MODELS = _load_thinking_models()
+
+# Cache of OpenRouter's live model catalog (fetched once per process)
+_MODEL_CATALOG: Optional[Set[str]] = None
+
+
+def assert_model_exists(model_id: str) -> None:
+    """
+    Fail fast when a model ID isn't in OpenRouter's live catalog.
+
+    A bad slug otherwise burns the full retry budget on every puzzle (6
+    attempts x 20 puzzles of 400s) before finishing with zeros. Raises
+    ValueError with a clear message. If the catalog fetch itself fails
+    (network hiccup), logs a warning and skips the check rather than
+    blocking an otherwise-valid run.
+    """
+    global _MODEL_CATALOG
+    if _MODEL_CATALOG is None:
+        try:
+            resp = requests.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {_get_api_key()}"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            _MODEL_CATALOG = {m["id"] for m in resp.json().get("data", [])}
+        except Exception as e:
+            logger.warning(f"Could not fetch OpenRouter model catalog ({e}); skipping model preflight")
+            return
+    base = model_id.split(":")[0]
+    if model_id in _MODEL_CATALOG or base in _MODEL_CATALOG:
+        return
+    raise ValueError(
+        f"Model ID '{model_id}' not found in OpenRouter's catalog — "
+        f"check the mapping in inputs/model_mappings.yml"
+    )
 
 # Mapping from OpenRouter model ID prefix to provider slug for pinning.
 # Only includes providers where the slug is known and prompt caching benefits.
@@ -84,7 +127,7 @@ def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
 
 @retry_with_backoff(max_retries=5, base_delay=_chat_base_delay, exceptions=(requests.RequestException,))
 def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None,
-         session_id: Optional[str] = None) -> Dict:
+         session_id: Optional[str] = None, reasoning_effort: Optional[str] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.
 
@@ -100,6 +143,9 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             every request in the session to the same upstream provider — from the
             first call, before any cache hit. This is the only caching lever for
             cloaked/third-party-hosted models that have no pinnable provider slug.
+        reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
+            'low', 'medium', 'high'). Defaults to 'minimal' when unset — cheapest
+            solves score best. Ignored for non-thinking models.
 
     Returns:
         Raw API response JSON
@@ -180,7 +226,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     if is_thinking_model:
         if timeout < 600:
             timeout = 600
-        payload["reasoning"] = {"effort": "minimal"}
+        payload["reasoning"] = {"effort": reasoning_effort or "minimal"}
     else:
         # Standard models
         payload.update({
@@ -210,6 +256,20 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         limiter.release(openrouter_model)
         # Let the retry decorator handle the actual sleep + retry loop.
         response.raise_for_status()
+
+    # 402 = insufficient credits. Retrying can't fix it and every subsequent
+    # puzzle would fail the same way — abort the run with the API's own
+    # explanation (it includes the exact affordable token count).
+    if response.status_code == 402:
+        try:
+            detail = response.json().get("error", {}).get("message", "")
+        except Exception:
+            detail = ""
+        limiter.release(openrouter_model)
+        raise InsufficientCreditsError(
+            f"OpenRouter credits exhausted (402): {detail or 'Payment Required'} — "
+            f"top up at https://openrouter.ai/settings/credits"
+        )
 
     # Check for OpenRouter-specific errors before raising
     if not response.ok:

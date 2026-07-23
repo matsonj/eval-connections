@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .core import ConnectionsGame
+from .adapters import openrouter_adapter
 from .utils.motherduck import (
     upload_controllog_to_motherduck,
     validate_upload,
@@ -28,13 +29,25 @@ def main():
 def _validate_run_args(
     model: Optional[str], interactive: bool, puzzles: Optional[int],
     puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
-    prompt_file: str,
+    prompt_file: str, mode: str, reasoning_effort: Optional[str] = None,
 ) -> Optional[List[int]]:
     """
     Validate run command arguments and return parsed puzzle IDs.
 
     Raises typer.Exit on validation failure.
     """
+    if mode not in ("classic", "oneshot"):
+        console.print(f"Invalid mode: {mode}. Must be 'classic' or 'oneshot'", style="red")
+        raise typer.Exit(1)
+
+    valid_efforts = ("minimal", "low", "medium", "high", "xhigh")
+    if reasoning_effort is not None and reasoning_effort not in valid_efforts:
+        console.print(
+            f"Invalid reasoning effort: {reasoning_effort}. Must be one of: {', '.join(valid_efforts)}",
+            style="red",
+        )
+        raise typer.Exit(1)
+
     if not interactive and not model:
         console.print("Either --model or --interactive must be specified", style="red")
         raise typer.Exit(1)
@@ -74,7 +87,15 @@ def _validate_run_args(
         raise typer.Exit(1)
 
     puzzles_file = inputs_path / "connections_puzzles.yml"
-    template_file = inputs_path / prompt_file
+    # When mode is oneshot and --prompt-file was left at its default, the
+    # template ConnectionsGame actually loads is prompt_template_oneshot.xml
+    # (core.py's _load_prompt_template switches on mode, not prompt_file), so
+    # check existence of that file instead. An explicit --prompt-file override
+    # is respected as given.
+    effective_prompt_file = prompt_file
+    if mode == "oneshot" and prompt_file == "prompt_template.xml":
+        effective_prompt_file = "prompt_template_oneshot.xml"
+    template_file = inputs_path / effective_prompt_file
     if not puzzles_file.exists():
         console.print(f"Puzzles file not found: {puzzles_file}", style="red")
         raise typer.Exit(1)
@@ -98,7 +119,7 @@ def run(
     model: Optional[str] = typer.Option(
         None,
         "--model",
-        help="Model to evaluate (grok3, grok4, o3, o4-mini, gpt4, gpt4-turbo, gemini, sonnet, opus)"
+        help="Model to evaluate (e.g. fable-5, gpt5.6-sol, gemini-3.6-flash, grok-4.5, kimi-k3; see list-models)"
     ),
     interactive: bool = typer.Option(
         False,
@@ -119,6 +140,16 @@ def run(
         False,
         "--canonical",
         help="Run only canonical puzzles"
+    ),
+    mode: str = typer.Option(
+        "classic",
+        "--mode",
+        help="Evaluation mode: classic (multi-turn guessing) or oneshot (single submission of all 4 groups)"
+    ),
+    reasoning_effort: Optional[str] = typer.Option(
+        None,
+        "--reasoning-effort",
+        help="Reasoning effort for thinking models: minimal, low, medium, high, xhigh (default: minimal; ignored for non-thinking models)"
     ),
     threads: int = typer.Option(
         8,
@@ -158,7 +189,8 @@ def run(
 ):
     """Run connections evaluation."""
     parsed_puzzle_ids = _validate_run_args(
-        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file,
+        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
+        reasoning_effort,
     )
 
     # Get model name for interactive mode
@@ -169,7 +201,17 @@ def run(
 
     # Initialize game
     try:
-        game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose)
+        game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode,
+                               reasoning_effort=reasoning_effort)
+
+        # Fail fast on a bad OpenRouter slug instead of burning the retry
+        # budget on every puzzle.
+        if not interactive:
+            try:
+                openrouter_adapter.assert_model_exists(game.MODEL_CONFIG[model_name])
+            except ValueError as e:
+                console.print(str(e), style="red")
+                raise typer.Exit(2)
 
         # Handle canonical puzzle selection
         if canonical:
@@ -179,9 +221,30 @@ def run(
                 raise typer.Exit(1)
             console.print(f"Running {len(parsed_puzzle_ids)} canonical puzzles", style="dim")
 
+        # One-shot trap scoring only applies to puzzles reviewed for traps
+        # (valid_trap_groups present). Unreviewed puzzles score base-only with
+        # a max of 3, while the prompt promises a 5-point ceiling — warn so
+        # ad-hoc non-canonical runs aren't misread.
+        if mode == "oneshot":
+            candidates = (set(parsed_puzzle_ids) if parsed_puzzle_ids is not None
+                          else {p.id for p in game.puzzles})
+            unreviewed = sorted(
+                p.id for p in game.puzzles
+                if p.id in candidates and p.trap_groups is None
+            )
+            if unreviewed:
+                console.print(
+                    f"Warning: {len(unreviewed)} selected puzzle(s) have no trap review "
+                    f"(max 3 pts each, prompt's trap bonus is inert): {unreviewed}",
+                    style="yellow",
+                )
+
         # Show run info
         console.print(f"Starting Connections evaluation", style="bold blue")
         console.print(f"Mode: {'Interactive' if interactive else f'AI Model ({model})'}")
+        console.print(f"Evaluation Mode: {mode}")
+        if reasoning_effort:
+            console.print(f"Reasoning Effort: {reasoning_effort}")
         if parsed_puzzle_ids is not None:
             console.print(f"Puzzles: {len(parsed_puzzle_ids)} specific IDs")
         else:
@@ -247,6 +310,10 @@ def run(
     except KeyboardInterrupt:
         console.print("\nEvaluation interrupted", style="red")
         raise typer.Exit(1)
+    except openrouter_adapter.InsufficientCreditsError as e:
+        # Distinct exit code so batch drivers (backfill) can stop the fleet.
+        console.print(str(e), style="red")
+        raise typer.Exit(3)
     except Exception as e:
         console.print(f"Error: {e}", style="red")
         raise typer.Exit(1)
@@ -261,6 +328,8 @@ def _display_summary(summary: dict, interactive: bool):
     table.add_column("Value", style="white")
 
     table.add_row("Model/Run", summary["model"])
+    if summary.get("reasoning_effort"):
+        table.add_row("Reasoning Effort", summary["reasoning_effort"])
     table.add_row("Puzzles Attempted", str(summary["puzzles_attempted"]))
     table.add_row("Puzzles Solved", str(summary["puzzles_solved"]))
 
@@ -273,7 +342,15 @@ def _display_summary(summary: dict, interactive: bool):
     table.add_row("Incorrect Guesses", str(summary["incorrect_guesses"]))
     table.add_row("Invalid Responses", str(summary["invalid_responses"]))
 
-    if summary["total_guesses"] > 0:
+    is_oneshot = summary.get("mode") == "oneshot"
+    if is_oneshot:
+        table.add_row("Total Score", f"{summary['total_score']} / {summary['max_score']}")
+        table.add_row("Avg Score/Puzzle", f"{summary['avg_score']:.2f}")
+        if summary.get("total_trap_bonus") is not None:
+            table.add_row("Trap Bonus", str(summary["total_trap_bonus"]))
+    elif summary["total_guesses"] > 0:
+        # Guess Accuracy doesn't apply to one-shot mode — there's only ever one
+        # guess per puzzle, so it would just restate the solve rate.
         accuracy = summary["correct_guesses"] / summary["total_guesses"] * 100
         table.add_row("Guess Accuracy", f"{accuracy:.1f}%")
 
@@ -421,6 +498,12 @@ def rank(
 
     if model not in game.MODEL_CONFIG:
         console.print(f"Unknown model: {model}", style="red")
+        raise typer.Exit(2)
+
+    try:
+        openrouter_adapter.assert_model_exists(game.MODEL_CONFIG[model])
+    except ValueError as e:
+        console.print(str(e), style="red")
         raise typer.Exit(2)
 
     if puzzle_id is not None:

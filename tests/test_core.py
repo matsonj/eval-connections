@@ -260,6 +260,631 @@ class TestConnectionsGame:
         assert stats.token_count_method == "API"
 
 
+class TestOneshotParsing:
+    """Test _parse_oneshot_response for one-shot mode."""
+
+    @pytest.fixture
+    def mock_game(self):
+        """Create a mock game with proper initialization."""
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    @pytest.fixture
+    def sample_puzzle(self):
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+        )
+
+    _WELL_FORMED_ANSWER = """<answer>
+APPLE, BANANA, CHERRY, GRAPE
+BLUE, GREEN, RED, YELLOW
+FAST, QUICK, RAPID, SWIFT
+BRIGHT, CLEVER, SMART, WISE
+</answer>"""
+
+    _EXPECTED_GROUPS = [
+        ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+        ["BLUE", "GREEN", "RED", "YELLOW"],
+        ["FAST", "QUICK", "RAPID", "SWIFT"],
+        ["BRIGHT", "CLEVER", "SMART", "WISE"],
+    ]
+
+    def test_well_formed_answer_block(self, mock_game):
+        """A properly formatted <answer> block with 4 lines parses into 4 groups of 4."""
+        groups = mock_game._parse_oneshot_response(self._WELL_FORMED_ANSWER)
+        assert groups == self._EXPECTED_GROUPS
+
+    def test_thinking_block_with_decoy_answer_is_stripped(self, mock_game):
+        """A decoy <answer> example inside <thinking> must not be picked up; the
+        real answer after the thinking block should be used instead."""
+        response = f"""<thinking>
+Here's an example of the expected format:
+<answer>
+DECOY, DECOY, DECOY, DECOY
+DECOY, DECOY, DECOY, DECOY
+DECOY, DECOY, DECOY, DECOY
+DECOY, DECOY, DECOY, DECOY
+</answer>
+Now here is my actual reasoning about the puzzle...
+</thinking>
+{self._WELL_FORMED_ANSWER}"""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == self._EXPECTED_GROUPS
+
+    def test_unclosed_think_tag_strips_to_end(self, mock_game):
+        """An unclosed <think> tag (truncated response) strips everything from
+        that point to the end of the string, including any decoy answer."""
+        response = """<think>
+This reasoning never closes...
+<answer>
+DECOY, DECOY, DECOY, DECOY
+</answer>
+"""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == []
+
+    def test_fallback_no_answer_tag_plain_caps_lines(self, mock_game):
+        """When there's no <answer> tag, fall back to scanning for lines of 4
+        comma-separated ALL CAPS words."""
+        response = """I'll just list them plainly below.
+APPLE, BANANA, CHERRY, GRAPE
+BLUE, GREEN, RED, YELLOW
+FAST, QUICK, RAPID, SWIFT
+BRIGHT, CLEVER, SMART, WISE
+Done."""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == self._EXPECTED_GROUPS
+
+    def test_garbage_input_fails_scoring(self, mock_game, sample_puzzle):
+        """Garbage input may parse into something, but it must fail scoring."""
+        groups = mock_game._parse_oneshot_response("This is just garbage nonsense text with no structure.")
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_lowercase_words_are_upper_cased(self, mock_game):
+        """Lowercase words in the answer block are normalized to upper case."""
+        response = """<answer>
+apple, banana, cherry, grape
+blue, green, red, yellow
+fast, quick, rapid, swift
+bright, clever, smart, wise
+</answer>"""
+        groups = mock_game._parse_oneshot_response(response)
+        assert groups == self._EXPECTED_GROUPS
+
+
+class TestOneshotScoring:
+    """Test _score_oneshot for one-shot mode."""
+
+    @pytest.fixture
+    def mock_game(self):
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    @pytest.fixture
+    def sample_puzzle(self):
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+        )
+
+    def test_all_four_correct(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 3)
+
+    def test_two_correct_two_swapped(self, mock_game, sample_puzzle):
+        """Two groups intact; the other two have words swapped between them so
+        neither matches any puzzle group."""
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],   # correct (Fruits)
+            ["BLUE", "GREEN", "RED", "YELLOW"],       # correct (Colors)
+            ["FAST", "QUICK", "SMART", "WISE"],       # 2 from Speed + 2 from Smart
+            ["RAPID", "SWIFT", "BRIGHT", "CLEVER"],   # remaining 2 from Speed + 2 from Smart
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (2, 2)
+
+    def test_one_correct(self, mock_game, sample_puzzle):
+        """One group intact; the other 12 words are 3-cycled across the
+        remaining three groups so none of them matches any puzzle group."""
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],   # correct (Fruits)
+            ["GREEN", "RED", "YELLOW", "BRIGHT"],     # Colors minus BLUE, plus BRIGHT
+            ["QUICK", "RAPID", "SWIFT", "BLUE"],      # Speed minus FAST, plus BLUE
+            ["CLEVER", "SMART", "WISE", "FAST"],      # Smart minus BRIGHT, plus FAST
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (1, 1)
+
+    def test_zero_correct_valid_partition(self, mock_game, sample_puzzle):
+        """A full derangement: every group has exactly one word swapped in from
+        the cyclically-next group, so all 16 words are used once but no
+        submitted group matches any puzzle group."""
+        groups = [
+            ["BLUE", "BANANA", "CHERRY", "GRAPE"],
+            ["FAST", "GREEN", "RED", "YELLOW"],
+            ["BRIGHT", "QUICK", "RAPID", "SWIFT"],
+            ["APPLE", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_wrong_word_not_in_puzzle(self, mock_game, sample_puzzle):
+        """A word that doesn't belong to the puzzle at all is a structural failure."""
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "ORANGE"],  # ORANGE isn't in the puzzle
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_duplicate_word_one_missing(self, mock_game, sample_puzzle):
+        """A word appearing twice (with another word missing) is a structural failure."""
+        groups = [
+            ["APPLE", "APPLE", "CHERRY", "GRAPE"],  # APPLE duplicated, BANANA missing
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_three_groups_only(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_five_groups(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY", "GRAPE"],
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+            ["EXTRA", "GROUP", "NOT", "ALLOWED"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_group_with_three_words(self, mock_game, sample_puzzle):
+        groups = [
+            ["APPLE", "BANANA", "CHERRY"],  # only 3 words
+            ["BLUE", "GREEN", "RED", "YELLOW"],
+            ["FAST", "QUICK", "RAPID", "SWIFT"],
+            ["BRIGHT", "CLEVER", "SMART", "WISE"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+
+    def test_word_order_within_group_irrelevant(self, mock_game, sample_puzzle):
+        """Groups are compared as sets, so word order within a group doesn't matter."""
+        groups = [
+            ["GRAPE", "CHERRY", "BANANA", "APPLE"],
+            ["YELLOW", "RED", "GREEN", "BLUE"],
+            ["SWIFT", "RAPID", "QUICK", "FAST"],
+            ["WISE", "SMART", "CLEVER", "BRIGHT"],
+        ]
+        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 3)
+
+
+class TestOneshotStats:
+    """EvalStats.accumulate() one-shot score accumulation."""
+
+    def test_accumulate_adds_score(self):
+        stats = EvalStats()
+        result = PuzzleResult(
+            won=True, guess_count=1, mistake_count=0, invalid_count=0,
+            solved_groups=["green", "yellow", "blue", "purple"], time_sec=5.0,
+            total_tokens=500, score=5, groups_correct=4,
+        )
+        stats.accumulate(result)
+        assert stats.total_score == 5
+
+    def test_accumulate_classic_result_leaves_score_zero(self):
+        """Classic-mode results default score=0, so total_score stays at 0."""
+        stats = EvalStats()
+        result = PuzzleResult(
+            won=True, guess_count=4, mistake_count=0, invalid_count=0,
+            solved_groups=["green", "yellow", "blue", "purple"], time_sec=10.0,
+            total_tokens=1000,
+        )
+        stats.accumulate(result)
+        assert stats.total_score == 0
+
+
+class TestConnectionsGameMode:
+    """ConnectionsGame(mode=...) selects the correct prompt template."""
+
+    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+
+    def test_oneshot_mode_loads_oneshot_template(self):
+        game = ConnectionsGame(self._INPUTS, Path("logs"), mode="oneshot")
+        assert game.mode == "oneshot"
+        assert "<answer>" in game.prompt_template
+        assert "<guess>" not in game.prompt_template
+
+    def test_default_mode_loads_classic_template(self):
+        game = ConnectionsGame(self._INPUTS, Path("logs"))
+        assert game.mode == "classic"
+        assert "<guess>" in game.prompt_template
+        assert "<answer>" not in game.prompt_template
+
+
+class TestOneshotEndToEnd:
+    """run_evaluation drives the one-shot path end to end (mocked adapter)."""
+
+    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+
+    def _make_game(self, tmp_path, puzzle, mode="oneshot"):
+        """Game with a single synthetic puzzle; real prompt template from inputs/."""
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode=mode)
+
+    @staticmethod
+    def _make_puzzle():
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+        )
+
+    @staticmethod
+    def _mock_response(content):
+        return {
+            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+        }
+
+    def test_perfect_submission_summary(self, tmp_path):
+        """A perfect one-shot answer yields score 5 and a solved puzzle."""
+        puzzle = self._make_puzzle()
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["mode"] == "oneshot"
+        assert summary["puzzles_attempted"] == 1
+        assert summary["puzzles_solved"] == 1
+        # Puzzle has no trap annotations (trap_groups=None): base-only scoring,
+        # perfect solve = 3 and per-puzzle max is 3.
+        assert summary["total_score"] == 3
+        assert summary["max_score"] == 3
+        assert summary["avg_score"] == 3.0
+        assert summary["total_guesses"] == 1
+        assert summary["correct_guesses"] == 4
+        assert summary["incorrect_guesses"] == 0
+        assert summary["invalid_responses"] == 0
+
+    def test_invalid_submission_summary(self, tmp_path):
+        """An unparseable response scores 0 and counts as invalid."""
+        puzzle = self._make_puzzle()
+        game = self._make_game(tmp_path, puzzle)
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response("I refuse to answer in the requested format.")):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["mode"] == "oneshot"
+        assert summary["puzzles_solved"] == 0
+        assert summary["total_score"] == 0
+        assert summary["max_score"] == 3
+        assert summary["avg_score"] == 0.0
+        assert summary["invalid_responses"] == 1
+        assert summary["incorrect_guesses"] == 0
+
+    def test_trap_bonus_end_to_end(self, tmp_path):
+        """Perfect answer + correct trap claim on an annotated puzzle scores 5/5."""
+        puzzle = self._make_puzzle()
+        # Cross-cutting 4-set: 2 Speed + 2 Smart words
+        puzzle.trap_groups = [["FAST", "QUICK", "BRIGHT", "CLEVER"]]
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>\n<traps>\nFAST, QUICK, BRIGHT, CLEVER\n</traps>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["total_score"] == 5
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 2
+        assert summary["puzzles_solved"] == 1
+
+    def test_false_trap_claim_voids_bonus(self, tmp_path):
+        """A false first trap claim scores base only (only the first is judged)."""
+        puzzle = self._make_puzzle()
+        puzzle.trap_groups = [["FAST", "QUICK", "BRIGHT", "CLEVER"]]
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>\n<traps>\nAPPLE, BLUE, FAST, WISE\nFAST, QUICK, BRIGHT, CLEVER\n</traps>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["total_score"] == 3
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 0
+
+    def test_na_on_trapless_puzzle_earns_bonus(self, tmp_path):
+        """Explicit N/A on a reviewed trap-free puzzle earns the +2."""
+        puzzle = self._make_puzzle()
+        puzzle.trap_groups = []  # reviewed, no traps
+        game = self._make_game(tmp_path, puzzle)
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in puzzle.groups
+        ) + "\n</answer>\n<traps>\nN/A\n</traps>"
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   return_value=self._mock_response(answer)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["total_score"] == 5
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 2
+
+    def test_api_error_still_counts_max_score(self, tmp_path):
+        """An API-error puzzle contributes its per-puzzle max (annotated -> 5)
+        so a partially-failed run's max_score stays honest."""
+        puzzle = self._make_puzzle()
+        puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
+        game = self._make_game(tmp_path, puzzle)
+
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   side_effect=RuntimeError("boom")):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+
+        assert summary["mode"] == "oneshot"
+        assert summary["puzzles_attempted"] == 1
+        assert summary["total_score"] == 0
+        assert summary["max_score"] == 5
+        assert summary["total_trap_bonus"] == 0
+
+    def test_mode_override_mismatch_raises(self, tmp_path):
+        """run_evaluation(mode=...) must match the mode the game was built with,
+        since the prompt template is selected at construction time."""
+        puzzle = self._make_puzzle()
+        game = self._make_game(tmp_path, puzzle, mode="classic")
+
+        with pytest.raises(ValueError, match="conflicts with game mode"):
+            game.run_evaluation("test-model", puzzle_ids=[477], mode="oneshot")
+
+
+class TestOneshotTraps:
+    """Trap claim parsing and scoring rules."""
+
+    @pytest.fixture
+    def mock_game(self):
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    @pytest.fixture
+    def trap_puzzle(self):
+        """Puzzle with one 4-set trap and one 5-word superset trap, both
+        cross-cutting (never 3+ words from one real group)."""
+        return Puzzle(
+            id=477, date="2024-09-30", difficulty=3.8,
+            words=list(_TEST_WORDS), groups=_make_test_groups(),
+            trap_groups=[
+                ["FAST", "QUICK", "BRIGHT", "CLEVER"],           # 2 Speed + 2 Smart
+                ["RED", "YELLOW", "APPLE", "BANANA", "WISE"],    # 2/2/1 superset
+            ],
+        )
+
+    # --- parsing ---
+
+    def test_parse_traps_block(self, mock_game):
+        claims = mock_game._parse_oneshot_traps(
+            "<answer>x</answer>\n<traps>\nFAST, QUICK, RAPID, SMART\napple, blue, red, wise\n</traps>")
+        assert claims == [["FAST", "QUICK", "RAPID", "SMART"], ["APPLE", "BLUE", "RED", "WISE"]]
+
+    def test_parse_traps_na(self, mock_game):
+        assert mock_game._parse_oneshot_traps("<traps>\nN/A\n</traps>") == []
+        assert mock_game._parse_oneshot_traps("<traps>none</traps>") == []
+        assert mock_game._parse_oneshot_traps("<traps>NA.</traps>") == []
+
+    def test_parse_traps_missing_block(self, mock_game):
+        assert mock_game._parse_oneshot_traps("<answer>stuff</answer>") is None
+
+    def test_parse_traps_ignores_decoy_in_thinking(self, mock_game):
+        claims = mock_game._parse_oneshot_traps(
+            "<thinking><traps>DECOY, DECOY, DECOY, DECOY</traps></thinking>\n<traps>N/A</traps>")
+        assert claims == []
+
+    # --- scoring ---
+
+    def test_correct_4set_claim(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "BRIGHT", "CLEVER"]]) == 2
+
+    def test_subset_of_superset_claim(self, mock_game, trap_puzzle):
+        # Any 4-subset of the 5-word superset that isn't the real group scores
+        assert mock_game._score_trap_claims(trap_puzzle, [["RED", "YELLOW", "APPLE", "WISE"]]) == 2
+
+    def test_real_group_subset_of_superset_rejected(self, mock_game, trap_puzzle):
+        # The real Smart group is inside the superset but is NOT a trap
+        assert mock_game._score_trap_claims(trap_puzzle, [["BRIGHT", "CLEVER", "SMART", "WISE"]]) == 0
+
+    def test_only_first_claim_judged_bogus_second_ignored(self, mock_game, trap_puzzle):
+        # Single-claim rule: a junk extra line no longer voids a correct first claim
+        claims = [["FAST", "QUICK", "BRIGHT", "CLEVER"], ["APPLE", "BLUE", "FAST", "WISE"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
+
+    def test_only_first_claim_judged_correct_second_ignored(self, mock_game, trap_puzzle):
+        # ...and a correct second claim can't rescue a wrong first one
+        claims = [["APPLE", "BLUE", "FAST", "WISE"], ["FAST", "QUICK", "BRIGHT", "CLEVER"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
+
+    def test_na_correct_on_trapless(self, mock_game):
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups(), trap_groups=[])
+        assert mock_game._score_trap_claims(p, []) == 2
+
+    def test_na_wrong_when_traps_exist(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, []) == 0
+
+    def test_no_claim_no_bonus(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, None) == 0
+
+    def test_unreviewed_puzzle_inactive(self, mock_game):
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups())  # trap_groups=None
+        assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "BRIGHT", "CLEVER"]]) == 0
+
+    def test_wrong_size_claim_voids(self, mock_game, trap_puzzle):
+        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID"]]) == 0
+
+    def test_five_word_claim_rejected(self, mock_game, trap_puzzle):
+        """Claims must be EXACTLY 4 words — a full 5-word superset claim scores 0."""
+        claims = [["RED", "YELLOW", "APPLE", "BANANA", "WISE"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
+
+    def test_duplicate_word_padding_rejected(self, mock_game, trap_puzzle):
+        """A 5-token claim with a duplicate collapses to a 4-set but must not
+        pass the exactly-4-words gate."""
+        claims = [["FAST", "QUICK", "BRIGHT", "CLEVER", "CLEVER"]]
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
+
+    def test_na_first_line_wins_despite_trailing_lines(self, mock_game):
+        """N/A on the first line is the judged claim even with extra lines after
+        (consistent with first-claim-only judging)."""
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups(), trap_groups=[])
+        claims = mock_game._parse_oneshot_traps(
+            "<traps>\nN/A\nFAST, QUICK, RAPID, SMART\n</traps>")
+        assert claims == []
+        assert mock_game._score_trap_claims(p, claims) == 2
+
+    def test_real_yaml_246_traps(self):
+        """Against the real YAML: 246's cross-cutting imitate trap scores;
+        the removed 12-Monkeys overload (3 words from the movie group) doesn't."""
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        p246 = {p.id: p for p in game.puzzles}[246]
+        assert game._score_trap_claims(
+            p246, [["ECHO", "MIME", "MONKEY", "PARROT"]]) == 2
+        assert game._score_trap_claims(
+            p246, [["APOLLO", "CANDLES", "FANTASTIC", "MONKEY"]]) == 0
+
+    def test_three_from_one_group_never_scores_even_if_annotated(self, mock_game):
+        """The no-3-from-one-category rule is enforced in the scorer, so a bad
+        annotation (real group + one swap) still can't score."""
+        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
+                   groups=_make_test_groups(),
+                   trap_groups=[["FAST", "QUICK", "RAPID", "SMART"]])  # 3 Speed words
+        assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "RAPID", "SMART"]]) == 0
+
+    def test_all_yaml_annotations_satisfy_no3_rule(self):
+        """Every annotation must offer at least one scorable claim: a 4-subset
+        that isn't a real group and takes <=2 words from any single group.
+        4-set annotations must comply directly."""
+        from itertools import combinations
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        for p in game.puzzles:
+            if not p.trap_groups:
+                continue
+            group_sets = [frozenset(w.upper() for w in g.words) for g in p.groups]
+            for t in p.trap_groups:
+                ws = frozenset(w.upper() for w in t)
+                scorable = [
+                    frozenset(c) for c in combinations(sorted(ws), 4)
+                    if frozenset(c) not in group_sets
+                    and all(len(frozenset(c) & g) <= 2 for g in group_sets)
+                ]
+                assert scorable, f"puzzle {p.id} trap {sorted(ws)} has no scorable claim"
+                if len(ws) == 4:
+                    assert frozenset(ws) in scorable, \
+                        f"puzzle {p.id} 4-set trap {sorted(ws)} violates the no-3 rule"
+
+    def test_real_yaml_839_corn_trap(self):
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        p839 = {p.id: p for p in game.puzzles}[839]
+        assert game._score_trap_claims(
+            p839, [["SWEET", "KETTLE", "FRITTER", "POPPER"]]) == 2
+
+    def test_canonical_yaml_traps_load(self):
+        """The real YAML annotations load into Puzzle.trap_groups."""
+        inputs = Path(__file__).resolve().parent.parent / "inputs"
+        game = ConnectionsGame(inputs, Path("logs"))
+        by_id = {p.id: p for p in game.puzzles}
+        assert by_id[246].trap_groups is not None and len(by_id[246].trap_groups) == 2
+        assert by_id[837].trap_groups == []  # reviewed, trap-free
+        assert by_id[828].trap_groups == []
+        # Superset annotation present (476 OVER-___ 5-set)
+        assert any(len(t) == 5 for t in by_id[476].trap_groups)
+        # Non-canonical puzzles are unreviewed
+        assert all(p.trap_groups is None for p in game.puzzles if not p.canonical)
+
+
+class TestOneshotFallbackPunctuation:
+    """Tagless fallback parsing keeps hyphenated/apostrophe words intact."""
+
+    @pytest.fixture
+    def mock_game(self):
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
+             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
+             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
+            return ConnectionsGame(Path("."), Path("."), verbose=False)
+
+    def test_tagless_answer_with_traps_block(self, mock_game):
+        """A tagless 4-line answer followed by a <traps> block must parse as
+        exactly 4 groups — trap-claim lines look like answer lines and must
+        not be scanned as extra groups (would force a structural invalid)."""
+        response = (
+            "APPLE, BANANA, CHERRY, GRAPE\n"
+            "BLUE, GREEN, RED, YELLOW\n"
+            "FAST, QUICK, RAPID, SWIFT\n"
+            "BRIGHT, CLEVER, SMART, WISE\n"
+            "<traps>\nFAST, QUICK, RAPID, SMART\n</traps>\n"
+            "<confidence>0.9</confidence>"
+        )
+        groups = mock_game._parse_oneshot_response(response)
+        assert len(groups) == 4
+        assert groups[0] == ["APPLE", "BANANA", "CHERRY", "GRAPE"]
+
+    def test_punctuated_canonical_words_survive_fallback(self, mock_game):
+        """Canonical grids contain N.F.L., GREEK/ROMAN GOD, FOUR-LETTER WORDS —
+        the tagless fallback must not reject lines containing them."""
+        response = (
+            "NASA, N.F.L., PARAMOUNT, SUBARU\n"
+            "FICTIONAL BOXER, GREEK/ROMAN GOD, SPACECRAFT, THEATER\n"
+            "EXPLETIVES, FOUR-LETTER WORDS, PROFANITY, SWEARING\n"
+            "ABLE, CANE, EAVE, NOAA"
+        )
+        groups = mock_game._parse_oneshot_response(response)
+        assert len(groups) == 4
+        assert groups[0] == ["NASA", "N.F.L.", "PARAMOUNT", "SUBARU"]
+        assert groups[1][1] == "GREEK/ROMAN GOD"
+
+    def test_hyphenated_word_survives_fallback(self, mock_game):
+        response = (
+            "FLEUR-DE-LIS, BANANA, CHERRY, GRAPE\n"
+            "ROCK 'N' ROLL, GREEN, RED, YELLOW\n"
+            "FAST, QUICK, RAPID, SWIFT\n"
+            "BRIGHT, CLEVER, SMART, WISE"
+        )
+        groups = mock_game._parse_oneshot_response(response)
+        assert len(groups) == 4
+        assert groups[0] == ["FLEUR-DE-LIS", "BANANA", "CHERRY", "GRAPE"]
+        assert groups[1][0] == "ROCK 'N' ROLL"
+
+
 class TestProviderPinning:
     """Test provider slug extraction."""
 
@@ -433,7 +1058,7 @@ class TestRankSessionIsolation:
         game ends after MAX_INVALID turns regardless of which puzzle is chosen."""
         captured = []
 
-        def fake_chat(messages, model_id, provider=None, session_id=None):
+        def fake_chat(messages, model_id, provider=None, session_id=None, reasoning_effort=None):
             captured.append(session_id)
             return {
                 "choices": [{"message": {"content": "no valid guess here"},
@@ -600,6 +1225,137 @@ class TestBackoffAccumulator:
 
         clean()
         assert retry_mod.get_last_backoff_sec() == 0.0
+
+
+class TestInsufficientCreditsAbort:
+    """402 aborts the run immediately: no retries, no partial summary."""
+
+    def test_retry_decorator_does_not_retry_non_retryable(self):
+        from connections_eval.utils.retry import retry_with_backoff
+        from connections_eval.adapters.openrouter_adapter import InsufficientCreditsError
+        calls = []
+
+        @retry_with_backoff(max_retries=5, base_delay=0.01)
+        def boom():
+            calls.append(1)
+            raise InsufficientCreditsError("no credits")
+
+        with pytest.raises(InsufficientCreditsError):
+            boom()
+        assert len(calls) == 1  # exactly one attempt, no retries
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    def test_chat_raises_credits_error_on_402(self, mock_post, mock_key):
+        from connections_eval.adapters.openrouter_adapter import chat, InsufficientCreditsError
+        resp = MagicMock()
+        resp.ok = False
+        resp.status_code = 402
+        resp.json.return_value = {"error": {"message": "can only afford 100 tokens"}}
+        mock_post.return_value = resp
+        with pytest.raises(InsufficientCreditsError, match="can only afford"):
+            chat([{"role": "user", "content": "x"}], "openai/o3")
+        assert mock_post.call_count == 1  # no retry loop
+
+    def test_run_evaluation_aborts_without_summary(self, tmp_path):
+        """A credit wall mid-run raises out of run_evaluation (no summary,
+        so nothing partial lands on the leaderboard)."""
+        from connections_eval.adapters.openrouter_adapter import InsufficientCreditsError
+        puzzle = Puzzle(id=477, date="2024-09-30", difficulty=3.8,
+                        words=list(_TEST_WORDS), groups=_make_test_groups(),
+                        trap_groups=[])
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
+             patch.object(ConnectionsGame, '_load_model_mappings',
+                          return_value={"test-model": "test/model"}):
+            game = ConnectionsGame(
+                Path(__file__).resolve().parent.parent / "inputs",
+                tmp_path, seed=42, mode="oneshot")
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   side_effect=InsufficientCreditsError("no credits")):
+            with pytest.raises(InsufficientCreditsError):
+                game.run_evaluation("test-model", puzzle_ids=[477])
+
+
+class TestModelPreflight:
+    """assert_model_exists fails fast on bad slugs, skips on catalog errors."""
+
+    def _reset_cache(self):
+        import connections_eval.adapters.openrouter_adapter as oa
+        oa._MODEL_CATALOG = None
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get")
+    def test_known_model_passes(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        mock_get.return_value = MagicMock(
+            ok=True, **{"json.return_value": {"data": [{"id": "openai/o3"}]},
+                        "raise_for_status.return_value": None})
+        assert_model_exists("openai/o3")  # no raise
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get")
+    def test_free_variant_matches_base(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        mock_get.return_value = MagicMock(
+            ok=True, **{"json.return_value": {"data": [{"id": "poolside/laguna-m.1"}]},
+                        "raise_for_status.return_value": None})
+        assert_model_exists("poolside/laguna-m.1:free")  # base id match, no raise
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get")
+    def test_unknown_model_raises(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        mock_get.return_value = MagicMock(
+            ok=True, **{"json.return_value": {"data": [{"id": "openai/o3"}]},
+                        "raise_for_status.return_value": None})
+        with pytest.raises(ValueError, match="not found in OpenRouter"):
+            assert_model_exists("openai/gpt-99-typo")
+        self._reset_cache()
+
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    @patch("connections_eval.adapters.openrouter_adapter.requests.get",
+           side_effect=Exception("network down"))
+    def test_catalog_fetch_failure_skips_check(self, mock_get, mock_key):
+        from connections_eval.adapters.openrouter_adapter import assert_model_exists
+        self._reset_cache()
+        assert_model_exists("anything/at-all")  # warns, does not raise
+        self._reset_cache()
+
+
+class TestReasoningEffort:
+    """reasoning_effort plumbs through to the OpenRouter request payload."""
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def _call_chat(self, mock_key, mock_post, model, **kwargs):
+        from connections_eval.adapters.openrouter_adapter import chat
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_post.return_value = mock_response
+
+        chat([{"role": "user", "content": "test"}], model, **kwargs)
+        return mock_post.call_args.kwargs["json"]
+
+    def test_thinking_model_defaults_to_minimal(self):
+        # openai/o3 is in the thinking section of model_mappings.yml
+        payload = self._call_chat(model="openai/o3")
+        assert payload["reasoning"] == {"effort": "minimal"}
+
+    def test_thinking_model_effort_override(self):
+        payload = self._call_chat(model="openai/o3", reasoning_effort="high")
+        assert payload["reasoning"] == {"effort": "high"}
+
+    def test_non_thinking_model_ignores_effort(self):
+        payload = self._call_chat(model="not-a-real/thinking-model", reasoning_effort="high")
+        assert "reasoning" not in payload
 
 
 class TestAdapterChoicesFix:

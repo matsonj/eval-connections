@@ -95,6 +95,11 @@ def retry_with_backoff(
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:  # type: ignore[misc]
+                    # Exceptions flagged non-retryable (e.g. 402 insufficient
+                    # credits) will never resolve within a backoff window —
+                    # re-raise immediately instead of burning the retry budget.
+                    if getattr(e, "non_retryable", False):
+                        raise
                     last_exception = e
                     if attempt == max_retries:
                         logger.error(f"Max retries ({max_retries}) exceeded for {func.__name__}")

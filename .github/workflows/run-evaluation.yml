@@ -16,6 +16,11 @@ on:
         required: false
         default: 'true'
         type: string
+      mode:
+        description: 'Evaluation mode: oneshot (default) or classic (multi-turn)'
+        required: false
+        default: 'oneshot'
+        type: string
 
 jobs:
   evaluate:
@@ -52,14 +57,16 @@ jobs:
         run: |
           export MOTHERDUCK_DB="${MOTHERDUCK_DB:-md:}"
           CANONICAL="${{ inputs.canonical }}"
+          MODE="${{ inputs.mode }}"
+          MODE="${MODE:-oneshot}"
           if [ "$CANONICAL" = "true" ]; then
-            uv run connections_eval run --model "${{ inputs.model }}" --canonical --threads 8
+            uv run connections_eval run --model "${{ inputs.model }}" --mode "$MODE" --canonical --threads 8
           else
             PUZZLES="${{ inputs.puzzles }}"
             if [ -z "$PUZZLES" ]; then
               PUZZLES="1"
             fi
-            uv run connections_eval run --model "${{ inputs.model }}" --puzzles "$PUZZLES" --threads 8
+            uv run connections_eval run --model "${{ inputs.model }}" --mode "$MODE" --puzzles "$PUZZLES" --threads 8
           fi
       
       - name: Set up Node.js

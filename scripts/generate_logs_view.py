@@ -434,6 +434,8 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 steps.append({
                     "type": "response",
                     "text": p.get("response_text", ""),
+                    "result": p.get("result"),
+                    "wall_ms": p.get("wall_ms"),
                     "puzzle_id": puzzle_id,
                     "tokens": summarize_tokens_and_cost(ev.postings),
                     "ts": ev.event_time,
@@ -451,7 +453,19 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 res_u = res.upper()
                 if res and "INVALID_RESPONSE" not in res_u:
                     ps["guesses"] += 1
-                if "CORRECT" in res_u and "INCORRECT" not in res_u:
+                if res_u.startswith("ONESHOT_SCORE_"):
+                    # One-shot verdict. Trap-scoring format ONESHOT_SCORE_S_GROUPS_G_TRAP_T
+                    # carries groups matched as G; legacy bare ONESHOT_SCORE_N implies
+                    # groups = min(N, 4).
+                    m = re.search(r"GROUPS_(\d+)", res_u)
+                    try:
+                        if m:
+                            ps["correct"] += int(m.group(1))
+                        else:
+                            ps["correct"] += min(int(res_u.split("ONESHOT_SCORE_")[1].split("_")[0]), 4)
+                    except (ValueError, IndexError):
+                        pass
+                elif "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1
                 if ps["start_dt"] is None:
                     ps["start_dt"] = ev.dt
@@ -474,7 +488,19 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
                 res_u = res.upper()
                 if res and "INVALID_RESPONSE" not in res_u:
                     ps["guesses"] += 1
-                if "CORRECT" in res_u and "INCORRECT" not in res_u:
+                if res_u.startswith("ONESHOT_SCORE_"):
+                    # One-shot verdict. Trap-scoring format ONESHOT_SCORE_S_GROUPS_G_TRAP_T
+                    # carries groups matched as G; legacy bare ONESHOT_SCORE_N implies
+                    # groups = min(N, 4).
+                    m = re.search(r"GROUPS_(\d+)", res_u)
+                    try:
+                        if m:
+                            ps["correct"] += int(m.group(1))
+                        else:
+                            ps["correct"] += min(int(res_u.split("ONESHOT_SCORE_")[1].split("_")[0]), 4)
+                    except (ValueError, IndexError):
+                        pass
+                elif "CORRECT" in res_u and "INCORRECT" not in res_u:
                     ps["correct"] += 1
                 if ps["start_dt"] is None:
                     ps["start_dt"] = ev.dt
@@ -620,6 +646,41 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
 
     puzzle_step_groups.sort(key=puzzle_audit_sort_key)
 
+    def oneshot_score_breakdown(p_steps: List[Dict[str, Any]]) -> Optional[str]:
+        """Human-readable scoring breakdown for a one-shot puzzle, parsed from
+        the ONESHOT_* verdict on the puzzle's response step. None for classic
+        puzzles (no ONESHOT verdict present)."""
+        verdict = None
+        for s in p_steps:
+            res = str(s.get("result") or "").upper()
+            if res.startswith("ONESHOT"):
+                verdict = res
+        if verdict is None:
+            return None
+        if verdict.startswith("ONESHOT_INVALID"):
+            mx = re.search(r"MAX_(\d+)", verdict)
+            return f"Invalid · Base: 0 · Bonus: 0 · Total: 0/{mx.group(1) if mx else 5}"
+        if verdict.startswith("ONESHOT_API_ERROR"):
+            return "API error · Total: 0"
+        m = re.search(r"ONESHOT_SCORE_(\d+)", verdict)
+        if not m:
+            return None
+        score = int(m.group(1))
+        g = re.search(r"GROUPS_(\d+)", verdict)
+        t = re.search(r"TRAP_(\d+)", verdict)
+        mx = re.search(r"MAX_(\d+)", verdict)
+        if g is None:
+            # Legacy pre-trap verdict: score only
+            return f"Total: {score} (legacy scoring)"
+        trap = int(t.group(1)) if t else 0
+        base = score - trap
+        max_pts = int(mx.group(1)) if mx else 5
+        bits = [f"Base: {base}"]
+        if max_pts >= 5:
+            bits.append(f"Bonus: {trap}")
+        bits.append(f"Total: {score}/{max_pts}")
+        return " · ".join(bits)
+
     for puzzle_pid, p_steps in puzzle_step_groups:
         # Build summary stats for the collapsed header
         ps = puzzle_stats.get(str(puzzle_pid), {}) if puzzle_pid is not None else {}
@@ -642,12 +703,31 @@ def render_run_html(run_id: str, events: List[Event]) -> str:
         else:
             outcome_class = ""
 
+        # One-shot puzzles show the scoring breakdown in the header; classic
+        # puzzles keep the correct/guesses ratio (which is meaningless for
+        # one-shot: groups-matched over a single completion reads as "4/1").
+        breakdown = oneshot_score_breakdown(p_steps)
+        if breakdown:
+            # One-shot inference time comes from the completion's wall_ms —
+            # state-move timestamps all land post-response and read as 0s.
+            wall_ms = 0
+            for s in p_steps:
+                try:
+                    wall_ms += int(s.get("wall_ms") or 0)
+                except (TypeError, ValueError):
+                    pass
+            stats_inline = f"{breakdown} · Cost: ${cost:0.4f}"
+            if wall_ms:
+                stats_inline += f" · Time: {wall_ms / 1000:.1f}s"
+        else:
+            stats_inline = f"{correct}/{guesses} correct ({pct}) · ${cost:0.4f}"
+
         parts.append(f"<details class=\"puzzle-block{outcome_class}\">")
         parts.append(
             f"<summary class=\"puzzle-summary\">"
             f"<span class=\"pill\">Puzzle {escape_html(puzzle_pid)}</span>"
             f"<span class=\"puzzle-stats-inline\">"
-            f"{correct}/{guesses} correct ({pct}) · ${cost:0.4f}"
+            f"{escape_html(stats_inline)}"
             f"</span>"
             f"</summary>"
         )
@@ -859,17 +939,22 @@ def main():
                     # Filters matching create_results_table_gt.py
                     if int(r.get("puzzles_attempted", "0") or 0) < 11:
                         continue
-                    if int(r.get("total_guesses", "0") or 0) <= 40:
+                    # One-shot runs have exactly one guess per puzzle (<= 20 on the
+                    # canonical set), so the classic >40 guess floor would exclude
+                    # every one of them. Only apply it to classic runs.
+                    run_mode = (r.get("mode") or "classic").strip() or "classic"
+                    if run_mode != "oneshot" and int(r.get("total_guesses", "0") or 0) <= 40:
                         continue
                     if r.get("total_cost", "") in ("", None):
                         continue
                     rows.append(r)
                 except Exception:
                     continue
-        # Select latest per model by start_timestamp
+        # Select latest per (model, mode) by start_timestamp — the one-shot and
+        # classic leaderboards each link their own latest run per model.
         best_by_key: Dict[str, Dict[str, Any]] = {}
         for r in rows:
-            model = r.get("model", "")
+            model = f"{r.get('model', '')}|{(r.get('mode') or 'classic').strip() or 'classic'}"
             ts = r.get("start_timestamp", "")
             try:
                 dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))

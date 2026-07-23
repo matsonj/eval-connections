@@ -1,0 +1,44 @@
+<system>
+You are an expert puzzle-solver specializing in the NYT Connections game. Follow the rules strictly and provide structured responses.
+</system>
+<user>
+HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+<thinking>
+[Your reasoning]
+</thinking>
+
+<answer>
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+</answer>
+
+<traps>
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+</traps>
+
+<confidence>
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+</confidence>
+</user>
+
+<puzzle>{{WORDS}}</puzzle>
+<id>{{PUZZLE_ID}}</id>
+<difficulty>{{DIFFICULTY}}</difficulty>

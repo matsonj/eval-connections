@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 from typer.testing import CliRunner
 
-from connections_eval.cli import app
+from connections_eval.cli import app, _display_summary
 
 
 class TestCLI:
@@ -19,7 +19,7 @@ class TestCLI:
         """Test listing available models."""
         result = self.runner.invoke(app, ["list-models"])
         assert result.exit_code == 0
-        assert "grok3" in result.stdout
+        assert "grok-4.5" in result.stdout
         assert "o3" in result.stdout
         assert "gemini" in result.stdout
         assert "sonnet" in result.stdout
@@ -42,11 +42,23 @@ class TestCLI:
         assert result.exit_code == 2
         assert "Unknown model: unknown" in result.stdout
         assert "Available models:" in result.stdout
+
+    def test_run_invalid_mode(self):
+        """Test error when --mode is neither 'classic' nor 'oneshot'."""
+        result = self.runner.invoke(app, ["run", "--mode", "bogus"])
+        assert result.exit_code == 1
+        assert "Invalid mode: bogus" in result.stdout
+
+    def test_run_invalid_reasoning_effort(self):
+        """Test error when --reasoning-effort is not a recognized level."""
+        result = self.runner.invoke(app, ["run", "--reasoning-effort", "maximum"])
+        assert result.exit_code == 1
+        assert "Invalid reasoning effort: maximum" in result.stdout
     
     @patch.dict('os.environ', {}, clear=True)
     def test_run_missing_api_key(self):
         """Test error when API key missing."""
-        result = self.runner.invoke(app, ["run", "--model", "grok3"])
+        result = self.runner.invoke(app, ["run", "--model", "kimi-k3"])
         assert result.exit_code == 1
         assert "OPENROUTER_API_KEY environment variable not set" in result.stdout
     
@@ -62,8 +74,9 @@ class TestCLI:
         assert "Inputs path does not exist" in result.stdout
     
     @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'})
+    @patch('connections_eval.cli.openrouter_adapter.assert_model_exists')
     @patch('connections_eval.cli.ConnectionsGame')
-    def test_run_success(self, mock_game_class):
+    def test_run_success(self, mock_game_class, mock_preflight):
         """Test successful run."""
         # Mock the game instance
         mock_game = MagicMock()
@@ -112,3 +125,30 @@ class TestCLI:
         mock_game.run_evaluation.assert_called_once_with(
             "grok3", max_puzzles=2, is_interactive=False, threads=8, puzzle_ids=None
         )
+
+
+class TestOneshotSummaryDisplay:
+    """_display_summary must render a one-shot summary without crashing."""
+
+    def test_oneshot_summary_display(self):
+        summary = {
+            "run_id": "test-run-oneshot",
+            "model": "grok3",
+            "mode": "oneshot",
+            "seed": 12345,
+            "puzzles_attempted": 4,
+            "puzzles_solved": 2,
+            "total_guesses": 4,
+            "correct_guesses": 6,
+            "incorrect_guesses": 0,
+            "invalid_responses": 0,
+            "avg_time_sec": 3.2,
+            "total_tokens": 800,
+            "token_count_method": "API",
+            "total_score": 12,
+            "max_score": 20,
+            "avg_score": 3.0,
+        }
+        # Should not raise, and should surface the one-shot-specific rows
+        # (Total Score / Avg Score) instead of the classic "Guess Accuracy" row.
+        _display_summary(summary, interactive=False)
