@@ -12,17 +12,6 @@ import pandas as pd
 import os
 
 
-# mdsinabox theme palettes (mviz assigns scatter series colors from these in
-# series order); used to inject matching per-lab colors into the bar chart.
-LAB_PALETTE_LIGHT = ["#0777b3", "#bd4e35", "#2d7a00", "#e18727", "#638CAD", "#adadad"]
-LAB_PALETTE_DARK = ["#3da8e0", "#e06b4e", "#6ed020", "#f5a84a", "#7faac4", "#c0c0c0"]
-
-
-def lab_of(model: str) -> str:
-    """Lab/vendor prefix of an OpenRouter model ID (e.g. 'anthropic')."""
-    return str(model).split("/")[0]
-
-
 def load_and_filter_data(
     csv_file: str = "results/run_summaries.csv", mode: str = "oneshot"
 ) -> pd.DataFrame:
@@ -208,15 +197,9 @@ def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, 
 def write_mviz_markdown(
     df: pd.DataFrame, output_path: str = "docs/results.md", mode: str = "oneshot"
 ):
-    """Write the mviz markdown file with table spec.
-
-    For the one-shot page, returns the per-bar lab colors (light, dark) that
-    render_html injects into the bar chart so bars match the scatter's
-    per-lab series colors; returns None otherwise.
-    """
+    """Write the mviz markdown file with table spec."""
     num_models = len(df)
     data = build_table_data(df, mode)
-    bar_colors = None
 
     common_tail_columns = [
         {"id": "avg_time", "title": "AVG/G", "align": "right"},
@@ -271,75 +254,6 @@ def write_mviz_markdown(
         indent=2,
     )
 
-    chart_block = ""
-    if mode == "oneshot":
-        # Lab order = first appearance in the score-sorted df. mviz creates
-        # scatter series in this order, which is also palette-assignment
-        # order — so lab_idx doubles as the color index for both charts.
-        labs_in_order: list = []
-        for _, row in df.iterrows():
-            lb = lab_of(row["model"])
-            if lb not in labs_in_order:
-                labs_in_order.append(lb)
-        lab_idx = {lb: i for i, lb in enumerate(labs_in_order)}
-
-        scatter_data = [
-            {
-                "model": row["model"],
-                "lab": lab_of(row["model"]),
-                "puzzles per $10": round(
-                    float(row["puzzles_attempted"]) * 10 / float(row["eval_cost"])
-                ),
-                "pts": int(row["total_score"]),
-            }
-            for _, row in df.iterrows()
-            if float(row["eval_cost"]) > 0
-        ]
-        scatter_spec = json.dumps(
-            {
-                "type": "scatter",
-                "title": "Points vs Efficiency (puzzles per $10)",
-                "x": "puzzles per $10",
-                "y": "pts",
-                "series": "lab",
-                "label": "model",
-                "showLabels": True,
-                "data": scatter_data,
-            },
-            indent=2,
-        )
-
-        # Horizontal bars, leader on top; per-bar lab colors injected in
-        # render_html (mviz bars don't support series colors natively).
-        bar_df = df.iloc[::-1]
-        bar_spec = json.dumps(
-            {
-                "type": "bar",
-                "title": "Points by model",
-                "x": "model",
-                "y": "pts",
-                "horizontal": True,
-                "data": [
-                    {"model": row["model"], "pts": int(row["total_score"])}
-                    for _, row in bar_df.iterrows()
-                ],
-            },
-            indent=2,
-        )
-        bar_colors = (
-            [LAB_PALETTE_LIGHT[lab_idx[lab_of(m)] % len(LAB_PALETTE_LIGHT)] for m in bar_df["model"]],
-            [LAB_PALETTE_DARK[lab_idx[lab_of(m)] % len(LAB_PALETTE_DARK)] for m in bar_df["model"]],
-        )
-        # No blank line between blocks — they share the row.
-        chart_block = f"""```scatter size=[8,12]
-{scatter_spec}
-```
-```bar size=[8,12]
-{bar_spec}
-```
-
-"""
-
     md_content = f"""---
 theme: light
 title: {title}
@@ -349,7 +263,7 @@ continuous: true
 
 {intro}
 
-{chart_block}```table
+```table
 {table_spec}
 ```
 """
@@ -359,13 +273,11 @@ continuous: true
         f.write(md_content)
 
     print(f"mviz markdown written to {output_path}")
-    return bar_colors
 
 
 def render_html(
     md_path: str = "docs/results.md",
     html_path: str = "docs/index.html",
-    bar_colors=None,
 ):
     """Run npx mviz to render markdown to HTML, then apply CSS fixes."""
     # Pin mviz: leaving this unversioned silently broke sortable/filter when a
@@ -400,35 +312,6 @@ def render_html(
         r'<a href="\2">\1</a>',
         html,
     )
-
-    # Per-lab bar colors: mviz bars are single-color, so rewrite the bar
-    # chart's rendered options — colorBy: "data" makes ECharts color each bar
-    # from the option palette in data order, and we replace that palette with
-    # the per-bar lab colors (light + dark themes) computed alongside the
-    # scatter's series order so both charts agree.
-    if bar_colors is not None:
-        light_colors, dark_colors = bar_colors
-        # Split into per-chart option blobs; only touch the one with a bar series.
-        parts = html.split("window.chartOptions[")
-        for i, part in enumerate(parts):
-            if i == 0 or '"type": "bar"' not in part:
-                continue
-            part = re.sub(r'"itemStyle": \{\s*"color": "#0777b3"\s*\},',
-                          '"colorBy": "data",', part, count=1)
-            part = re.sub(r'"itemStyle": \{\s*"color": "#3da8e0"\s*\},',
-                          '"colorBy": "data",', part, count=1)
-            # Bar options carry no palette array — insert one per theme so
-            # colorBy: "data" picks up the per-bar lab colors.
-            part = part.replace(
-                'light: {\n  "backgroundColor": "transparent",',
-                'light: {\n  "backgroundColor": "transparent",\n  "color": '
-                + json.dumps(light_colors) + ',', 1)
-            part = part.replace(
-                'dark: {\n  "backgroundColor": "transparent",',
-                'dark: {\n  "backgroundColor": "transparent",\n  "color": '
-                + json.dumps(dark_colors) + ',', 1)
-            parts[i] = part
-        html = "window.chartOptions[".join(parts)
 
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
@@ -506,8 +389,8 @@ def main():
                     f"${row['eval_cost']:5.2f} cost, {row['guess_accuracy']:5.1%} accuracy"
                 )
 
-        bar_colors = write_mviz_markdown(df, md_path, mode=mode)
-        render_html(md_path, html_path, bar_colors=bar_colors)
+        write_mviz_markdown(df, md_path, mode=mode)
+        render_html(md_path, html_path)
 
     inject_table_link_into_readme("README.md")
 
