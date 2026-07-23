@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 28 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 29 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -319,6 +319,20 @@ Latest one-shot runs for 28 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.034"
     },
     {
+      "model": "<a href=\"logs/2026-07-22T23-41-49_deepseek-v4-flash.html\">deepseek/deepseek-v4-flash</a>",
+      "date": "2026-07-22",
+      "pts": 68,
+      "pts_pct": 0.7158,
+      "w": "14",
+      "grp": "64/80",
+      "trap": "18",
+      "inv": "1",
+      "avg_time": "7m12s",
+      "tok_per_game": "15.0k",
+      "cost": 0.08,
+      "cost_per_game": "$0.004"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T22-51-23_gemini-3.5-flash-lite.html\">google/gemini-3.5-flash-lite</a>",
       "date": "2026-07-22",
       "pts": 67,
@@ -389,20 +403,6 @@ Latest one-shot runs for 28 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.016"
     },
     {
-      "model": "<a href=\"logs/2026-07-22T23-41-49_deepseek-v4-flash.html\">deepseek/deepseek-v4-flash</a>",
-      "date": "2026-07-22",
-      "pts": 63,
-      "pts_pct": 0.7,
-      "w": "13",
-      "grp": "60/80",
-      "trap": "16",
-      "inv": "1",
-      "avg_time": "6m2s",
-      "tok_per_game": "13.6k",
-      "cost": 0.07,
-      "cost_per_game": "$0.004"
-    },
-    {
       "model": "<a href=\"logs/2026-07-22T23-27-34_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
       "date": "2026-07-22",
       "pts": 62,
@@ -443,6 +443,20 @@ Latest one-shot runs for 28 models (20 games each, one submission per game, max 
       "tok_per_game": "2.6k",
       "cost": 0.03,
       "cost_per_game": "$0.002"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-23T00-09-02_qwen3-max-thinking.html\">qwen/qwen3-max-thinking</a>",
+      "date": "2026-07-23",
+      "pts": 35,
+      "pts_pct": 0.35,
+      "w": "10",
+      "grp": "43/80",
+      "trap": "2",
+      "inv": "7",
+      "avg_time": "15m58s",
+      "tok_per_game": "41.7k",
+      "cost": 2.49,
+      "cost_per_game": "$0.125"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-07-43_laguna-xs.2.html\">poolside/laguna-xs-2.1</a>",
