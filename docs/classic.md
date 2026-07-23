@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest classic (multi-turn) runs for 90 models (20 games each, sorted by solve rate, avg time, cost) · [← One-shot leaderboard](index.html)
+Latest classic (multi-turn) runs for 89 models (20 games each, sorted by solve rate, avg time, cost) · [← One-shot leaderboard](index.html)
 
 ```table
 {
@@ -1127,18 +1127,6 @@ Latest classic (multi-turn) runs for 90 models (20 games each, sorted by solve r
       "tok_per_game": "10.6k",
       "cost": 0.68,
       "cost_per_game": "$0.034"
-    },
-    {
-      "model": "<a href=\"logs/2026-07-21T21-33-16_kimi-k3.html\">unknown</a>",
-      "date": "2026-07-21",
-      "w": "0",
-      "win_pct": 0.0,
-      "hit_att": "0/0",
-      "acc_pct": 0.0,
-      "avg_time": "0s",
-      "tok_per_game": "0.0k",
-      "cost": 0.0,
-      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2025-10-18T19-29-16_ernie-4.5.html\">baidu/ernie-4.5-21b-a3b-thinking</a>",

@@ -42,6 +42,8 @@ def load_and_filter_data(
         (df["puzzles_attempted"] == 20)
         & (df["total_cost"].notna())
         & (df["mode"] == mode)
+        # Rows whose model couldn't be resolved from telemetry (garbage runs)
+        & (df["model"] != "unknown")
     ].copy()
 
     # Legacy pre-trap one-shot smoke runs (no _TRAP_ in result strings) used a
