@@ -136,6 +136,7 @@ Models are configured in `inputs/model_mappings.yml`. Here are some popular opti
 | `opus-4.8`    | `anthropic/claude-opus-4.8`  | Reasoning              | Anthropic Claude Opus 4.8       |
 | `fable-5`     | `anthropic/claude-fable-5`   | Reasoning              | Anthropic Claude Fable 5        |
 | `sonnet-5`    | `anthropic/claude-sonnet-5`  | Reasoning              | Anthropic Claude Sonnet 5       |
+| `opus-5`      | `anthropic/claude-opus-5`    | Reasoning              | Anthropic Claude Opus 5         |
 | `gemini-2.5`  | `google/gemini-2.5-pro`      | Reasoning              | Google Gemini 2.5 Pro           |
 
 **Reasoning Models**: Automatically handled with special parameter configurations (no `max_tokens`, `temperature`, etc.)
