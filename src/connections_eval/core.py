@@ -4,10 +4,10 @@ import random
 import time
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Any
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info, extract_cache_info
@@ -138,6 +138,82 @@ class GameState:
     won: bool
     start_time: Optional[float]
     end_time: Optional[float]
+
+
+@dataclass
+class _ExchangeTotals:
+    """Token, cost, cache and backoff totals accumulated across one puzzle's exchanges."""
+    tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cached_tokens: int = 0
+    cost: float = 0.0
+    upstream_cost: float = 0.0
+    backoff_sec: float = 0.0
+    token_method: str = "APPROXIMATE"
+
+    def as_result_fields(self) -> Dict[str, Any]:
+        """Accounting fields for a PuzzleResult, keyed by its field names."""
+        return {
+            "total_tokens": self.tokens,
+            "total_prompt_tokens": self.prompt_tokens,
+            "total_completion_tokens": self.completion_tokens,
+            "token_count_method": self.token_method,
+            "total_cached_tokens": self.cached_tokens,
+            "total_cost": self.cost,
+            "total_upstream_cost": self.upstream_cost,
+            "total_backoff_sec": self.backoff_sec,
+        }
+
+
+@dataclass
+class _PuzzleRunContext:
+    """Transport and telemetry identifiers shared by every exchange of one puzzle."""
+    model_name: str
+    model_id: str
+    pinned_provider: Optional[str]
+    task_id: str
+    session_id: str
+    totals: _ExchangeTotals = field(default_factory=_ExchangeTotals)
+
+
+@dataclass
+class _Verdict:
+    """Mode-specific scoring of one exchange, produced by a verdict callback.
+
+    result: result string recorded in the exchange log and telemetry (in classic
+        mode it is also fed back to the model as the next user turn).
+    guess_text: value for the exchange log's `guess` field; None keeps the
+        `<guess>` block parsed out of the response.
+    log_extra: extra exchange-log fields, merged in after `result`.
+    telemetry_extra: extra fields for the controllog completion-event payload.
+    """
+    result: str
+    guess_text: Optional[str] = None
+    log_extra: Dict[str, Any] = field(default_factory=dict)
+    telemetry_extra: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class _Exchange:
+    """Outcome of one model exchange (see ConnectionsGame._run_exchange)."""
+    ok: bool
+    content: str = ""
+    verdict: Optional[_Verdict] = None
+    # True when the API-error path already moved the task WIP -> FAILED
+    failed_state_emitted: bool = False
+
+
+@dataclass
+class _OneshotOutcome:
+    """Game-logic outcome of a one-shot submission, filled by its verdict callback."""
+    won: bool = False
+    score: int = 0
+    groups_correct: int = 0
+    trap_bonus: int = 0
+    mistake_count: int = 0
+    invalid_count: int = 0
+    solved_groups: List[str] = field(default_factory=list)
 
 
 class ConnectionsGame:
@@ -486,9 +562,9 @@ class ConnectionsGame:
         log_summary(self.logger, summary)
         return summary
 
-    def _run_puzzle_ai(self, puzzle: Puzzle, model_name: str, rng: random.Random,
-                       attempt: Optional[int] = None) -> PuzzleResult:
-        """Run a single puzzle with AI model.
+    def _begin_puzzle(self, puzzle: Puzzle, model_name: str,
+                      attempt: Optional[int]) -> _PuzzleRunContext:
+        """Resolve a puzzle's transport identifiers and emit its NEW -> WIP move.
 
         attempt: optional trial index. The normal eval path runs each puzzle once
             per run_id, so task_id is already unique. Ranking re-runs the same
@@ -497,8 +573,272 @@ class ConnectionsGame:
             trials would share a routing session and lose independence.
         """
         model_id = self.MODEL_CONFIG[model_name]
-        adapter = openrouter_adapter
-        pinned_provider = adapter.extract_provider_slug(model_id)
+        task_id = f"T{puzzle.id}:{self.run_id}"
+        ctx = _PuzzleRunContext(
+            model_name=model_name,
+            model_id=model_id,
+            pinned_provider=openrouter_adapter.extract_provider_slug(model_id),
+            task_id=task_id,
+            # Sticky-routing key shared by every turn of this puzzle.
+            session_id=task_id if attempt is None else f"{task_id}:a{attempt}",
+        )
+
+        try:
+            cl.state_move(
+                task_id=task_id, from_="NEW", to="WIP",
+                project_id="connections_eval",
+                agent_id="agent:connections_eval",
+                run_id=self.run_id,
+                payload={"puzzle_id": puzzle.id},
+            )
+        except Exception:
+            pass
+
+        return ctx
+
+    def _finish_puzzle(self, puzzle: Puzzle, ctx: _PuzzleRunContext, won: bool) -> None:
+        """Emit the final WIP -> DONE/FAILED transition for a puzzle."""
+        try:
+            cl.state_move(
+                task_id=ctx.task_id, from_="WIP", to=("DONE" if won else "FAILED"),
+                project_id="connections_eval",
+                agent_id="agent:connections_eval",
+                run_id=self.run_id,
+                payload={"puzzle_id": puzzle.id},
+            )
+        except Exception:
+            pass
+
+    def _extract_content(self, response: Dict) -> str:
+        """Extract the assistant text from a response, with reasoning fallbacks."""
+        choice = response["choices"][0]
+        message = choice["message"]
+        content = message.get("content", "")
+        finish_reason = choice.get("finish_reason", "unknown")
+
+        # Handle empty content (thinking models may put output in reasoning fields)
+        if not content or content.strip() == "":
+            self.logger.warning(f"Empty content field. finish_reason: {finish_reason}")
+            self.logger.warning(f"Message keys: {list(message.keys())}")
+            self.logger.warning(f"Full message: {message}")
+            self.logger.warning(f"Full choice: {choice}")
+
+            if finish_reason == "length":
+                self.logger.error("Response truncated due to token limit!")
+
+            if "reasoning" in message:
+                self.logger.info("Found reasoning field, using it as content")
+                content = message["reasoning"]
+            elif "extended_thinking" in message:
+                self.logger.info("Found extended_thinking field, using it as content")
+                content = message["extended_thinking"]
+
+        return content.strip() if content else ""
+
+    def _accumulate_token_usage(
+        self, response: Dict, messages: List[Dict], content: str,
+        totals: _ExchangeTotals
+    ) -> Tuple[Optional[int], Optional[int]]:
+        """Add this exchange's token usage to totals.
+
+        Returns the API-reported (prompt, completion) counts, which are None when
+        the response carried no usage block — the totals then take approximate
+        counts, but the logged numbers stay honest about being absent.
+        """
+        prompt_tokens, completion_tokens, method = extract_token_usage(response)
+        if prompt_tokens and completion_tokens:
+            totals.prompt_tokens += prompt_tokens
+            totals.completion_tokens += completion_tokens
+            totals.tokens += prompt_tokens + completion_tokens
+            totals.token_method = method
+        else:
+            prompt_text = " ".join([msg["content"] for msg in messages])
+            approx_prompt = count_tokens(prompt_text)
+            approx_completion = count_tokens(content)
+            totals.prompt_tokens += approx_prompt
+            totals.completion_tokens += approx_completion
+            totals.tokens += approx_prompt + approx_completion
+        return prompt_tokens, completion_tokens
+
+    def _run_exchange(
+        self,
+        ctx: _PuzzleRunContext,
+        puzzle: Puzzle,
+        messages: List[Dict],
+        verdict_fn: Callable[[str, Dict[str, str]], _Verdict],
+        guess_index_fn: Callable[[], int],
+        error_payload_extra: Optional[Dict[str, Any]] = None,
+    ) -> _Exchange:
+        """Run one model exchange: transport, accounting, scoring, telemetry.
+
+        Calls the model, accumulates tokens/cost/cache/backoff into ctx.totals,
+        hands the response to verdict_fn for mode-specific scoring, then logs the
+        exchange and emits controllog telemetry. The API-error path lives here
+        too: it logs an API_ERROR exchange, emits `model_response_error` plus the
+        WIP -> FAILED state move, and returns _Exchange(ok=False). Non-retryable
+        errors (e.g. insufficient credits) propagate to the caller instead.
+
+        verdict_fn runs inside the same try as the API call, so a scoring failure
+        is reported the same way a transport failure is.
+
+        guess_index_fn is a callback rather than a value because classic mode
+        logs the guess index *after* the verdict has incremented it.
+
+        error_payload_extra adds fields to the `model_response_error` payload.
+        """
+        with Timer() as timer:
+            try:
+                # Pin to provider on all calls to enable prompt caching
+                # (requires provider + cache_control + prefix >= 1024 tokens).
+                # session_id keeps every turn of this puzzle on one upstream
+                # provider (sticky routing) so caching also works for cloaked /
+                # non-pinnable models that have no provider slug.
+                response = openrouter_adapter.chat(
+                    messages, ctx.model_id, provider=ctx.pinned_provider,
+                    session_id=ctx.session_id, reasoning_effort=self.reasoning_effort,
+                )
+
+                backoff_sec = float(response.pop("_backoff_sec", 0.0))
+                ctx.totals.backoff_sec += backoff_sec
+
+                content = self._extract_content(response)
+                structured_response = self._parse_structured_response(content)
+
+                # Track tokens
+                prompt_tokens, completion_tokens = self._accumulate_token_usage(
+                    response, messages, content, ctx.totals
+                )
+
+                # Track costs and cache info
+                cost, upstream_cost = extract_cost_info(response)
+                if cost is not None:
+                    ctx.totals.cost += cost
+                if upstream_cost is not None:
+                    ctx.totals.upstream_cost += upstream_cost
+
+                cache_info = extract_cache_info(response)
+                if cache_info.get("cached_tokens"):
+                    ctx.totals.cached_tokens += cache_info["cached_tokens"]
+
+                verdict = verdict_fn(content, structured_response)
+
+            except Exception as e:
+                if getattr(e, "non_retryable", False):
+                    raise
+                elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
+                backoff_sec = get_last_backoff_sec()
+                ctx.totals.backoff_sec += backoff_sec
+                backoff_ms = int(backoff_sec * 1000)
+                inference_ms = max(0, elapsed_ms - backoff_ms)
+                guess_index = guess_index_fn()
+
+                log_exchange(self.logger, {
+                    "run_id": self.run_id,
+                    "model": ctx.model_name,
+                    "puzzle_id": puzzle.id,
+                    "guess_index": guess_index,
+                    "request": messages[-1]["content"],
+                    "response": str(e),
+                    "latency_ms": elapsed_ms,
+                    "backoff_ms": backoff_ms,
+                    "inference_ms": inference_ms,
+                    "prompt_tokens": None,
+                    "completion_tokens": None,
+                    "result": "API_ERROR"
+                })
+
+                self.logger.error(f"API call failed: {str(e)}")
+                failed_state_emitted = False
+                try:
+                    # Diagnostic event: stash error text in response_text and elapsed in wall_ms
+                    # because the events.payload_json STRUCT schema has no `error`/`latency_ms` fields,
+                    # and unknown fields are silently dropped at ingest.
+                    cl.event(
+                        kind="model_response_error",
+                        actor={"agent_id": "agent:connections_eval", "task_id": ctx.task_id},
+                        run_id=self.run_id,
+                        payload={
+                            "model": ctx.model_name,
+                            "puzzle_id": puzzle.id,
+                            "guess_index": guess_index,
+                            "phase": "error",
+                            "wall_ms": elapsed_ms,
+                            "response_text": str(e),
+                            **(error_payload_extra or {}),
+                        },
+                        project_id="connections_eval",
+                        source="runtime",
+                    )
+                    # Canonical state transition — must be a state_move event so the
+                    # renderer (and any other state_move consumer) sees WIP → FAILED.
+                    cl.state_move(
+                        task_id=ctx.task_id, from_="WIP", to="FAILED",
+                        project_id="connections_eval",
+                        agent_id="agent:connections_eval",
+                        run_id=self.run_id,
+                        payload={"puzzle_id": puzzle.id, "reason": "api_error"},
+                    )
+                    failed_state_emitted = True
+                except Exception:
+                    pass
+
+                return _Exchange(ok=False, failed_state_emitted=failed_state_emitted)
+
+        # Log exchange
+        backoff_ms = int(backoff_sec * 1000)
+        inference_ms = max(0, timer.elapsed_ms - backoff_ms)
+        guess_index = guess_index_fn()
+        exchange_data = {
+            "run_id": self.run_id,
+            "model": ctx.model_name,
+            "puzzle_id": puzzle.id,
+            "guess_index": guess_index,
+            "request": messages[-1]["content"],
+            "response": content,
+            "thinking": structured_response.get('thinking', ''),
+            "guess": (structured_response.get('guess', '') if verdict.guess_text is None
+                      else verdict.guess_text),
+            "confidence": structured_response.get('confidence', ''),
+            "latency_ms": timer.elapsed_ms,
+            "backoff_ms": backoff_ms,
+            "inference_ms": inference_ms,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "result": verdict.result,
+            **verdict.log_extra,
+        }
+
+        if cost is not None:
+            exchange_data["cost"] = cost
+        if upstream_cost is not None:
+            exchange_data["upstream_cost"] = upstream_cost
+        if cache_info.get("cached_tokens") is not None:
+            exchange_data["cached_tokens"] = cache_info["cached_tokens"]
+        if cache_info.get("cache_discount") is not None:
+            exchange_data["cache_discount"] = cache_info["cache_discount"]
+
+        log_exchange(self.logger, exchange_data)
+
+        self._emit_model_telemetry(
+            ctx.task_id, ctx.model_id, puzzle.id, guess_index,
+            messages[-1]["content"], content,
+            prompt_tokens, completion_tokens, timer.elapsed_ms,
+            cost, upstream_cost, verdict.result,
+            backoff_ms=backoff_ms,
+            extra_payload=verdict.telemetry_extra,
+        )
+
+        return _Exchange(ok=True, content=content, verdict=verdict)
+
+    def _run_puzzle_ai(self, puzzle: Puzzle, model_name: str, rng: random.Random,
+                       attempt: Optional[int] = None) -> PuzzleResult:
+        """Run a single puzzle with AI model (classic multi-turn mode).
+
+        Guesses one group at a time, feeding each result back to the model until
+        it solves the puzzle or exhausts its mistakes/invalid responses.
+        See _begin_puzzle for the `attempt` semantics.
+        """
+        ctx = self._begin_puzzle(puzzle, model_name, attempt)
 
         state = GameState(
             puzzle=puzzle,
@@ -513,221 +853,35 @@ class ConnectionsGame:
         )
 
         messages = self._build_initial_messages(puzzle, rng)
-        total_tokens = 0
-        total_prompt_tokens = 0
-        total_completion_tokens = 0
-        token_method = "APPROXIMATE"
-        total_cached_tokens = 0
-        total_cost = 0.0
-        total_upstream_cost = 0.0
-        total_backoff_sec = 0.0
-        task_id = f"T{puzzle.id}:{self.run_id}"
-        # Sticky-routing key shared by every turn of this puzzle. Append the trial
-        # index when ranking so repeated attempts get independent routing sessions.
-        session_id = task_id if attempt is None else f"{task_id}:a{attempt}"
         final_state_emitted = False
 
         state.start_time = time.time()
-        try:
-            cl.state_move(
-                task_id=task_id, from_="NEW", to="WIP",
-                project_id="connections_eval",
-                agent_id="agent:connections_eval",
-                run_id=self.run_id,
-                payload={"puzzle_id": puzzle.id},
-            )
-        except Exception:
-            pass
 
         while not state.finished:
-            with Timer() as timer:
-                try:
-                    # Pin to provider on all calls to enable prompt caching
-                    # (requires provider + cache_control + prefix >= 1024 tokens).
-                    # session_id keeps every turn of this puzzle on one upstream
-                    # provider (sticky routing) so caching also works for cloaked /
-                    # non-pinnable models that have no provider slug.
-                    response = adapter.chat(
-                        messages, model_id, provider=pinned_provider, session_id=session_id,
-                        reasoning_effort=self.reasoning_effort,
-                    )
-
-                    backoff_sec = float(response.pop("_backoff_sec", 0.0))
-                    total_backoff_sec += backoff_sec
-
-                    choice = response["choices"][0]
-                    message = choice["message"]
-                    content = message.get("content", "")
-                    finish_reason = choice.get("finish_reason", "unknown")
-
-                    # Handle empty content (thinking models may put output in reasoning fields)
-                    if not content or content.strip() == "":
-                        self.logger.warning(f"Empty content field. finish_reason: {finish_reason}")
-                        self.logger.warning(f"Message keys: {list(message.keys())}")
-                        self.logger.warning(f"Full message: {message}")
-                        self.logger.warning(f"Full choice: {choice}")
-
-                        if finish_reason == "length":
-                            self.logger.error("Response truncated due to token limit!")
-
-                        if "reasoning" in message:
-                            self.logger.info("Found reasoning field, using it as content")
-                            content = message["reasoning"]
-                        elif "extended_thinking" in message:
-                            self.logger.info("Found extended_thinking field, using it as content")
-                            content = message["extended_thinking"]
-
-                    content = content.strip() if content else ""
-                    structured_response = self._parse_structured_response(content)
-
-                    # Track tokens
-                    prompt_tokens, completion_tokens, method = extract_token_usage(response)
-                    if prompt_tokens and completion_tokens:
-                        total_prompt_tokens += prompt_tokens
-                        total_completion_tokens += completion_tokens
-                        total_tokens += prompt_tokens + completion_tokens
-                        token_method = method
-                    else:
-                        prompt_text = " ".join([msg["content"] for msg in messages])
-                        approx_prompt = count_tokens(prompt_text)
-                        approx_completion = count_tokens(content)
-                        total_prompt_tokens += approx_prompt
-                        total_completion_tokens += approx_completion
-                        total_tokens += approx_prompt + approx_completion
-
-                    # Track costs and cache info
-                    cost, upstream_cost = extract_cost_info(response)
-                    if cost is not None:
-                        total_cost += cost
-                    if upstream_cost is not None:
-                        total_upstream_cost += upstream_cost
-
-                    cache_info = extract_cache_info(response)
-                    if cache_info.get("cached_tokens"):
-                        total_cached_tokens += cache_info["cached_tokens"]
-
-                    result = self._process_guess(state, content)
-
-                except Exception as e:
-                    if getattr(e, "non_retryable", False):
-                        raise
-                    elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
-                    backoff_sec = get_last_backoff_sec()
-                    total_backoff_sec += backoff_sec
-                    backoff_ms = int(backoff_sec * 1000)
-                    inference_ms = max(0, elapsed_ms - backoff_ms)
-
-                    log_exchange(self.logger, {
-                        "run_id": self.run_id,
-                        "model": model_name,
-                        "puzzle_id": puzzle.id,
-                        "guess_index": state.guess_count,
-                        "request": messages[-1]["content"],
-                        "response": str(e),
-                        "latency_ms": elapsed_ms,
-                        "backoff_ms": backoff_ms,
-                        "inference_ms": inference_ms,
-                        "prompt_tokens": None,
-                        "completion_tokens": None,
-                        "result": "API_ERROR"
-                    })
-
-                    self.logger.error(f"API call failed: {str(e)}")
-                    try:
-                        # Diagnostic event: stash error text in response_text and elapsed in wall_ms
-                        # because the events.payload_json STRUCT schema has no `error`/`latency_ms` fields,
-                        # and unknown fields are silently dropped at ingest.
-                        cl.event(
-                            kind="model_response_error",
-                            actor={"agent_id": "agent:connections_eval", "task_id": task_id},
-                            run_id=self.run_id,
-                            payload={
-                                "model": model_name,
-                                "puzzle_id": puzzle.id,
-                                "guess_index": state.guess_count,
-                                "phase": "error",
-                                "wall_ms": elapsed_ms,
-                                "response_text": str(e),
-                            },
-                            project_id="connections_eval",
-                            source="runtime",
-                        )
-                        # Canonical state transition — must be a state_move event so the
-                        # renderer (and any other state_move consumer) sees WIP → FAILED.
-                        cl.state_move(
-                            task_id=task_id, from_="WIP", to="FAILED",
-                            project_id="connections_eval",
-                            agent_id="agent:connections_eval",
-                            run_id=self.run_id,
-                            payload={"puzzle_id": puzzle.id, "reason": "api_error"},
-                        )
-                        final_state_emitted = True
-                    except Exception:
-                        pass
-                    state.finished = True
-                    break
-
-            # Log exchange
-            backoff_ms = int(backoff_sec * 1000)
-            inference_ms = max(0, timer.elapsed_ms - backoff_ms)
-            exchange_data = {
-                "run_id": self.run_id,
-                "model": model_name,
-                "puzzle_id": puzzle.id,
-                "guess_index": state.guess_count,
-                "request": messages[-1]["content"],
-                "response": content,
-                "thinking": structured_response.get('thinking', ''),
-                "guess": structured_response.get('guess', ''),
-                "confidence": structured_response.get('confidence', ''),
-                "latency_ms": timer.elapsed_ms,
-                "backoff_ms": backoff_ms,
-                "inference_ms": inference_ms,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "result": result
-            }
-
-            if cost is not None:
-                exchange_data["cost"] = cost
-            if upstream_cost is not None:
-                exchange_data["upstream_cost"] = upstream_cost
-            if cache_info.get("cached_tokens") is not None:
-                exchange_data["cached_tokens"] = cache_info["cached_tokens"]
-            if cache_info.get("cache_discount") is not None:
-                exchange_data["cache_discount"] = cache_info["cache_discount"]
-
-            log_exchange(self.logger, exchange_data)
-
-            self._emit_model_telemetry(
-                task_id, model_id, puzzle.id, state.guess_count,
-                messages[-1]["content"], content,
-                prompt_tokens, completion_tokens, timer.elapsed_ms,
-                cost, upstream_cost, result,
-                backoff_ms=backoff_ms,
+            exchange = self._run_exchange(
+                ctx, puzzle, messages,
+                verdict_fn=lambda content, structured: _Verdict(
+                    result=self._process_guess(state, content)
+                ),
+                guess_index_fn=lambda: state.guess_count,
             )
 
+            if not exchange.ok:
+                final_state_emitted = exchange.failed_state_emitted
+                state.finished = True
+                break
+
             # Append response and result to conversation
-            messages.append({"role": "assistant", "content": content})
+            messages.append({"role": "assistant", "content": exchange.content})
             if not state.finished:
-                messages.append({"role": "user", "content": result})
+                messages.append({"role": "user", "content": exchange.verdict.result})
 
         state.end_time = time.time()
         time_sec = state.end_time - state.start_time
 
         # Emit final state transition
         if not final_state_emitted:
-            final_state = "DONE" if state.won else "FAILED"
-            try:
-                cl.state_move(
-                    task_id=task_id, from_="WIP", to=final_state,
-                    project_id="connections_eval",
-                    agent_id="agent:connections_eval",
-                    run_id=self.run_id,
-                    payload={"puzzle_id": puzzle.id},
-                )
-            except Exception:
-                pass
+            self._finish_puzzle(puzzle, ctx, won=state.won)
 
         return PuzzleResult(
             won=state.won,
@@ -736,14 +890,7 @@ class ConnectionsGame:
             invalid_count=state.invalid_count,
             solved_groups=list(state.solved_groups),
             time_sec=time_sec,
-            total_tokens=total_tokens,
-            total_prompt_tokens=total_prompt_tokens,
-            total_completion_tokens=total_completion_tokens,
-            token_count_method=token_method,
-            total_cached_tokens=total_cached_tokens,
-            total_cost=total_cost,
-            total_upstream_cost=total_upstream_cost,
-            total_backoff_sec=total_backoff_sec,
+            **ctx.totals.as_result_fields(),
         )
 
     def _run_puzzle_interactive(self, puzzle: Puzzle) -> PuzzleResult:
@@ -831,319 +978,167 @@ class ConnectionsGame:
             token_count_method="N/A",
         )
 
+    def _is_valid_oneshot_submission(self, puzzle: Puzzle, groups: List[List[str]]) -> bool:
+        """Structural validity of a one-shot submission.
+
+        Mirrors _score_oneshot's gate: exactly 4 groups of 4 words that together
+        equal the puzzle's 16 words.
+        """
+        submitted_words = [w for g in groups for w in g]
+        return (
+            len(groups) == 4
+            and all(len(g) == 4 for g in groups)
+            and len(submitted_words) == 16
+            and set(submitted_words) == set(w.upper() for w in puzzle.words)
+        )
+
+    def _matched_group_colors(self, puzzle: Puzzle, groups: List[List[str]]) -> List[str]:
+        """Colors of the puzzle groups a submission got exactly right."""
+        submitted_sets = [set(w.upper() for w in g) for g in groups]
+        return [
+            grp.color for grp in puzzle.groups
+            if set(w.upper() for w in grp.words) in submitted_sets
+        ]
+
+    def _score_oneshot_submission(self, puzzle: Puzzle, content: str,
+                                  puzzle_max: int) -> Tuple[_OneshotOutcome, _Verdict]:
+        """Parse and score a one-shot submission.
+
+        Returns the game-logic outcome plus the verdict that carries its result
+        string and the score fields attached to the log and telemetry.
+        """
+        groups = self._parse_oneshot_response(content)
+        groups_correct, score = self._score_oneshot(puzzle, groups)
+        won = (groups_correct == 4)
+        is_valid = self._is_valid_oneshot_submission(puzzle, groups)
+
+        if not is_valid:
+            # A structurally invalid answer scores 0 overall — the trap
+            # bonus is forfeited along with the base score.
+            invalid_count = 1
+            mistake_count = 0
+            trap_bonus = 0
+            trap_claims = None
+            solved_groups: List[str] = []
+            result = f"ONESHOT_INVALID_MAX_{puzzle_max}"
+        else:
+            invalid_count = 0
+            mistake_count = 4 - groups_correct
+            solved_groups = self._matched_group_colors(puzzle, groups)
+            trap_claims = self._parse_oneshot_traps(content)
+            trap_bonus = self._score_trap_claims(puzzle, trap_claims)
+            score += trap_bonus
+            # MAX carries the per-puzzle ceiling (5 reviewed / 3 unreviewed)
+            # so downstream aggregation doesn't have to guess it.
+            result = f"ONESHOT_SCORE_{score}_GROUPS_{groups_correct}_TRAP_{trap_bonus}_MAX_{puzzle_max}"
+
+        outcome = _OneshotOutcome(
+            won=won,
+            score=score,
+            groups_correct=groups_correct,
+            trap_bonus=trap_bonus,
+            mistake_count=mistake_count,
+            invalid_count=invalid_count,
+            solved_groups=solved_groups,
+        )
+        score_fields = {"score": score, "groups_correct": groups_correct,
+                        "trap_bonus": trap_bonus}
+        verdict = _Verdict(
+            result=result,
+            guess_text=self._extract_oneshot_answer_text(content),
+            log_extra={
+                **score_fields,
+                "trap_claims": ([] if trap_claims is None
+                                else [", ".join(c) for c in trap_claims] or ["N/A"]),
+            },
+            telemetry_extra=score_fields,
+        )
+        return outcome, verdict
+
+    def _extract_oneshot_answer_text(self, content: str) -> str:
+        """Extract the <answer> block for the exchange log's `guess` field.
+
+        Strips thinking blocks first so a decoy <answer> example inside reasoning
+        isn't logged as the guess (scoring already does the same).
+        """
+        import re
+
+        log_cleaned = re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', content, flags=re.IGNORECASE | re.DOTALL)
+        log_cleaned = re.sub(r'<think(?:ing)?>.*', '', log_cleaned, flags=re.IGNORECASE | re.DOTALL)
+        answer_match = re.search(r'<answer>(.*?)</answer>', log_cleaned, re.IGNORECASE | re.DOTALL)
+        return answer_match.group(1).strip() if answer_match else content
+
     def _run_puzzle_oneshot_ai(self, puzzle: Puzzle, model_name: str, rng: random.Random,
                                attempt: Optional[int] = None) -> PuzzleResult:
         """Run a single puzzle in one-shot mode with an AI model.
 
-        Modeled on _run_puzzle_ai but makes a single API call: the model submits
-        all 4 groups at once and there is no feedback loop. Base score 0/1/2/3
-        (perfect = 3) plus a 2-point trap bonus.
-
-        attempt: optional trial index. See _run_puzzle_ai for the session_id
-            rationale — repeated attempts get independent sticky-routing sessions.
+        A single API call: the model submits all 4 groups at once and there is no
+        feedback loop. Base score 0/1/2/3 (perfect = 3) plus a 2-point trap bonus.
+        See _begin_puzzle for the `attempt` semantics.
         """
-        model_id = self.MODEL_CONFIG[model_name]
-        adapter = openrouter_adapter
-        pinned_provider = adapter.extract_provider_slug(model_id)
-
+        ctx = self._begin_puzzle(puzzle, model_name, attempt)
         messages = self._build_initial_messages(puzzle, rng)
-        total_tokens = 0
-        total_prompt_tokens = 0
-        total_completion_tokens = 0
-        token_method = "APPROXIMATE"
-        total_cached_tokens = 0
-        total_cost = 0.0
-        total_upstream_cost = 0.0
-        total_backoff_sec = 0.0
-        task_id = f"T{puzzle.id}:{self.run_id}"
-        # Sticky-routing key. Append the trial index when ranking so repeated
-        # attempts get independent routing sessions.
-        session_id = task_id if attempt is None else f"{task_id}:a{attempt}"
-        final_state_emitted = False
+        puzzle_max = 5 if puzzle.trap_groups is not None else 3
+        outcome = _OneshotOutcome()
 
         start_time = time.time()
-        try:
-            cl.state_move(
-                task_id=task_id, from_="NEW", to="WIP",
-                project_id="connections_eval",
-                agent_id="agent:connections_eval",
-                run_id=self.run_id,
-                payload={"puzzle_id": puzzle.id},
-            )
-        except Exception:
-            pass
 
-        with Timer() as timer:
-            try:
-                # Pin to provider on all calls to enable prompt caching; session_id
-                # keeps this puzzle on one upstream provider (sticky routing).
-                response = adapter.chat(
-                    messages, model_id, provider=pinned_provider, session_id=session_id,
-                    reasoning_effort=self.reasoning_effort,
-                )
+        def verdict_fn(content: str, structured: Dict[str, str]) -> _Verdict:
+            nonlocal outcome
+            outcome, verdict = self._score_oneshot_submission(puzzle, content, puzzle_max)
+            return verdict
 
-                backoff_sec = float(response.pop("_backoff_sec", 0.0))
-                total_backoff_sec += backoff_sec
-
-                choice = response["choices"][0]
-                message = choice["message"]
-                content = message.get("content", "")
-                finish_reason = choice.get("finish_reason", "unknown")
-
-                # Handle empty content (thinking models may put output in reasoning fields)
-                if not content or content.strip() == "":
-                    self.logger.warning(f"Empty content field. finish_reason: {finish_reason}")
-                    self.logger.warning(f"Message keys: {list(message.keys())}")
-                    self.logger.warning(f"Full message: {message}")
-                    self.logger.warning(f"Full choice: {choice}")
-
-                    if finish_reason == "length":
-                        self.logger.error("Response truncated due to token limit!")
-
-                    if "reasoning" in message:
-                        self.logger.info("Found reasoning field, using it as content")
-                        content = message["reasoning"]
-                    elif "extended_thinking" in message:
-                        self.logger.info("Found extended_thinking field, using it as content")
-                        content = message["extended_thinking"]
-
-                content = content.strip() if content else ""
-                structured_response = self._parse_structured_response(content)
-
-                # Track tokens
-                prompt_tokens, completion_tokens, method = extract_token_usage(response)
-                if prompt_tokens and completion_tokens:
-                    total_prompt_tokens += prompt_tokens
-                    total_completion_tokens += completion_tokens
-                    total_tokens += prompt_tokens + completion_tokens
-                    token_method = method
-                else:
-                    prompt_text = " ".join([msg["content"] for msg in messages])
-                    approx_prompt = count_tokens(prompt_text)
-                    approx_completion = count_tokens(content)
-                    total_prompt_tokens += approx_prompt
-                    total_completion_tokens += approx_completion
-                    total_tokens += approx_prompt + approx_completion
-
-                # Track costs and cache info
-                cost, upstream_cost = extract_cost_info(response)
-                if cost is not None:
-                    total_cost += cost
-                if upstream_cost is not None:
-                    total_upstream_cost += upstream_cost
-
-                cache_info = extract_cache_info(response)
-                if cache_info.get("cached_tokens"):
-                    total_cached_tokens += cache_info["cached_tokens"]
-
-                # Parse and score the single submission
-                groups = self._parse_oneshot_response(content)
-                groups_correct, score = self._score_oneshot(puzzle, groups)
-                won = (groups_correct == 4)
-                puzzle_max = 5 if puzzle.trap_groups is not None else 3
-
-                # Structural validity mirrors _score_oneshot's gate: exactly 4
-                # groups of 4 words that together equal the puzzle's 16 words.
-                submitted_words = [w for g in groups for w in g]
-                is_valid = (
-                    len(groups) == 4
-                    and all(len(g) == 4 for g in groups)
-                    and len(submitted_words) == 16
-                    and set(submitted_words) == set(w.upper() for w in puzzle.words)
-                )
-
-                if not is_valid:
-                    # A structurally invalid answer scores 0 overall — the trap
-                    # bonus is forfeited along with the base score.
-                    invalid_count = 1
-                    mistake_count = 0
-                    trap_bonus = 0
-                    trap_claims = None
-                    solved_groups: List[str] = []
-                    result = f"ONESHOT_INVALID_MAX_{puzzle_max}"
-                else:
-                    invalid_count = 0
-                    mistake_count = 4 - groups_correct
-                    # Colors of matched puzzle groups
-                    submitted_sets = [set(w.upper() for w in g) for g in groups]
-                    solved_groups = [
-                        grp.color for grp in puzzle.groups
-                        if set(w.upper() for w in grp.words) in submitted_sets
-                    ]
-                    trap_claims = self._parse_oneshot_traps(content)
-                    trap_bonus = self._score_trap_claims(puzzle, trap_claims)
-                    score += trap_bonus
-                    # MAX carries the per-puzzle ceiling (5 reviewed / 3 unreviewed)
-                    # so downstream aggregation doesn't have to guess it.
-                    result = f"ONESHOT_SCORE_{score}_GROUPS_{groups_correct}_TRAP_{trap_bonus}_MAX_{puzzle_max}"
-
-            except Exception as e:
-                if getattr(e, "non_retryable", False):
-                    raise
-                elapsed_ms = int((time.time() - timer.start_time) * 1000) if timer.start_time else 0
-                backoff_sec = get_last_backoff_sec()
-                total_backoff_sec += backoff_sec
-                backoff_ms = int(backoff_sec * 1000)
-                inference_ms = max(0, elapsed_ms - backoff_ms)
-
-                log_exchange(self.logger, {
-                    "run_id": self.run_id,
-                    "model": model_name,
-                    "puzzle_id": puzzle.id,
-                    "guess_index": 0,
-                    "request": messages[-1]["content"],
-                    "response": str(e),
-                    "latency_ms": elapsed_ms,
-                    "backoff_ms": backoff_ms,
-                    "inference_ms": inference_ms,
-                    "prompt_tokens": None,
-                    "completion_tokens": None,
-                    "result": "API_ERROR"
-                })
-
-                self.logger.error(f"API call failed: {str(e)}")
-                try:
-                    cl.event(
-                        kind="model_response_error",
-                        actor={"agent_id": "agent:connections_eval", "task_id": task_id},
-                        run_id=self.run_id,
-                        payload={
-                            "model": model_name,
-                            "puzzle_id": puzzle.id,
-                            "guess_index": 0,
-                            "phase": "error",
-                            "wall_ms": elapsed_ms,
-                            "response_text": str(e),
-                            # Mode marker: without it, a run whose every call
-                            # errors has no ONESHOT_* completion strings and the
-                            # MotherDuck aggregation would misclassify it as
-                            # classic. MAX carries the per-puzzle score ceiling.
-                            "result": f"ONESHOT_API_ERROR_MAX_{5 if puzzle.trap_groups is not None else 3}",
-                        },
-                        project_id="connections_eval",
-                        source="runtime",
-                    )
-                    cl.state_move(
-                        task_id=task_id, from_="WIP", to="FAILED",
-                        project_id="connections_eval",
-                        agent_id="agent:connections_eval",
-                        run_id=self.run_id,
-                        payload={"puzzle_id": puzzle.id, "reason": "api_error"},
-                    )
-                    final_state_emitted = True
-                except Exception:
-                    pass
-
-                return PuzzleResult(
-                    won=False,
-                    guess_count=0,
-                    mistake_count=0,
-                    invalid_count=0,
-                    solved_groups=[],
-                    time_sec=time.time() - start_time,
-                    total_tokens=0,
-                    total_prompt_tokens=0,
-                    total_completion_tokens=0,
-                    token_count_method=token_method,
-                    total_cached_tokens=0,
-                    total_cost=0.0,
-                    total_upstream_cost=0.0,
-                    total_backoff_sec=total_backoff_sec,
-                    score=0,
-                    groups_correct=0,
-                    trap_bonus=0,
-                    max_score=5 if puzzle.trap_groups is not None else 3,
-                )
-
-        # Log exchange. _parse_structured_response covers thinking/confidence;
-        # extract the <answer> block content for the 'guess' field. Strip
-        # thinking blocks first so a decoy <answer> example inside reasoning
-        # isn't logged as the guess (scoring already does the same).
-        import re
-        log_cleaned = re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', content, flags=re.IGNORECASE | re.DOTALL)
-        log_cleaned = re.sub(r'<think(?:ing)?>.*', '', log_cleaned, flags=re.IGNORECASE | re.DOTALL)
-        answer_match = re.search(r'<answer>(.*?)</answer>', log_cleaned, re.IGNORECASE | re.DOTALL)
-        answer_text = answer_match.group(1).strip() if answer_match else content
-        backoff_ms = int(backoff_sec * 1000)
-        inference_ms = max(0, timer.elapsed_ms - backoff_ms)
-        exchange_data = {
-            "run_id": self.run_id,
-            "model": model_name,
-            "puzzle_id": puzzle.id,
-            "guess_index": 0,
-            "request": messages[-1]["content"],
-            "response": content,
-            "thinking": structured_response.get('thinking', ''),
-            "guess": answer_text,
-            "confidence": structured_response.get('confidence', ''),
-            "latency_ms": timer.elapsed_ms,
-            "backoff_ms": backoff_ms,
-            "inference_ms": inference_ms,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "result": result,
-            "score": score,
-            "groups_correct": groups_correct,
-            "trap_bonus": trap_bonus,
-            "trap_claims": ([] if trap_claims is None
-                            else [", ".join(c) for c in trap_claims] or ["N/A"]),
-        }
-
-        if cost is not None:
-            exchange_data["cost"] = cost
-        if upstream_cost is not None:
-            exchange_data["upstream_cost"] = upstream_cost
-        if cache_info.get("cached_tokens") is not None:
-            exchange_data["cached_tokens"] = cache_info["cached_tokens"]
-        if cache_info.get("cache_discount") is not None:
-            exchange_data["cache_discount"] = cache_info["cache_discount"]
-
-        log_exchange(self.logger, exchange_data)
-
-        self._emit_model_telemetry(
-            task_id, model_id, puzzle.id, 0,
-            messages[-1]["content"], content,
-            prompt_tokens, completion_tokens, timer.elapsed_ms,
-            cost, upstream_cost, result,
-            backoff_ms=backoff_ms,
-            extra_payload={"score": score, "groups_correct": groups_correct,
-                           "trap_bonus": trap_bonus},
+        exchange = self._run_exchange(
+            ctx, puzzle, messages,
+            verdict_fn=verdict_fn,
+            guess_index_fn=lambda: 0,
+            # Mode marker: without it, a run whose every call errors has no
+            # ONESHOT_* completion strings and the MotherDuck aggregation would
+            # misclassify it as classic. MAX carries the per-puzzle score ceiling.
+            error_payload_extra={"result": f"ONESHOT_API_ERROR_MAX_{puzzle_max}"},
         )
+
+        if not exchange.ok:
+            # The error path already moved the task to FAILED. No tokens or cost
+            # are claimed for a failed call, but the puzzle still contributes its
+            # score ceiling so a partially-failed run's max_score stays honest.
+            return PuzzleResult(
+                won=False,
+                guess_count=0,
+                mistake_count=0,
+                invalid_count=0,
+                solved_groups=[],
+                time_sec=time.time() - start_time,
+                total_tokens=0,
+                total_prompt_tokens=0,
+                total_completion_tokens=0,
+                token_count_method=ctx.totals.token_method,
+                total_cached_tokens=0,
+                total_cost=0.0,
+                total_upstream_cost=0.0,
+                total_backoff_sec=ctx.totals.backoff_sec,
+                score=0,
+                groups_correct=0,
+                trap_bonus=0,
+                max_score=puzzle_max,
+            )
 
         time_sec = time.time() - start_time
 
         # Emit final state transition
-        if not final_state_emitted:
-            final_state = "DONE" if won else "FAILED"
-            try:
-                cl.state_move(
-                    task_id=task_id, from_="WIP", to=final_state,
-                    project_id="connections_eval",
-                    agent_id="agent:connections_eval",
-                    run_id=self.run_id,
-                    payload={"puzzle_id": puzzle.id},
-                )
-            except Exception:
-                pass
+        self._finish_puzzle(puzzle, ctx, won=outcome.won)
 
         return PuzzleResult(
-            won=won,
+            won=outcome.won,
             guess_count=1,
-            mistake_count=mistake_count,
-            invalid_count=invalid_count,
-            solved_groups=solved_groups,
+            mistake_count=outcome.mistake_count,
+            invalid_count=outcome.invalid_count,
+            solved_groups=outcome.solved_groups,
             time_sec=time_sec,
-            total_tokens=total_tokens,
-            total_prompt_tokens=total_prompt_tokens,
-            total_completion_tokens=total_completion_tokens,
-            token_count_method=token_method,
-            total_cached_tokens=total_cached_tokens,
-            total_cost=total_cost,
-            total_upstream_cost=total_upstream_cost,
-            total_backoff_sec=total_backoff_sec,
-            score=score,
-            groups_correct=groups_correct,
-            trap_bonus=trap_bonus,
+            **ctx.totals.as_result_fields(),
+            score=outcome.score,
+            groups_correct=outcome.groups_correct,
+            trap_bonus=outcome.trap_bonus,
             max_score=puzzle_max,
         )
 
@@ -1181,15 +1176,7 @@ class ConnectionsGame:
 
         groups_correct, score = self._score_oneshot(puzzle, groups)
         won = (groups_correct == 4)
-
-        # Structural validity mirrors _score_oneshot's gate.
-        submitted_words = [w for g in groups for w in g]
-        is_valid = (
-            len(groups) == 4
-            and all(len(g) == 4 for g in groups)
-            and len(submitted_words) == 16
-            and set(submitted_words) == set(w.upper() for w in puzzle.words)
-        )
+        is_valid = self._is_valid_oneshot_submission(puzzle, groups)
 
         # Trap claim (only when the puzzle has been reviewed for traps)
         trap_bonus = 0
@@ -1215,11 +1202,7 @@ class ConnectionsGame:
             print(f"  {group.color.upper()}: {group.name} - {', '.join(group.words)}")
 
         # Colors of matched puzzle groups (empty when invalid)
-        submitted_sets = [set(w.upper() for w in g) for g in groups]
-        solved_groups = [
-            grp.color for grp in puzzle.groups
-            if set(w.upper() for w in grp.words) in submitted_sets
-        ] if is_valid else []
+        solved_groups = self._matched_group_colors(puzzle, groups) if is_valid else []
 
         return PuzzleResult(
             won=won,

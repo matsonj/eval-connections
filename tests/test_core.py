@@ -5,6 +5,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+from connections_eval import core as core_mod
 from connections_eval.core import ConnectionsGame, GameState, Puzzle, PuzzleGroup, PuzzleResult, EvalStats
 from connections_eval.adapters.openrouter_adapter import extract_provider_slug
 from connections_eval.utils.tokens import extract_cache_info
@@ -1412,3 +1413,108 @@ class TestAdapterChoicesFix:
         result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
 
         assert result["_backoff_sec"] == 0.0
+
+
+class TestSharedExchangeScaffolding:
+    """Both runners share _run_exchange for transport, accounting and telemetry.
+    These lock in the mode-specific pieces that must stay distinct."""
+
+    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+
+    def _make_game(self, tmp_path, puzzle, mode):
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
+             patch.object(ConnectionsGame, '_load_model_mappings',
+                          return_value={"test-model": "openai/o3"}):
+            return ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode=mode,
+                                   reasoning_effort="high")
+
+    @staticmethod
+    def _puzzle(trap_groups=None):
+        p = Puzzle(id=477, date="2024-09-30", difficulty=3.8,
+                   words=list(_TEST_WORDS), groups=_make_test_groups())
+        p.trap_groups = trap_groups
+        return p
+
+    @staticmethod
+    def _response(content):
+        return {
+            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+        }
+
+    def _run(self, tmp_path, mode, side_effect):
+        """Run one puzzle, returning (summary, exchange_logs, controllog_events)."""
+        puzzle = self._puzzle(trap_groups=[["APPLE", "BLUE", "FAST", "BRIGHT"]])
+        game = self._make_game(tmp_path, puzzle, mode)
+
+        exchanges, events = [], []
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   side_effect=side_effect) as chat_mock, \
+             patch("connections_eval.core.log_exchange",
+                   side_effect=lambda logger, data: exchanges.append(data)), \
+             patch.object(core_mod.cl, "event",
+                          side_effect=lambda **kw: events.append(kw)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+        return summary, exchanges, events, chat_mock
+
+    def test_reasoning_effort_reaches_adapter_in_both_modes(self, tmp_path):
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>"
+        for mode, content in (("oneshot", answer),
+                              ("classic", "<guess>APPLE, BANANA, CHERRY, GRAPE</guess>")):
+            _, _, _, chat_mock = self._run(
+                tmp_path, mode, [self._response(content)] * 6)
+            assert chat_mock.call_args.kwargs["reasoning_effort"] == "high"
+
+    def test_classic_api_error_event_has_no_oneshot_marker(self, tmp_path):
+        """The ONESHOT_API_ERROR_MAX_n mode marker must not leak into classic
+        runs — MotherDuck uses it to classify a fully-failed run's mode."""
+        _, exchanges, events, _ = self._run(tmp_path, "classic", RuntimeError("boom"))
+
+        assert [e["result"] for e in exchanges] == ["API_ERROR"]
+        errors = [e for e in events if e["kind"] == "model_response_error"]
+        assert len(errors) == 1
+        assert "result" not in errors[0]["payload"]
+
+    def test_oneshot_api_error_event_carries_max_marker(self, tmp_path):
+        _, exchanges, events, _ = self._run(tmp_path, "oneshot", RuntimeError("boom"))
+
+        assert [e["result"] for e in exchanges] == ["API_ERROR"]
+        errors = [e for e in events if e["kind"] == "model_response_error"]
+        assert errors[0]["payload"]["result"] == "ONESHOT_API_ERROR_MAX_5"
+
+    def test_classic_exchange_log_records_post_guess_index(self, tmp_path):
+        """Classic logs the guess index *after* the guess is counted, so a run of
+        correct guesses logs 1..4 rather than 0..3."""
+        guesses = [self._response(f"<guess>{', '.join(g.words)}</guess>")
+                   for g in _make_test_groups()]
+        _, exchanges, _, _ = self._run(tmp_path, "classic", guesses)
+
+        assert [e["guess_index"] for e in exchanges] == [1, 2, 3, 4]
+        # Classic exchanges carry no one-shot score fields
+        assert all("score" not in e for e in exchanges)
+
+    def test_oneshot_exchange_log_carries_score_fields(self, tmp_path):
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in _make_test_groups()
+        ) + "\n</answer>\n<traps>\nAPPLE, BLUE, FAST, BRIGHT\n</traps>"
+        _, exchanges, _, _ = self._run(tmp_path, "oneshot", [self._response(answer)])
+
+        assert len(exchanges) == 1
+        logged = exchanges[0]
+        assert logged["guess_index"] == 0
+        assert logged["result"] == "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5"
+        assert logged["score"] == 5
+        assert logged["groups_correct"] == 4
+        assert logged["trap_bonus"] == 2
+        assert logged["trap_claims"] == ["APPLE, BLUE, FAST, BRIGHT"]
+        # 'guess' is the <answer> block, not the classic <guess> tag
+        assert "APPLE, BANANA, CHERRY, GRAPE" in logged["guess"]
+
+    def test_non_retryable_error_still_aborts_both_modes(self, tmp_path):
+        class NoCredits(RuntimeError):
+            non_retryable = True
+
+        for mode in ("classic", "oneshot"):
+            with pytest.raises(NoCredits):
+                self._run(tmp_path, mode, NoCredits("insufficient credits"))
