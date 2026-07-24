@@ -719,8 +719,15 @@ class TestOneshotTraps:
         # Any 4-subset of the 5-word superset that isn't the real group scores
         assert mock_game._score_trap_claims(trap_puzzle, [["RED", "YELLOW", "APPLE", "WISE"]]) == 2
 
-    def test_real_group_subset_of_superset_rejected(self, mock_game, trap_puzzle):
-        # The real Smart group is inside the superset but is NOT a trap
+    def test_exact_real_group_claim_rejected(self, mock_game, trap_puzzle):
+        """A real group is never a trap, even when it shares a word with an
+        annotation (WISE is in the superset). Rejected twice over: it is a real
+        group, and it takes 4 words from one group.
+
+        Note a real group can never be *inside* an annotated superset — that
+        would need 3+ words from one group, which the scorer's <=2 rule bars
+        (see test_three_from_one_group_never_scores_even_if_annotated).
+        """
         assert mock_game._score_trap_claims(trap_puzzle, [["BRIGHT", "CLEVER", "SMART", "WISE"]]) == 0
 
     def test_only_first_claim_judged_bogus_second_ignored(self, mock_game, trap_puzzle):
