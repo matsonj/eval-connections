@@ -984,10 +984,12 @@ class ConnectionsGame:
         )
 
     def _is_valid_oneshot_submission(self, puzzle: Puzzle, groups: List[List[str]]) -> bool:
-        """Structural validity of a one-shot submission.
+        """Structural validity of a one-shot submission — the single gate that
+        both _score_oneshot and the ONESHOT_INVALID marker rely on.
 
-        Mirrors _score_oneshot's gate: exactly 4 groups of 4 words that together
-        equal the puzzle's 16 words.
+        Exactly 4 groups of 4 words whose 16 words (upper-cased) equal the
+        puzzle's words; the set comparison covers duplicates and non-puzzle
+        words at once.
         """
         submitted_words = [w for g in groups for w in g]
         return (
@@ -1013,9 +1015,9 @@ class ConnectionsGame:
         string and the score fields attached to the log and telemetry.
         """
         groups = self._parse_oneshot_response(content)
+        is_valid = self._is_valid_oneshot_submission(puzzle, groups)
         groups_correct, score = self._score_oneshot(puzzle, groups)
         won = (groups_correct == 4)
-        is_valid = self._is_valid_oneshot_submission(puzzle, groups)
 
         if not is_valid:
             # A structurally invalid answer scores 0 overall — the trap
@@ -1393,22 +1395,13 @@ class ConnectionsGame:
         Score a one-shot submission.
 
         Returns:
-            (groups_correct, base_score). Any structural failure returns (0, 0):
-            not exactly 4 groups, not exactly 4 words per group, or the 16 words
-            (upper-cased) not exactly equal to the puzzle's words. Otherwise
-            base_score = matches for 0/1/2, and 3 for a perfect solve (exactly
-            3 matches is impossible — the 4th group is forced). Trap bonus is
-            scored separately by _score_trap_claims.
+            (groups_correct, base_score). A structurally invalid submission (see
+            _is_valid_oneshot_submission) returns (0, 0). Otherwise base_score =
+            matches for 0/1/2, and 3 for a perfect solve (exactly 3 matches is
+            impossible — the 4th group is forced). Trap bonus is scored
+            separately by _score_trap_claims.
         """
-        # Structural validation: exactly 4 groups of 4 words
-        if len(groups) != 4 or any(len(group) != 4 for group in groups):
-            return (0, 0)
-
-        # The 16 submitted words must exactly equal the puzzle's words (covers
-        # duplicates and non-puzzle words in a single set comparison).
-        submitted_words = [word for group in groups for word in group]
-        puzzle_words = set(word.upper() for word in puzzle.words)
-        if len(submitted_words) != 16 or set(submitted_words) != puzzle_words:
+        if not self._is_valid_oneshot_submission(puzzle, groups):
             return (0, 0)
 
         # Count submitted groups whose word-set matches some puzzle group's word-set

@@ -18,7 +18,7 @@
 - **Generate leaderboards**: `uv run python scripts/create_results_mviz.py` (docs/index.html = one-shot, docs/classic.html = classic multi-turn)
 
 ## Architecture
-- **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics
+- **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics. Both runners (`_run_puzzle_ai` classic, `_run_puzzle_oneshot_ai` one-shot) share `_run_exchange()` for transport + accounting + telemetry (including the API-error path) and supply only a per-mode verdict callback returning a `_Verdict`; keep mode-specific result strings and log fields in those callbacks
 - **CLI**: `src/connections_eval/cli.py` - Typer-based command interface
 - **Adapters**: `src/connections_eval/adapters/openrouter_adapter.py` - Unified OpenRouter integration for 200+ AI models
 - **Utils**: `src/connections_eval/utils/` - Timing, tokens, logging, retry utilities

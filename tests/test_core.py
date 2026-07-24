@@ -1428,6 +1428,9 @@ class TestSharedExchangeScaffolding:
     # cross-cutting rule in _score_trap_claims.
     _TRAP = ["APPLE", "BLUE", "FAST", "BRIGHT"]
     _TRAP_GROUPS = [_TRAP]
+    # Distinguishes "caller didn't say" from trap_groups=None (unreviewed puzzle)
+    # and trap_groups=[] (reviewed, trap-free), which score differently.
+    _DEFAULT_TRAPS = object()
 
     def _make_game(self, tmp_path, puzzle, mode):
         with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
@@ -1470,9 +1473,11 @@ class TestSharedExchangeScaffolding:
             f"<guess>{', '.join(g.words)}</guess>", **response_kwargs)
             for g in _make_test_groups()]
 
-    def _run(self, tmp_path, mode, side_effect, trap_groups=None, game=None):
+    def _run(self, tmp_path, mode, side_effect, trap_groups=_DEFAULT_TRAPS, game=None):
         """Run one puzzle, capturing every logged/emitted side effect."""
-        puzzle = self._puzzle(trap_groups=trap_groups or self._TRAP_GROUPS)
+        if trap_groups is self._DEFAULT_TRAPS:
+            trap_groups = self._TRAP_GROUPS
+        puzzle = self._puzzle(trap_groups=trap_groups)
         game = game or self._make_game(tmp_path, puzzle, mode)
 
         cap = SimpleNamespace(exchanges=[], events=[], moves=[], prompts=[],
@@ -1661,3 +1666,94 @@ class TestSharedExchangeScaffolding:
                    side_effect=openrouter_adapter.InsufficientCreditsError("no credits")), \
              pytest.raises(openrouter_adapter.InsufficientCreditsError):
             game.run_evaluation("test-model", puzzle_ids=[477], threads=4)
+
+    # --- per-puzzle MAX ceiling (parsed out of the result strings) --------
+
+    def test_unreviewed_puzzle_caps_at_max_3(self, tmp_path):
+        """trap_groups=None means traps were never reviewed: no bonus is possible
+        even for a correct-looking claim, and every marker carries MAX_3."""
+        cap = self._run(tmp_path, "oneshot",
+                        [self._response(self._answer(traps=", ".join(self._TRAP)))],
+                        trap_groups=None)
+
+        assert cap.exchanges[0]["result"] == "ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_3"
+        assert cap.exchanges[0]["trap_bonus"] == 0
+        assert cap.summary["total_score"] == 3
+        assert cap.summary["max_score"] == 3
+
+    def test_reviewed_trapless_puzzle_scores_na_claim(self, tmp_path):
+        """trap_groups=[] means reviewed and trap-free, so N/A earns the +2."""
+        cap = self._run(tmp_path, "oneshot",
+                        [self._response(self._answer(traps="N/A"))], trap_groups=[])
+
+        assert cap.exchanges[0]["result"] == "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5"
+        assert cap.exchanges[0]["trap_claims"] == ["N/A"]
+        assert cap.summary["max_score"] == 5
+
+    def test_invalid_and_error_markers_carry_unreviewed_ceiling(self, tmp_path):
+        invalid = self._run(tmp_path, "oneshot", [self._response("no answer here")],
+                            trap_groups=None)
+        assert invalid.exchanges[0]["result"] == "ONESHOT_INVALID_MAX_3"
+        assert invalid.exchanges[0]["trap_claims"] == []
+        assert invalid.summary["invalid_responses"] == 1
+
+        errored = self._run(tmp_path, "oneshot", RuntimeError("boom"), trap_groups=None)
+        errors = [e for e in errored.events if e["kind"] == "model_response_error"]
+        assert errors[0]["payload"]["result"] == "ONESHOT_API_ERROR_MAX_3"
+        assert errored.summary["max_score"] == 3
+
+    # --- backoff accounting ----------------------------------------------
+
+    def test_backoff_is_split_out_of_inference_time(self, tmp_path):
+        """Retry sleep is attributed as backoff, kept out of inference_ms, and
+        posted as its own model_backoff event."""
+        responses = self._guesses()
+        for r in responses:
+            r["_backoff_sec"] = 1.5
+        cap = self._run(tmp_path, "classic", responses)
+
+        assert cap.summary["total_backoff_sec"] == pytest.approx(6.0)
+        # Wall time here is ~0, so inference clamps to 0 rather than going negative
+        assert all(e["backoff_ms"] == 1500 for e in cap.exchanges)
+        assert all(e["inference_ms"] == max(0, e["latency_ms"] - 1500)
+                   for e in cap.exchanges)
+        assert cap.summary["total_inference_sec"] == 0.0
+
+        backoffs = [e for e in cap.events if e["kind"] == "model_backoff"]
+        assert len(backoffs) == 4
+        assert backoffs[0]["payload"]["backoff_ms"] == 1500
+
+    def test_error_path_attributes_last_backoff(self, tmp_path):
+        """Backoff burned before a call finally failed is still accounted for."""
+        for mode in ("classic", "oneshot"):
+            with patch.object(core_mod, "get_last_backoff_sec", return_value=2.0):
+                cap = self._run(tmp_path, mode, RuntimeError("boom"))
+            assert cap.summary["total_backoff_sec"] == pytest.approx(2.0)
+
+    # --- thread isolation -------------------------------------------------
+
+    def test_parallel_puzzles_get_isolated_contexts_and_summed_totals(self, tmp_path):
+        """Two puzzles across two threads: each gets its own task/session id and
+        its own accounting, and the run totals are the sum."""
+        puzzles = [self._puzzle(self._TRAP_GROUPS), self._puzzle(self._TRAP_GROUPS)]
+        puzzles[1].id = 246
+        with patch.object(ConnectionsGame, '_load_puzzles', return_value=puzzles), \
+             patch.object(ConnectionsGame, '_load_model_mappings',
+                          return_value={"test-model": "openai/o3"}):
+            game = ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode="oneshot")
+
+        prompts, sessions = [], []
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   side_effect=lambda *a, **kw: (sessions.append(kw["session_id"]),
+                                                 self._response(self._answer()))[1]), \
+             patch.object(core_mod.cl, "model_prompt",
+                          side_effect=lambda **kw: prompts.append(kw)):
+            summary = game.run_evaluation("test-model", puzzle_ids=[477, 246], threads=2)
+
+        assert summary["puzzles_attempted"] == 2
+        assert summary["puzzles_solved"] == 2
+        assert summary["total_prompt_tokens"] == 200
+        assert summary["total_completion_tokens"] == 100
+        assert sorted(sessions) == sorted(f"T{pid}:{game.run_id}" for pid in (477, 246))
+        assert sorted(p["task_id"] for p in prompts) == sorted(sessions)
+        assert sorted(p["payload"]["puzzle_id"] for p in prompts) == [246, 477]
