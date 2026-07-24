@@ -1,6 +1,7 @@
 """Tests for core game logic."""
 
 import random
+import time
 import pytest
 from pathlib import Path
 from types import SimpleNamespace
@@ -1707,21 +1708,31 @@ class TestSharedExchangeScaffolding:
     def test_backoff_is_split_out_of_inference_time(self, tmp_path):
         """Retry sleep is attributed as backoff, kept out of inference_ms, and
         posted as its own model_backoff event."""
+        # Each call burns 60ms of wall time and reports 10ms of it as backoff, so
+        # inference_ms lands strictly between 0 and latency_ms — the subtraction
+        # is only observable when latency exceeds the backoff.
         responses = self._guesses()
         for r in responses:
-            r["_backoff_sec"] = 1.5
-        cap = self._run(tmp_path, "classic", responses)
+            r["_backoff_sec"] = 0.01
 
-        assert cap.summary["total_backoff_sec"] == pytest.approx(6.0)
-        # Wall time here is ~0, so inference clamps to 0 rather than going negative
-        assert all(e["backoff_ms"] == 1500 for e in cap.exchanges)
-        assert all(e["inference_ms"] == max(0, e["latency_ms"] - 1500)
-                   for e in cap.exchanges)
-        assert cap.summary["total_inference_sec"] == 0.0
+        def slow_chat(*args, **kwargs):
+            time.sleep(0.06)
+            return responses.pop(0)
+
+        cap = self._run(tmp_path, "classic", slow_chat)
+
+        assert cap.summary["total_backoff_sec"] == pytest.approx(0.04)
+        assert all(e["backoff_ms"] == 10 for e in cap.exchanges)
+        assert all(e["latency_ms"] >= 50 for e in cap.exchanges)
+        assert all(e["inference_ms"] == e["latency_ms"] - 10 for e in cap.exchanges)
+        assert all(0 < e["inference_ms"] < e["latency_ms"] for e in cap.exchanges)
+        # Run-level inference time is wall time minus the backoff share
+        assert cap.summary["total_inference_sec"] == pytest.approx(
+            cap.summary["total_time_sec"] - 0.04, abs=1e-3)
 
         backoffs = [e for e in cap.events if e["kind"] == "model_backoff"]
         assert len(backoffs) == 4
-        assert backoffs[0]["payload"]["backoff_ms"] == 1500
+        assert backoffs[0]["payload"]["backoff_ms"] == 10
 
     def test_error_path_attributes_last_backoff(self, tmp_path):
         """Backoff burned before a call finally failed is still accounted for."""
@@ -1735,25 +1746,55 @@ class TestSharedExchangeScaffolding:
     def test_parallel_puzzles_get_isolated_contexts_and_summed_totals(self, tmp_path):
         """Two puzzles across two threads: each gets its own task/session id and
         its own accounting, and the run totals are the sum."""
+        # Puzzle 246 swaps GRAPE -> MELON so the two prompts are distinguishable
+        # and each thread's request can be tied back to its own puzzle.
         puzzles = [self._puzzle(self._TRAP_GROUPS), self._puzzle(self._TRAP_GROUPS)]
         puzzles[1].id = 246
+        puzzles[1].words = ["MELON" if w == "GRAPE" else w for w in puzzles[1].words]
+        puzzles[1].groups = _make_test_groups()
+        puzzles[1].groups[0].words = ["APPLE", "BANANA", "CHERRY", "MELON"]
+        answers = {
+            477: self._answer(),
+            246: "<answer>\n" + "\n".join(
+                ", ".join(g.words) for g in puzzles[1].groups) + "\n</answer>",
+        }
         with patch.object(ConnectionsGame, '_load_puzzles', return_value=puzzles), \
              patch.object(ConnectionsGame, '_load_model_mappings',
                           return_value={"test-model": "openai/o3"}):
             game = ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode="oneshot")
 
-        prompts, sessions = [], []
+        # Correlating each request's session_id with the puzzle its prompt is for
+        # catches a context swap between threads — which asserting on id sets
+        # alone would not.
+        sessions = {}
+
+        def capture_chat(messages, model_id, provider=None, session_id=None, **kwargs):
+            rendered = " ".join(m["content"] for m in messages)
+            pid = 246 if "MELON" in rendered else 477
+            sessions[pid] = session_id
+            return self._response(answers[pid])
+
+        prompts, completions, exchanges = [], [], []
         with patch("connections_eval.core.openrouter_adapter.chat",
-                   side_effect=lambda *a, **kw: (sessions.append(kw["session_id"]),
-                                                 self._response(self._answer()))[1]), \
+                   side_effect=capture_chat), \
+             patch("connections_eval.core.log_exchange",
+                   side_effect=lambda logger, data: exchanges.append(data)), \
              patch.object(core_mod.cl, "model_prompt",
-                          side_effect=lambda **kw: prompts.append(kw)):
+                          side_effect=lambda **kw: prompts.append(kw)), \
+             patch.object(core_mod.cl, "model_completion",
+                          side_effect=lambda **kw: completions.append(kw)):
             summary = game.run_evaluation("test-model", puzzle_ids=[477, 246], threads=2)
 
         assert summary["puzzles_attempted"] == 2
         assert summary["puzzles_solved"] == 2
         assert summary["total_prompt_tokens"] == 200
         assert summary["total_completion_tokens"] == 100
-        assert sorted(sessions) == sorted(f"T{pid}:{game.run_id}" for pid in (477, 246))
-        assert sorted(p["task_id"] for p in prompts) == sorted(sessions)
-        assert sorted(p["payload"]["puzzle_id"] for p in prompts) == [246, 477]
+
+        # Each puzzle's sticky-routing session and telemetry task id are its own
+        expected = {pid: f"T{pid}:{game.run_id}" for pid in (477, 246)}
+        assert sessions == expected
+        assert {p["payload"]["puzzle_id"]: p["task_id"] for p in prompts} == expected
+        assert {c["payload"]["puzzle_id"]: c["task_id"] for c in completions} == expected
+        assert {e["puzzle_id"] for e in exchanges} == {477, 246}
+        # Per-puzzle accounting stayed separate rather than doubling up
+        assert all(e["prompt_tokens"] == 100 for e in exchanges)

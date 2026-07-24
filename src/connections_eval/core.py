@@ -987,9 +987,10 @@ class ConnectionsGame:
         """Structural validity of a one-shot submission — the single gate that
         both _score_oneshot and the ONESHOT_INVALID marker rely on.
 
-        Exactly 4 groups of 4 words whose 16 words (upper-cased) equal the
-        puzzle's words; the set comparison covers duplicates and non-puzzle
-        words at once.
+        Exactly 4 groups of 4 words whose 16 submitted words equal the puzzle's
+        words. Only puzzle.words is upper-cased here — submitted words arrive
+        already upper-cased from the parsers. The set comparison covers
+        duplicates and non-puzzle words at once.
         """
         submitted_words = [w for g in groups for w in g]
         return (
