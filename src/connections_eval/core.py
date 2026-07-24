@@ -562,9 +562,9 @@ class ConnectionsGame:
         log_summary(self.logger, summary)
         return summary
 
-    def _begin_puzzle(self, puzzle: Puzzle, model_name: str,
-                      attempt: Optional[int]) -> _PuzzleRunContext:
-        """Resolve a puzzle's transport identifiers and emit its NEW -> WIP move.
+    def _puzzle_context(self, puzzle: Puzzle, model_name: str,
+                        attempt: Optional[int]) -> _PuzzleRunContext:
+        """Resolve a puzzle's transport and telemetry identifiers.
 
         attempt: optional trial index. The normal eval path runs each puzzle once
             per run_id, so task_id is already unique. Ranking re-runs the same
@@ -574,7 +574,7 @@ class ConnectionsGame:
         """
         model_id = self.MODEL_CONFIG[model_name]
         task_id = f"T{puzzle.id}:{self.run_id}"
-        ctx = _PuzzleRunContext(
+        return _PuzzleRunContext(
             model_name=model_name,
             model_id=model_id,
             pinned_provider=openrouter_adapter.extract_provider_slug(model_id),
@@ -583,9 +583,15 @@ class ConnectionsGame:
             session_id=task_id if attempt is None else f"{task_id}:a{attempt}",
         )
 
+    def _emit_puzzle_start(self, puzzle: Puzzle, ctx: _PuzzleRunContext) -> None:
+        """Emit the NEW -> WIP transition for a puzzle.
+
+        Called only once the prompt is built and the clock is running, so a
+        failure building the prompt can't leave a task stranded in WIP.
+        """
         try:
             cl.state_move(
-                task_id=task_id, from_="NEW", to="WIP",
+                task_id=ctx.task_id, from_="NEW", to="WIP",
                 project_id="connections_eval",
                 agent_id="agent:connections_eval",
                 run_id=self.run_id,
@@ -594,9 +600,7 @@ class ConnectionsGame:
         except Exception:
             pass
 
-        return ctx
-
-    def _finish_puzzle(self, puzzle: Puzzle, ctx: _PuzzleRunContext, won: bool) -> None:
+    def _emit_puzzle_finish(self, puzzle: Puzzle, ctx: _PuzzleRunContext, won: bool) -> None:
         """Emit the final WIP -> DONE/FAILED transition for a puzzle."""
         try:
             cl.state_move(
@@ -836,9 +840,9 @@ class ConnectionsGame:
 
         Guesses one group at a time, feeding each result back to the model until
         it solves the puzzle or exhausts its mistakes/invalid responses.
-        See _begin_puzzle for the `attempt` semantics.
+        See _puzzle_context for the `attempt` semantics.
         """
-        ctx = self._begin_puzzle(puzzle, model_name, attempt)
+        ctx = self._puzzle_context(puzzle, model_name, attempt)
 
         state = GameState(
             puzzle=puzzle,
@@ -856,6 +860,7 @@ class ConnectionsGame:
         final_state_emitted = False
 
         state.start_time = time.time()
+        self._emit_puzzle_start(puzzle, ctx)
 
         while not state.finished:
             exchange = self._run_exchange(
@@ -881,7 +886,7 @@ class ConnectionsGame:
 
         # Emit final state transition
         if not final_state_emitted:
-            self._finish_puzzle(puzzle, ctx, won=state.won)
+            self._emit_puzzle_finish(puzzle, ctx, won=state.won)
 
         return PuzzleResult(
             won=state.won,
@@ -1074,14 +1079,15 @@ class ConnectionsGame:
 
         A single API call: the model submits all 4 groups at once and there is no
         feedback loop. Base score 0/1/2/3 (perfect = 3) plus a 2-point trap bonus.
-        See _begin_puzzle for the `attempt` semantics.
+        See _puzzle_context for the `attempt` semantics.
         """
-        ctx = self._begin_puzzle(puzzle, model_name, attempt)
+        ctx = self._puzzle_context(puzzle, model_name, attempt)
         messages = self._build_initial_messages(puzzle, rng)
         puzzle_max = 5 if puzzle.trap_groups is not None else 3
         outcome = _OneshotOutcome()
 
         start_time = time.time()
+        self._emit_puzzle_start(puzzle, ctx)
 
         def verdict_fn(content: str, structured: Dict[str, str]) -> _Verdict:
             nonlocal outcome
@@ -1126,7 +1132,7 @@ class ConnectionsGame:
         time_sec = time.time() - start_time
 
         # Emit final state transition
-        self._finish_puzzle(puzzle, ctx, won=outcome.won)
+        self._emit_puzzle_finish(puzzle, ctx, won=outcome.won)
 
         return PuzzleResult(
             won=outcome.won,

@@ -3,10 +3,12 @@
 import random
 import pytest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 from connections_eval import core as core_mod
 from connections_eval.core import ConnectionsGame, GameState, Puzzle, PuzzleGroup, PuzzleResult, EvalStats
+from connections_eval.adapters import openrouter_adapter
 from connections_eval.adapters.openrouter_adapter import extract_provider_slug
 from connections_eval.utils.tokens import extract_cache_info
 
@@ -1417,9 +1419,15 @@ class TestAdapterChoicesFix:
 
 class TestSharedExchangeScaffolding:
     """Both runners share _run_exchange for transport, accounting and telemetry.
-    These lock in the mode-specific pieces that must stay distinct."""
+    These lock in the compatibility contract that MotherDuck aggregation
+    (scripts/extract_summaries.py, scripts/generate_logs_view.py) parses, plus the
+    mode-specific pieces that must stay distinct."""
 
     _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+    # One annotated trap set: one word from each real group, so it satisfies the
+    # cross-cutting rule in _score_trap_claims.
+    _TRAP = ["APPLE", "BLUE", "FAST", "BRIGHT"]
+    _TRAP_GROUPS = [_TRAP]
 
     def _make_game(self, tmp_path, puzzle, mode):
         with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
@@ -1436,72 +1444,122 @@ class TestSharedExchangeScaffolding:
         return p
 
     @staticmethod
-    def _response(content):
+    def _response(content, cost=None, cached=None):
+        usage = {"prompt_tokens": 100, "completion_tokens": 50}
+        if cost is not None:
+            usage["cost"] = cost
+            # upstream_inference_cost is only additive (and only recorded) for BYOK
+            usage["cost_details"] = {"upstream_inference_cost": cost * 2}
+            usage["is_byok"] = True
+        if cached is not None:
+            usage["prompt_tokens_details"] = {"cached_tokens": cached}
         return {
             "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+            "usage": usage,
         }
 
-    def _run(self, tmp_path, mode, side_effect):
-        """Run one puzzle, returning (summary, exchange_logs, controllog_events)."""
-        puzzle = self._puzzle(trap_groups=[["APPLE", "BLUE", "FAST", "BRIGHT"]])
-        game = self._make_game(tmp_path, puzzle, mode)
+    @staticmethod
+    def _answer(traps=None):
+        answer = "<answer>\n" + "\n".join(
+            ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>"
+        return answer if traps is None else f"{answer}\n<traps>\n{traps}\n</traps>"
 
-        exchanges, events = [], []
+    @staticmethod
+    def _guesses(**response_kwargs):
+        return [TestSharedExchangeScaffolding._response(
+            f"<guess>{', '.join(g.words)}</guess>", **response_kwargs)
+            for g in _make_test_groups()]
+
+    def _run(self, tmp_path, mode, side_effect, trap_groups=None, game=None):
+        """Run one puzzle, capturing every logged/emitted side effect."""
+        puzzle = self._puzzle(trap_groups=trap_groups or self._TRAP_GROUPS)
+        game = game or self._make_game(tmp_path, puzzle, mode)
+
+        cap = SimpleNamespace(exchanges=[], events=[], moves=[], prompts=[],
+                              completions=[], summary=None, chat=None)
         with patch("connections_eval.core.openrouter_adapter.chat",
                    side_effect=side_effect) as chat_mock, \
              patch("connections_eval.core.log_exchange",
-                   side_effect=lambda logger, data: exchanges.append(data)), \
+                   side_effect=lambda logger, data: cap.exchanges.append(data)), \
              patch.object(core_mod.cl, "event",
-                          side_effect=lambda **kw: events.append(kw)):
-            summary = game.run_evaluation("test-model", puzzle_ids=[477])
-        return summary, exchanges, events, chat_mock
+                          side_effect=lambda **kw: cap.events.append(kw)), \
+             patch.object(core_mod.cl, "state_move",
+                          side_effect=lambda **kw: cap.moves.append(kw)), \
+             patch.object(core_mod.cl, "model_prompt",
+                          side_effect=lambda **kw: cap.prompts.append(kw)), \
+             patch.object(core_mod.cl, "model_completion",
+                          side_effect=lambda **kw: cap.completions.append(kw)):
+            cap.summary = game.run_evaluation("test-model", puzzle_ids=[477])
+        cap.chat = chat_mock
+        return cap
+
+    # --- shared plumbing -------------------------------------------------
 
     def test_reasoning_effort_reaches_adapter_in_both_modes(self, tmp_path):
-        answer = "<answer>\n" + "\n".join(
-            ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>"
-        for mode, content in (("oneshot", answer),
+        for mode, content in (("oneshot", self._answer()),
                               ("classic", "<guess>APPLE, BANANA, CHERRY, GRAPE</guess>")):
-            _, _, _, chat_mock = self._run(
-                tmp_path, mode, [self._response(content)] * 6)
-            assert chat_mock.call_args.kwargs["reasoning_effort"] == "high"
+            cap = self._run(tmp_path, mode, [self._response(content)] * 6)
+            assert cap.chat.call_args.kwargs["reasoning_effort"] == "high"
 
-    def test_classic_api_error_event_has_no_oneshot_marker(self, tmp_path):
-        """The ONESHOT_API_ERROR_MAX_n mode marker must not leak into classic
-        runs — MotherDuck uses it to classify a fully-failed run's mode."""
-        _, exchanges, events, _ = self._run(tmp_path, "classic", RuntimeError("boom"))
+    def test_totals_accumulate_across_classic_turns(self, tmp_path):
+        """Four turns of 100/50 tokens, $0.01 and 40 cached tokens each."""
+        cap = self._run(tmp_path, "classic", self._guesses(cost=0.01, cached=40))
 
-        assert [e["result"] for e in exchanges] == ["API_ERROR"]
-        errors = [e for e in events if e["kind"] == "model_response_error"]
-        assert len(errors) == 1
-        assert "result" not in errors[0]["payload"]
+        assert cap.summary["total_prompt_tokens"] == 400
+        assert cap.summary["total_completion_tokens"] == 200
+        assert cap.summary["total_tokens"] == 600
+        assert cap.summary["total_cached_tokens"] == 160
+        assert cap.summary["total_cost"] == pytest.approx(0.04)
+        assert cap.summary["total_upstream_cost"] == pytest.approx(0.08)
+        assert cap.summary["token_count_method"] == "API"
 
-    def test_oneshot_api_error_event_carries_max_marker(self, tmp_path):
-        _, exchanges, events, _ = self._run(tmp_path, "oneshot", RuntimeError("boom"))
+    def test_oneshot_totals_come_from_single_call(self, tmp_path):
+        cap = self._run(tmp_path, "oneshot",
+                        [self._response(self._answer(), cost=0.01, cached=40)])
 
-        assert [e["result"] for e in exchanges] == ["API_ERROR"]
-        errors = [e for e in events if e["kind"] == "model_response_error"]
-        assert errors[0]["payload"]["result"] == "ONESHOT_API_ERROR_MAX_5"
+        assert cap.summary["total_prompt_tokens"] == 100
+        assert cap.summary["total_completion_tokens"] == 50
+        assert cap.summary["total_cached_tokens"] == 40
+        assert cap.summary["total_cost"] == pytest.approx(0.01)
+        assert cap.summary["total_upstream_cost"] == pytest.approx(0.02)
+
+    # --- exchange log shape (parsed by generate_logs_view) ---------------
+
+    _BASE_LOG_FIELDS = [
+        "run_id", "model", "puzzle_id", "guess_index", "request", "response",
+        "thinking", "guess", "confidence", "latency_ms", "backoff_ms",
+        "inference_ms", "prompt_tokens", "completion_tokens", "result",
+    ]
+
+    def test_classic_exchange_log_field_order(self, tmp_path):
+        cap = self._run(tmp_path, "classic", self._guesses(cost=0.01, cached=40))
+
+        assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
+            "cost", "upstream_cost", "cached_tokens"]
+        # Classic exchanges carry no one-shot score fields
+        assert all("score" not in e for e in cap.exchanges)
+
+    def test_oneshot_exchange_log_field_order(self, tmp_path):
+        cap = self._run(tmp_path, "oneshot",
+                        [self._response(self._answer(), cost=0.01, cached=40)])
+
+        assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
+            "score", "groups_correct", "trap_bonus", "trap_claims",
+            "cost", "upstream_cost", "cached_tokens"]
 
     def test_classic_exchange_log_records_post_guess_index(self, tmp_path):
         """Classic logs the guess index *after* the guess is counted, so a run of
         correct guesses logs 1..4 rather than 0..3."""
-        guesses = [self._response(f"<guess>{', '.join(g.words)}</guess>")
-                   for g in _make_test_groups()]
-        _, exchanges, _, _ = self._run(tmp_path, "classic", guesses)
+        cap = self._run(tmp_path, "classic", self._guesses())
 
-        assert [e["guess_index"] for e in exchanges] == [1, 2, 3, 4]
-        # Classic exchanges carry no one-shot score fields
-        assert all("score" not in e for e in exchanges)
+        assert [e["guess_index"] for e in cap.exchanges] == [1, 2, 3, 4]
+        assert [c["payload"]["guess_index"] for c in cap.completions] == [1, 2, 3, 4]
 
     def test_oneshot_exchange_log_carries_score_fields(self, tmp_path):
-        answer = "<answer>\n" + "\n".join(
-            ", ".join(g.words) for g in _make_test_groups()
-        ) + "\n</answer>\n<traps>\nAPPLE, BLUE, FAST, BRIGHT\n</traps>"
-        _, exchanges, _, _ = self._run(tmp_path, "oneshot", [self._response(answer)])
+        cap = self._run(tmp_path, "oneshot",
+                        [self._response(self._answer(traps=", ".join(self._TRAP)))])
 
-        assert len(exchanges) == 1
-        logged = exchanges[0]
+        logged = cap.exchanges[0]
         assert logged["guess_index"] == 0
         assert logged["result"] == "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5"
         assert logged["score"] == 5
@@ -1511,10 +1569,95 @@ class TestSharedExchangeScaffolding:
         # 'guess' is the <answer> block, not the classic <guess> tag
         assert "APPLE, BANANA, CHERRY, GRAPE" in logged["guess"]
 
-    def test_non_retryable_error_still_aborts_both_modes(self, tmp_path):
-        class NoCredits(RuntimeError):
-            non_retryable = True
+    # --- controllog telemetry (parsed by extract_summaries) --------------
 
+    def test_classic_telemetry_payloads(self, tmp_path):
+        cap = self._run(tmp_path, "classic", self._guesses())
+
+        assert [p["payload"] for p in cap.prompts] == [
+            {"puzzle_id": 477, "guess_index": i} for i in (1, 2, 3, 4)]
+        # Verdict strings feed the classic solve/mistake aggregation
+        assert [c["payload"] for c in cap.completions] == [
+            {"puzzle_id": 477, "guess_index": 1, "result": "CORRECT. NEXT GUESS?"},
+            {"puzzle_id": 477, "guess_index": 2, "result": "CORRECT. NEXT GUESS?"},
+            {"puzzle_id": 477, "guess_index": 3, "result": "CORRECT. NEXT GUESS?"},
+            {"puzzle_id": 477, "guess_index": 4, "result": "CORRECT"},
+        ]
+
+    def test_oneshot_telemetry_payload_carries_score_fields(self, tmp_path):
+        cap = self._run(tmp_path, "oneshot",
+                        [self._response(self._answer(traps=", ".join(self._TRAP)))])
+
+        assert cap.prompts[0]["payload"] == {"puzzle_id": 477, "guess_index": 0}
+        assert cap.completions[0]["payload"] == {
+            "puzzle_id": 477, "guess_index": 0,
+            "result": "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5",
+            "score": 5, "groups_correct": 4, "trap_bonus": 2,
+        }
+
+    # --- state transitions ----------------------------------------------
+
+    @staticmethod
+    def _transitions(cap):
+        return [(m["from_"], m["to"]) for m in cap.moves]
+
+    def test_solved_puzzle_moves_new_wip_done(self, tmp_path):
+        for mode, side_effect in (("classic", self._guesses()),
+                                  ("oneshot", [self._response(self._answer())])):
+            cap = self._run(tmp_path, mode, side_effect)
+            assert self._transitions(cap) == [("NEW", "WIP"), ("WIP", "DONE")]
+
+    def test_api_error_moves_wip_failed_exactly_once(self, tmp_path):
         for mode in ("classic", "oneshot"):
-            with pytest.raises(NoCredits):
-                self._run(tmp_path, mode, NoCredits("insufficient credits"))
+            cap = self._run(tmp_path, mode, RuntimeError("boom"))
+            assert self._transitions(cap) == [("NEW", "WIP"), ("WIP", "FAILED")]
+            assert cap.moves[-1]["payload"] == {"puzzle_id": 477, "reason": "api_error"}
+
+    def test_prompt_build_failure_leaves_no_wip_task(self, tmp_path):
+        """WIP is only claimed once the prompt exists, so a prompt-build failure
+        can't strand a task in WIP with no terminal transition."""
+        for mode in ("classic", "oneshot"):
+            game = self._make_game(tmp_path, self._puzzle(self._TRAP_GROUPS), mode)
+            with patch.object(game, "_build_initial_messages",
+                              side_effect=RuntimeError("bad template")):
+                cap = self._run(tmp_path, mode, [self._response("")], game=game)
+            assert cap.moves == []
+            assert cap.summary["puzzles_attempted"] == 0
+
+    # --- error paths -----------------------------------------------------
+
+    def test_classic_api_error_event_has_no_oneshot_marker(self, tmp_path):
+        """The ONESHOT_API_ERROR_MAX_n mode marker must not leak into classic
+        runs — MotherDuck uses it to classify a fully-failed run's mode."""
+        cap = self._run(tmp_path, "classic", RuntimeError("boom"))
+
+        assert [e["result"] for e in cap.exchanges] == ["API_ERROR"]
+        errors = [e for e in cap.events if e["kind"] == "model_response_error"]
+        assert len(errors) == 1
+        assert "result" not in errors[0]["payload"]
+
+    def test_oneshot_api_error_event_carries_max_marker(self, tmp_path):
+        cap = self._run(tmp_path, "oneshot", RuntimeError("boom"))
+
+        assert [e["result"] for e in cap.exchanges] == ["API_ERROR"]
+        errors = [e for e in cap.events if e["kind"] == "model_response_error"]
+        assert errors[0]["payload"]["result"] == "ONESHOT_API_ERROR_MAX_5"
+        # A failed call claims no tokens or cost, but still contributes the ceiling
+        assert cap.summary["total_tokens"] == 0
+        assert cap.summary["total_cost"] == 0.0
+        assert cap.summary["max_score"] == 5
+
+    def test_insufficient_credits_aborts_both_modes(self, tmp_path):
+        """402 must abort the run with no summary, in both modes."""
+        for mode in ("classic", "oneshot"):
+            with pytest.raises(openrouter_adapter.InsufficientCreditsError):
+                self._run(tmp_path, mode,
+                          openrouter_adapter.InsufficientCreditsError("no credits"))
+
+    def test_insufficient_credits_aborts_parallel_run(self, tmp_path):
+        puzzle = self._puzzle(self._TRAP_GROUPS)
+        game = self._make_game(tmp_path, puzzle, "oneshot")
+        with patch("connections_eval.core.openrouter_adapter.chat",
+                   side_effect=openrouter_adapter.InsufficientCreditsError("no credits")), \
+             pytest.raises(openrouter_adapter.InsufficientCreditsError):
+            game.run_evaluation("test-model", puzzle_ids=[477], threads=4)
