@@ -291,6 +291,20 @@ Latest one-shot runs for 30 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.022"
     },
     {
+      "model": "<a href=\"logs/2026-07-30T19-34-21_gpt5.6-luna-pro.html\">openai/gpt-5.6-luna-pro</a>",
+      "date": "2026-07-30",
+      "pts": 72,
+      "pts_pct": 0.72,
+      "w": "17",
+      "grp": "73/80",
+      "trap": "16",
+      "inv": "0",
+      "avg_time": "28s",
+      "tok_per_game": "12.4k",
+      "cost": 0.07,
+      "cost_per_game": "$0.004"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T22-54-59_sonnet-5.html\">anthropic/claude-sonnet-5</a>",
       "date": "2026-07-22",
       "pts": 71,
@@ -331,20 +345,6 @@ Latest one-shot runs for 30 models (20 games each, one submission per game, max 
       "tok_per_game": "2.8k",
       "cost": 0.36,
       "cost_per_game": "$0.018"
-    },
-    {
-      "model": "<a href=\"logs/2026-07-22T22-59-11_gpt5.6-luna-pro.html\">openai/gpt-5.6-luna-pro</a>",
-      "date": "2026-07-22",
-      "pts": 68,
-      "pts_pct": 0.68,
-      "w": "18",
-      "grp": "74/80",
-      "trap": "12",
-      "inv": "0",
-      "avg_time": "21s",
-      "tok_per_game": "11.9k",
-      "cost": 0.68,
-      "cost_per_game": "$0.034"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-41-49_deepseek-v4-flash.html\">deepseek/deepseek-v4-flash</a>",
