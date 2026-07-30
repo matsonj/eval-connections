@@ -263,6 +263,20 @@ Latest one-shot runs for 30 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.020"
     },
     {
+      "model": "<a href=\"logs/2026-07-30T19-14-44_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
+      "date": "2026-07-30",
+      "pts": 74,
+      "pts_pct": 0.74,
+      "w": "14",
+      "grp": "64/80",
+      "trap": "24",
+      "inv": "1",
+      "avg_time": "16s",
+      "tok_per_game": "2.1k",
+      "cost": 0.02,
+      "cost_per_game": "$0.001"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T23-18-52_glm-5v-turbo.html\">z-ai/glm-5v-turbo</a>",
       "date": "2026-07-22",
       "pts": 74,
@@ -415,20 +429,6 @@ Latest one-shot runs for 30 models (20 games each, one submission per game, max 
       "tok_per_game": "14.3k",
       "cost": 0.32,
       "cost_per_game": "$0.016"
-    },
-    {
-      "model": "<a href=\"logs/2026-07-22T23-27-34_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
-      "date": "2026-07-22",
-      "pts": 62,
-      "pts_pct": 0.62,
-      "w": "13",
-      "grp": "63/80",
-      "trap": "12",
-      "inv": "1",
-      "avg_time": "16s",
-      "tok_per_game": "2.1k",
-      "cost": 0.2,
-      "cost_per_game": "$0.010"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-08-13_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",

@@ -1,0 +1,999 @@
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Run 2026-07-30T19-14-44_gpt5.6-luna · Logs</title><style>body{font-family:ui-monospace,Menlo,Consolas,Monaco,"Courier New",monospace;margin:0;padding:0;background:repeating-linear-gradient(0deg,#e9ecef,#e9ecef 24px,#eff2f5 25px);color:#0f1419;}.container{max-width:1024px;margin:0 auto;padding:24px;}.panel{background:#ffffff;border:2px solid #2b3035;box-shadow:inset 0 0 0 1px #d9dde1;}.topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#1f2a36;color:#e6eef7;border-bottom:2px solid #2b3035;letter-spacing:0.04em;text-transform:uppercase;}.title{font-weight:700;} .meta{color:#8aa0b8;font-size:12px;}.content{padding:16px;}.row{display:flex;flex-direction:column;margin:8px 0;}.bubble{max-width:76%;padding:0;border:2px solid #2b3035;background:#fff;}.bubble .metahead{background:#f2f5f8;border-bottom:2px solid #2b3035;padding:6px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:#28323b;display:flex;justify-content:space-between;}.bubble .body{padding:12px 14px;white-space:pre-wrap;word-wrap:break-word;}.left{align-self:flex-start;border-left:6px solid #6c757d;}.right{align-self:flex-end;border-left:6px solid #0d6efd;background:#f7fbff;}.step{border-left:4px solid #2b3035;padding-left:12px;margin:18px 0;}.state{font-size:12px;color:#34424f;margin-left:2px;margin-top:6px;}.stats{font-size:12px;color:#1f2a36;margin-top:6px;}.pill{display:inline-block;background:#f0f3f6;border:2px solid #2b3035;border-radius:0;padding:2px 8px;margin-right:6px;color:#1f2a36;}.endpill{display:inline-block;background:#e7f5ec;border:2px solid #2b3035;color:#1f3b2a;border-radius:0;padding:4px 10px;margin:10px 0;}details{margin:8px 0;} details>summary{cursor:pointer;color:#0b63ce;list-style:none;display:flex;align-items:center;}details>summary::before{content:'\25B8';font-size:14px;margin-right:6px;flex-shrink:0;transition:transform 0.15s;line-height:1;}details[open]>summary::before{transform:rotate(90deg);}.thinking{font-style:italic;font-size:12px;color:#2b333b;white-space:pre-wrap;overflow-x:auto;}.bubble .body{overflow:hidden;}.bubble details{margin:4px 0;}.footer{margin:24px;color:#48525c;font-size:12px;}a{color:#0b63ce;text-decoration:none;}a:hover{text-decoration:underline;}.puzzle-block{border:2px solid #2b3035;margin:10px 0;background:#fff;}.puzzle-block>summary{cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;background:#f2f5f8;border-bottom:2px solid #2b3035;list-style:none;font-size:13px;}.puzzle-block>summary::before{content:'\25B8';font-size:16px;flex-shrink:0;line-height:1;transition:transform 0.15s;}.puzzle-block[open]>summary::before{transform:rotate(90deg);}.puzzle-block>summary .puzzle-stats-inline{color:#48525c;font-size:12px;margin-left:auto;text-align:right;white-space:nowrap;}.puzzle-failed>summary{background:#fff3f3;}.puzzle-failed>summary .pill{border-color:#c0392b;color:#c0392b;}.puzzle-solved>summary{background:#eaf6ee;}.puzzle-solved>summary .pill{border-color:#1f3b2a;color:#1f3b2a;}.bubble.error{border-left-color:#c0392b;background:#fff5f5;}.bubble.error .metahead{background:#ffe5e5;color:#7a1f1f;}.endpill.failed{background:#fde7e9;color:#5b1a1f;}</style></head><body><div class="container"><div class="panel"><div class="topbar"><div class="title">Run 2026-07-30T19-14-44_gpt5.6-luna</div><div class="meta">openrouter · openai/gpt-5.6-luna · <a href="../index.html" style="color:#b6c7da">Back</a></div></div><div class="content"><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 817</span><span class="puzzle-stats-inline">Invalid · Base: 0 · Bonus: 0 · Total: 0/5 · Cost: $0.0012 · Time: 20.8s</span></summary><div class="endpill">817 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:32.771202</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: ZEST, JACK, FREE, SOLO, ZING, KICK, MING, BUCK, PUNCH, RAM, TANG, SINGLE, BILLY, STAG, SONG, HAN</div></div><div class="stats">prompt: 470</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_INVALID_MAX_5</span><span>2026-07-30 19:15:32.77167</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">ZEST, ZING, KICK, and PUNCH can all describe intensity or flavor. JACK, BILLY, BUCK, and RAM are male animals. FREE, SOLO, SINGLE, and STAG describe being alone or without a partner. HAN, MING, SONG, and TANG are Chinese dynasties, forming the trap set rather than a valid group.</div></details><div>&lt;answer&gt;
+ZEST, ZING, KICK, PUNCH
+JACK, BILLY, BUCK, RAM
+FREE, SOLO, SINGLE, STAG
+&lt;/answer&gt;
+
+&lt;traps&gt;
+HAN, MING, SONG, TANG
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.96
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,955 · cost: $0.001220 · result: ONESHOT_INVALID_MAX_5</div></div><div class="endpill failed">817 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 470 · completion: 1,955 · guesses: 1 · correct: 0 · time: 00:00 · cost: $0.0012</div></details><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 814</span><span class="puzzle-stats-inline">Base: 1 · Bonus: 0 · Total: 1/5 · Cost: $0.0015 · Time: 23.3s</span></summary><div class="endpill">814 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:41.454318</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: PROFANITY, EARRING, CHRISTMAS, HERRING, NECKLACE, MYSTERY, MOUSE, EXPLETIVES, PLEATHER VEST, SWEARING, HISTAMINE, FOUR-LETTER WORDS, OUROBOROS, MESH SHIRT, HOUSE, STIRRING</div></div><div class="stats">prompt: 496</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_1_GROUPS_1_TRAP_0_MAX_5</span><span>2026-07-30 19:15:41.454801</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">PROFANITY, EXPLETIVES, SWEARING, and FOUR-LETTER WORDS are clear synonyms. EARRING, HERRING, STIRRING, and OUROBOROS all relate to “rings” either by spelling or shape. The remaining words are grouped by clothing/accessories and thematic “house” associations.</div></details><div>&lt;answer&gt;
+PROFANITY, EXPLETIVES, SWEARING, FOUR-LETTER WORDS
+EARRING, HERRING, STIRRING, OUROBOROS
+NECKLACE, PLEATHER VEST, MESH SHIRT, HISTAMINE
+CHRISTMAS, MYSTERY, MOUSE, HOUSE
+&lt;/answer&gt;
+
+&lt;traps&gt;
+EARRING, HERRING, STIRRING, OUROBOROS
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.18
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 2,473 · cost: $0.001533 · result: ONESHOT_SCORE_1_GROUPS_1_TRAP_0_MAX_5</div></div><div class="endpill failed">814 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 496 · completion: 2,473 · guesses: 1 · correct: 1 · time: 00:00 · cost: $0.0015</div></details><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 830</span><span class="puzzle-stats-inline">Base: 1 · Bonus: 0 · Total: 1/5 · Cost: $0.0014 · Time: 22.9s</span></summary><div class="endpill">830 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:19.380111</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: WILLING, ABLE, DOWN, PREPARE, NOAA, N.F.L., NASA, OUTFIT, EQUIP, READY, CANE, GAME, EAVE, EAGER, PARAMOUNT, SUBARU</div></div><div class="stats">prompt: 475</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_1_GROUPS_1_TRAP_0_MAX_5</span><span>2026-07-30 19:15:19.380574</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">OUTFIT, EQUIP, PREPARE, and READY are synonyms for making something ready. WILLING, ABLE, EAGER, and GAME can all describe someone inclined or prepared to participate. The remaining organizational names are NOAA, NASA, N.F.L., and PARAMOUNT. The likely trap is a set of entities associated with star imagery in their logos or branding.</div></details><div>&lt;answer&gt;
+OUTFIT, EQUIP, PREPARE, READY
+WILLING, ABLE, EAGER, GAME
+NOAA, NASA, N.F.L., PARAMOUNT
+DOWN, CANE, EAVE, SUBARU
+&lt;/answer&gt;
+
+&lt;traps&gt;
+NASA, N.F.L., PARAMOUNT, SUBARU
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.34
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 2,185 · cost: $0.001359 · result: ONESHOT_SCORE_1_GROUPS_1_TRAP_0_MAX_5</div></div><div class="endpill failed">830 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 475 · completion: 2,185 · guesses: 1 · correct: 1 · time: 00:00 · cost: $0.0014</div></details><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 842</span><span class="puzzle-stats-inline">Base: 2 · Bonus: 2 · Total: 4/5 · Cost: $0.0014 · Time: 21.2s</span></summary><div class="endpill">842 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:05.945099</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: WOOD, WOODSTOCK, STILTED, COULD, WOODY, THEREFORE, GUTHRIE, CLASSICS, FOGHORN, CHUCK, SCROOGE, WOODCHUCK, WOODEN, STIFF, AWKWARD, CREATE</div></div><div class="stats">prompt: 488</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_4_GROUPS_2_TRAP_2_MAX_5</span><span>2026-07-30 19:15:05.945596</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The clearest groups are:
+&bull; STILTED, STIFF, WOODEN, AWKWARD: describing unnatural or uncomfortable movement.
+&bull; FOGHORN, SCROOGE, WOODSTOCK, WOODY: cartoon/animated characters.
+The remaining words suggest a wordplay group involving WOOD, WOODCHUCK, CHUCK, and GUTHRIE, while COULD, CLASSICS, CREATE, and THEREFORE form the final residual group. The likely trap is the set of WOOD-prefixed words, which overlaps the character category.</div></details><div>&lt;answer&gt;
+STILTED, STIFF, WOODEN, AWKWARD
+FOGHORN, SCROOGE, WOODSTOCK, WOODY
+WOOD, WOODCHUCK, CHUCK, GUTHRIE
+COULD, CLASSICS, CREATE, THEREFORE
+&lt;/answer&gt;
+
+&lt;traps&gt;
+WOOD, WOODCHUCK, WOODSTOCK, WOODY
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.24
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 2,183 · cost: $0.001359 · result: ONESHOT_SCORE_4_GROUPS_2_TRAP_2_MAX_5</div></div><div class="endpill failed">842 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 488 · completion: 2,183 · guesses: 1 · correct: 2 · time: 00:00 · cost: $0.0014</div></details><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 832</span><span class="puzzle-stats-inline">Base: 2 · Bonus: 2 · Total: 4/5 · Cost: $0.0013 · Time: 21.9s</span></summary><div class="endpill">832 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:17.355206</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: DODGE, LARK, LINCOLN, CHIP, DUCK, SENATOR, SCRAPER, WING, ROCKET, DIP, STAR, RAM, DIVE, FLYER, FORD, FRY</div></div><div class="stats">prompt: 475</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_4_GROUPS_2_TRAP_2_MAX_5</span><span>2026-07-30 19:15:17.355679</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">DODGE, LINCOLN, RAM, and FORD are automobile makes. LARK, SCRAPER, ROCKET, and DIVE can all follow “SKY.” DUCK, DIP, FRY, and WING are food-related terms. The remaining words form a likely “BLUE ___” set. The obvious trap is the four DODGEBALL evasive actions: DUCK, DIP, DIVE, DODGE.</div></details><div>&lt;answer&gt;
+DODGE, LINCOLN, RAM, FORD
+LARK, SCRAPER, ROCKET, DIVE
+DUCK, DIP, FRY, WING
+CHIP, SENATOR, STAR, FLYER
+&lt;/answer&gt;
+
+&lt;traps&gt;
+DUCK, DIP, DIVE, DODGE
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.42
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 2,113 · cost: $0.001315 · result: ONESHOT_SCORE_4_GROUPS_2_TRAP_2_MAX_5</div></div><div class="endpill failed">832 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 475 · completion: 2,113 · guesses: 1 · correct: 2 · time: 00:00 · cost: $0.0013</div></details><details class="puzzle-block puzzle-failed"><summary class="puzzle-summary"><span class="pill">Puzzle 833</span><span class="puzzle-stats-inline">Base: 2 · Bonus: 0 · Total: 2/5 · Cost: $0.0011 · Time: 17.2s</span></summary><div class="endpill">833 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:11.949342</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: VEG, LOUNGE, LOAF, TABLE, BAR, TAP, SWIPE, BOOTH, ALE, EEK, QUASH, PINCH, HIVE, CHILL, SCROLL, COUNTER</div></div><div class="stats">prompt: 472</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_2_GROUPS_2_TRAP_0_MAX_5</span><span>2026-07-30 19:15:11.94983</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">SWIPE, SCROLL, TAP, and PINCH are touchscreen gestures. VEG, LOAF, LOUNGE, and CHILL describe relaxing or doing nothing. ALE, EEK, QUASH, and TABLE become new words when prefixed with S: SALE, SEEK, SQUASH, STABLE. The remaining four form the final group. BAR, BOOTH, COUNTER, and TABLE are a convincing restaurant-related trap, but TABLE belongs to the S-prefix group.</div></details><div>&lt;answer&gt;
+SWIPE, SCROLL, TAP, PINCH
+VEG, LOAF, LOUNGE, CHILL
+ALE, EEK, QUASH, TABLE
+BAR, BOOTH, COUNTER, HIVE
+&lt;/answer&gt;
+
+&lt;traps&gt;
+BAR, BOOTH, COUNTER, TABLE
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.72
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,739 · cost: $0.001091 · result: ONESHOT_SCORE_2_GROUPS_2_TRAP_0_MAX_5</div></div><div class="endpill failed">833 → FAILED <span class="meta">(WIP → FAILED)</span></div><div class="stats">prompt: 472 · completion: 1,739 · guesses: 1 · correct: 2 · time: 00:00 · cost: $0.0011</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 246</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 0 · Total: 3/5 · Cost: $0.0014 · Time: 21.8s</span></summary><div class="endpill">246 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:06.57085</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: PRISONER, MONKEY, GENIE, SAMURAI, REFEREE, FREEZE, CANDLES, ECHO, SAILOR, PRINCESS, APOLLO, MIME, DROP, PARROT, LAG, FANTASTIC</div></div><div class="stats">prompt: 482</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</span><span>2026-07-30 19:15:06.571383</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">MONKEY, GENIE, PARROT, and PRINCESS are associated with Aladdin. FREEZE, DROP, LAG, and ECHO are problems commonly experienced during video calls or online connections. The remaining words suggest titles or characters associated with numbered works: SEVEN SAMURAI, SIXTEEN CANDLES, APOLLO 13, and FANTASTIC FOUR. The final group consists of words associated with “Mr.” or “The”: PRISONER, REFEREE, SAILOR, and MIME. The apparent Aladdin group is the most likely trap because those words may be intended to split across the actual groups.</div></details><div>&lt;answer&gt;
+SAMURAI, CANDLES, APOLLO, FANTASTIC
+FREEZE, DROP, LAG, ECHO
+PRISONER, REFEREE, SAILOR, MIME
+MONKEY, GENIE, PARROT, PRINCESS
+&lt;/answer&gt;
+
+&lt;traps&gt;
+MONKEY, GENIE, PARROT, PRINCESS
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.22
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 2,303 · cost: $0.001430 · result: ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</div></div><div class="endpill">246 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 482 · completion: 2,303 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0014</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 837</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0013 · Time: 21.4s</span></summary><div class="endpill">837 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:06.176585</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: BLUE, DEPARTED, RAINMAKER, GOOD SHEPHERD, PROGRESSIVE, SPLIT, CUP, THEATER, SPACECRAFT, MARTIAN, FICTIONAL BOXER, CONE, LIBERAL, SHAKE, LEFT, GREEK/ROMAN GOD</div></div><div class="stats">prompt: 489</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:15:06.177154</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">CUP, CONE, SHAKE, and SPLIT are ice-cream formats or desserts.
+
+SPACECRAFT, THEATER, FICTIONAL BOXER, and GREEK/ROMAN GOD all connect to APOLLO: Apollo spacecraft, Apollo Theater, Apollo Creed, and Apollo the god.
+
+DEPARTED, RAINMAKER, GOOD SHEPHERD, and MARTIAN are films starring Matt Damon.
+
+BLUE, PROGRESSIVE, LIBERAL, and LEFT are terms associated with left-leaning politics.
+
+No additional genuine trap is apparent.</div></details><div>&lt;answer&gt;
+CUP, CONE, SHAKE, SPLIT
+SPACECRAFT, THEATER, FICTIONAL BOXER, GREEK/ROMAN GOD
+DEPARTED, RAINMAKER, GOOD SHEPHERD, MARTIAN
+BLUE, PROGRESSIVE, LIBERAL, LEFT
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 2,081 · cost: $0.001298 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">837 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 489 · completion: 2,081 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0013</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 828</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0013 · Time: 21.4s</span></summary><div class="endpill">828 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:18.192711</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: MONTH, TRACK, PRINTER, ROGER, SQUID, PEN, ROSE, TATTOO MACHINE, WHITE, JUROR, FOLLOW, TRIX, MONITOR, DONUT, WATCH, VELVETEEN</div></div><div class="stats">prompt: 478</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:15:18.193257</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">PRINTER, PEN, SQUID, and TATTOO MACHINE are associated with INK. TRACK, MONITOR, WATCH, and FOLLOW are ways to observe or keep tabs on something. ROGER, TRIX, WHITE, and VELVETEEN all connect to RABBIT. The remaining words—MONTH, ROSE, JUROR, and DONUT—connect to the number twelve: twelve months, a dozen roses, twelve jurors, and a dozen donuts. No genuine trap is identified.</div></details><div>&lt;answer&gt;
+PRINTER, PEN, SQUID, TATTOO MACHINE
+TRACK, MONITOR, WATCH, FOLLOW
+ROGER, TRIX, WHITE, VELVETEEN
+MONTH, ROSE, JUROR, DONUT
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.78
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 2,058 · cost: $0.001283 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">828 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 478 · completion: 2,058 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0013</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 827</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0010 · Time: 22.2s</span></summary><div class="endpill">827 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:28.101313</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: STRAND, SPARK, WAILER, HEARTBREAKER, CONNECTION, BANK, TILE, WOOD, LAMINATE, CARPET, COAST, CHEMISTRY, FIREWORKS, PIP, BANSHEE, SHORE</div></div><div class="stats">prompt: 481</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:15:28.101787</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">TILE, WOOD, LAMINATE, and CARPET are flooring materials. COAST, SHORE, STRAND, and BANK are waterside features. SPARK, CONNECTION, CHEMISTRY, and FIREWORKS can all describe romantic chemistry or attraction. The remaining four are names associated with musical groups: The Wailers, The Heartbreakers, The Pips, and The Banshees. No separate genuine trap is apparent.</div></details><div>&lt;answer&gt;
+TILE, WOOD, LAMINATE, CARPET
+COAST, SHORE, STRAND, BANK
+SPARK, CONNECTION, CHEMISTRY, FIREWORKS
+WAILER, HEARTBREAKER, PIP, BANSHEE
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.94
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,577 · cost: $0.000994 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">827 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 481 · completion: 1,577 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0010</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 818</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 0 · Total: 3/5 · Cost: $0.0010 · Time: 15.1s</span></summary><div class="endpill">818 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:25.296411</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: BLEW, READ, BURST, DIVINE, JAZZ, SPIRIT, SPLIT, WIGHT, BROKE, SPECTER, AMERICANA, RAP, CALL, CHORAL, FORECAST, SHADE</div></div><div class="stats">prompt: 477</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</span><span>2026-07-30 19:15:25.296874</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The four groups are:
+&bull; BLEW, BROKE, BURST, SPLIT can all be followed by “APART.”
+&bull; READ, DIVINE, FORECAST, CALL can all mean predicting or determining an outcome.
+&bull; JAZZ, RAP, CHORAL, AMERICANA are musical genres or styles.
+&bull; SPIRIT, SPECTER, SHADE, WIGHT are ghost or apparition terms.
+
+No separate convincing trap set is apparent.</div></details><div>&lt;answer&gt;
+BLEW, BROKE, BURST, SPLIT
+READ, DIVINE, FORECAST, CALL
+JAZZ, RAP, CHORAL, AMERICANA
+SPIRIT, SPECTER, SHADE, WIGHT
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.96
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,517 · cost: $0.000958 · result: ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</div></div><div class="endpill">818 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 477 · completion: 1,517 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0010</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 831</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0009 · Time: 14.6s</span></summary><div class="endpill">831 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:10.214115</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: NOSE, PACE, SCORE, DYE, CLIP, BLUSH, TOWEL, TIGER, RANK, GRADE, SWEAT, FIDGET, MASCARA, RATE, STOCKINGS, TRAIL</div></div><div class="stats">prompt: 476</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:15:10.214618</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">GRADE, RATE, RANK, and SCORE are evaluation terms. CLIP, TOWEL, TIGER, and TRAIL can all follow PAPER. NOSE, DYE, MASCARA, and STOCKINGS can all be described as things that “run.” The remaining words—PACE, BLUSH, SWEAT, and FIDGET—are signs of nervousness. No distinct additional trap set is apparent.</div></details><div>&lt;answer&gt;
+GRADE, RATE, RANK, SCORE
+CLIP, TOWEL, TIGER, TRAIL
+NOSE, DYE, MASCARA, STOCKINGS
+PACE, BLUSH, SWEAT, FIDGET
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.96
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,423 · cost: $0.000901 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">831 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 476 · completion: 1,423 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0009</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 815</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0009 · Time: 16.1s</span></summary><div class="endpill">815 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:33.497481</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: MTV, ALF, WED, BOND, BIRTH, NES, VHS, FUSE, DAY, COMBINE, FLY, START, GENESIS, POLE, FLOWER, DAWN</div></div><div class="stats">prompt: 472</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:15:33.497968</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">BIRTH, DAWN, GENESIS, and START all indicate beginnings. BOND, COMBINE, FUSE, and WED are ways of joining or uniting. MAY can precede DAY, FLOWER, FLY, and POLE. MTV, ALF, NES, and VHS are recognizable 1980s cultural/media abbreviations or icons. No additional designed trap is apparent.</div></details><div>&lt;answer&gt;
+BIRTH, DAWN, GENESIS, START
+BOND, COMBINE, FUSE, WED
+DAY, FLOWER, FLY, POLE
+ALF, MTV, NES, VHS
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.94
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,340 · cost: $0.000851 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">815 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 472 · completion: 1,340 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0009</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 314</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 0 · Total: 3/5 · Cost: $0.0008 · Time: 11.7s</span></summary><div class="endpill">314 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:14:56.452795</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: POLE, BUNK, BATON, PITCHFORK, SHEEPSHANK, CROCK, TAIL, BEND, HITCH, HORSEFEATHERS, HOGWASH, GOATEE, BOWLINE, HURDLE, HORNS, HAMMER</div></div><div class="stats">prompt: 489</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</span><span>2026-07-30 19:14:56.453319</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">BOWLINE, BEND, HITCH, and SHEEPSHANK are types of knots. BUNK, CROCK, HORSEFEATHERS, and HOGWASH all mean nonsense or foolish talk. POLE, BATON, HURDLE, and HAMMER are associated with track-and-field events. PITCHFORK, TAIL, GOATEE, and HORNS evoke the devil, forming the likely trap.</div></details><div>&lt;answer&gt;
+BOWLINE, BEND, HITCH, SHEEPSHANK
+BUNK, CROCK, HORSEFEATHERS, HOGWASH
+POLE, BATON, HURDLE, HAMMER
+PITCHFORK, TAIL, GOATEE, HORNS
+&lt;/answer&gt;
+
+&lt;traps&gt;
+PITCHFORK, TAIL, GOATEE, HORNS
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.91
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,220 · cost: $0.000781 · result: ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</div></div><div class="endpill">314 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 489 · completion: 1,220 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0008</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 304</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0008 · Time: 12.0s</span></summary><div class="endpill">304 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:14:56.794489</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: COCO, UNCHAINED, DIRECTOR, HEAD, CHIEF, FICTION, BROWN, FIELD, LAWN, DOGS, GREEN, PEA, GROUNDS, HAZEL, CHEST, CHAIR</div></div><div class="stats">prompt: 475</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:14:56.795031</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The four leadership terms are HEAD, CHIEF, DIRECTOR, and CHAIR. COCO, CHEST, PEA, and HAZEL can each precede “NUT.” FIELD, LAWN, GROUNDS, and GREEN are types of grassy areas. UNCHAINED, FICTION, BROWN, and DOGS are associated with Quentin Tarantino films: Django Unchained, Pulp Fiction, Jackie Brown, and Reservoir Dogs. No distinct trap is apparent.</div></details><div>&lt;answer&gt;
+HEAD, CHIEF, DIRECTOR, CHAIR
+COCO, CHEST, PEA, HAZEL
+FIELD, LAWN, GROUNDS, GREEN
+UNCHAINED, FICTION, BROWN, DOGS
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,216 · cost: $0.000777 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">304 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 475 · completion: 1,216 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0008</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 826</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0007 · Time: 12.3s</span></summary><div class="endpill">826 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:18.487392</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: FLEET, DOWNING, BETTER, TOP, MAIN, PORTAL, INSET, BEAT, GATE, SCALE, HATCH, BEST, KEY, COMPASS, DOOR, WALL</div></div><div class="stats">prompt: 471</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:15:18.487868</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">FLEET, DOWNING, MAIN, and WALL can all precede “STREET.” PORTAL, GATE, HATCH, and DOOR are types of entrances. BETTER, BEAT, BEST, and TOP can mean to surpass or outperform. INSET, SCALE, KEY, and COMPASS are map features. A likely trap is KEY, MAIN, TOP, BEST, which can all suggest importance or superiority but belong to different intended groups.</div></details><div>&lt;answer&gt;
+FLEET, DOWNING, MAIN, WALL
+PORTAL, GATE, HATCH, DOOR
+BETTER, BEAT, BEST, TOP
+INSET, SCALE, KEY, COMPASS
+&lt;/answer&gt;
+
+&lt;traps&gt;
+KEY, MAIN, TOP, BEST
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.96
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,170 · cost: $0.000749 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">826 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 471 · completion: 1,170 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0007</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 839</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0007 · Time: 10.7s</span></summary><div class="endpill">839 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:14:55.478127</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: THROW, FRITTER, KETTLE, MICROWAVE, STOVETOP, SWEET, TENDER, WING, WARM, POPPER, ARM, FIDDLE, FIN, KIND, TRIFLE, FLIPPER</div></div><div class="stats">prompt: 479</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:14:55.478629</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">ARM, WING, FIN, and FLIPPER are appendages used for movement or balance. KETTLE, MICROWAVE, STOVETOP, and POPPER are ways or devices associated with making popcorn. SWEET, TENDER, WARM, and KIND can all precede “HEARTED.” THROW, FRITTER, FIDDLE, and TRIFLE can all pair with “AWAY” to mean waste or squander.
+
+A likely trap is KETTLE, FRITTER, SWEET, POPPER, all of which can relate to “CORN.”</div></details><div>&lt;answer&gt;
+ARM, WING, FIN, FLIPPER
+KETTLE, MICROWAVE, STOVETOP, POPPER
+SWEET, TENDER, WARM, KIND
+THROW, FRITTER, FIDDLE, TRIFLE
+&lt;/answer&gt;
+
+&lt;traps&gt;
+KETTLE, FRITTER, SWEET, POPPER
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,125 · cost: $0.000723 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">839 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 479 · completion: 1,125 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0007</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 836</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0007 · Time: 10.0s</span></summary><div class="endpill">836 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:14:54.759663</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: PICTURE, LITTER, SIXTEEN, POTATO, SHAR PEI, TOOTH, PEPPER, FILM, SCATTER, CREPE PAPER, FEATURE, PRUNE, SPRINKLE, TALK, FLICK, BRAIN</div></div><div class="stats">prompt: 480</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:14:54.760177</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">SIXTEEN, TALK, TOOTH, and POTATO can all follow “SWEET.” PICTURE, FILM, FEATURE, and FLICK are types of movies or motion pictures. LITTER, SCATTER, PEPPER, and SPRINKLE can all mean to distribute or spread. The remaining SHAR PEI, CREPE PAPER, PRUNE, and BRAIN are notably wrinkled or folded. No separate convincing trap is apparent.</div></details><div>&lt;answer&gt;
+SIXTEEN, TALK, TOOTH, POTATO
+PICTURE, FILM, FEATURE, FLICK
+LITTER, SCATTER, PEPPER, SPRINKLE
+SHAR PEI, CREPE PAPER, PRUNE, BRAIN
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 1,019 · cost: $0.000659 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">836 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 480 · completion: 1,019 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0007</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 819</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 2 · Total: 5/5 · Cost: $0.0006 · Time: 12.1s</span></summary><div class="endpill">819 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:15:18.721133</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: IMPACT, ARIEL, AREAL, ARIAL, ARABESQUE, VOLUMETRIC, AURORA, TIANA, VERDANA, SPLIT, ANGULAR, MERIDA, GEORGIA, LINEAR, ROUNDOFF, AERIAL</div></div><div class="stats">prompt: 485</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</span><span>2026-07-30 19:15:18.721609</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">The four fonts are IMPACT, ARIAL, VERDANA, and GEORGIA. ARIEL, AURORA, TIANA, and MERIDA are Disney princesses. AREAL, ANGULAR, LINEAR, and VOLUMETRIC are types of measurement or dimensional quantities. ARABESQUE, AERIAL, SPLIT, and ROUNDOFF are gymnastics or dance movements. A likely trap is the visually similar set of ARIEL, AREAL, ARIAL, and AERIAL, which draws one word from each real group.</div></details><div>&lt;answer&gt;
+IMPACT, ARIAL, VERDANA, GEORGIA
+ARIEL, AURORA, TIANA, MERIDA
+AREAL, ANGULAR, LINEAR, VOLUMETRIC
+ARABESQUE, AERIAL, SPLIT, ROUNDOFF
+&lt;/answer&gt;
+
+&lt;traps&gt;
+ARIEL, AREAL, ARIAL, AERIAL
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.98
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 965 · cost: $0.000628 · result: ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5</div></div><div class="endpill">819 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 485 · completion: 965 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0006</div></details><details class="puzzle-block puzzle-solved"><summary class="puzzle-summary"><span class="pill">Puzzle 476</span><span class="puzzle-stats-inline">Base: 3 · Bonus: 0 · Total: 3/5 · Cost: $0.0004 · Time: 10.8s</span></summary><div class="endpill">476 → WIP <span class="meta">(NEW → WIP)</span></div><div class="row"><div class="bubble left"><div class="metahead"><span>PROMPT</span><span>2026-07-30 19:14:55.577824</span></div><div class="body">HOW TO PLAY
+1. You are given 16 words that form 4 hidden groups of 4 related words each.
+2. Sort all 16 words into the 4 groups they belong to.
+3. Every word must be used exactly once. Each group must contain EXACTLY 4 words.
+
+BONUS
+Some puzzles hide a TRAP: a 5th set of 4 words, drawn from the same 16, that forms a convincing category but is not one of the 4 real groups. Playing it as a group would leave the puzzle unsolvable, because its words actually belong to different real groups. If a trap exists, identify its 4 words. A trap never takes 3 of its words from a single real group.
+
+SCORING
+This is a One-Shot Puzzle. You get to submit your response exactly once with no feedback.
+Base: 1 point per matched group; a perfect solve (all 4 groups) scores 3.
+Trap bonus:
+- +2 if your trap set is a genuine designed trap.
+- +2 if you state N/A and the puzzle truly has no traps.
+Maximum: 5 points per puzzle.
+If your answer is not in a valid format — not exactly 4 groups of 4 words, or the 16 words do not exactly match the puzzle's words — you score 0.
+
+RESPONSE FORMAT:
+Provide your response in this exact structure:
+
+&lt;thinking&gt;
+[Your reasoning]
+&lt;/thinking&gt;
+
+&lt;answer&gt;
+[Four lines, each with EXACTLY four words, ALL CAPS, comma-separated — one line per group]
+&lt;/answer&gt;
+
+&lt;traps&gt;
+[ONE line with EXACTLY four words, ALL CAPS, comma-separated — your single most likely trap set. Or state N/A; not all puzzles have traps.]
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+[A number between 0.0 and 1.0 indicating your confidence in this answer]
+&lt;/confidence&gt;
+
+Available words: ENERGY, HONOR, KEEP, JUSTICE, THROW, SHEET, PASS, STATE, FULFILL, UPHOLD, SHAM, DISCARD, BLANKET, PLAY, LABOR, DRAW</div></div><div class="stats">prompt: 473</div></div><div class="row"><div class="bubble right"><div class="metahead"><span>ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</span><span>2026-07-30 19:14:55.578392</span></div><div class="body"><details><summary>Show thinking</summary><div class="thinking">ENERGY, JUSTICE, LABOR, and STATE are U.S. cabinet departments. HONOR, KEEP, FULFILL, and UPHOLD can all mean to maintain or meet a promise, duty, or obligation. SHEET, SHAM, BLANKET, and THROW are bedding-related items. DRAW, DISCARD, PASS, and PLAY are actions in card games. No separate designed trap is evident.</div></details><div>&lt;answer&gt;
+ENERGY, JUSTICE, LABOR, STATE
+HONOR, KEEP, FULFILL, UPHOLD
+SHEET, SHAM, BLANKET, THROW
+DRAW, DISCARD, PASS, PLAY
+&lt;/answer&gt;
+
+&lt;traps&gt;
+N/A
+&lt;/traps&gt;
+
+&lt;confidence&gt;
+0.96
+&lt;/confidence&gt;</div></div></div><div class="stats">completion: 626 · cost: $0.000423 · result: ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_5</div></div><div class="endpill">476 → SOLVED <span class="meta">(WIP → DONE)</span></div><div class="stats">prompt: 473 · completion: 626 · guesses: 1 · correct: 4 · time: 00:00 · cost: $0.0004</div></details><div class="footer">Generated by generate_logs_view.py</div></div></div></div></body></html>
