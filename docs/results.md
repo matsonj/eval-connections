@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 30 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 31 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -233,6 +233,20 @@ Latest one-shot runs for 30 models (20 games each, one submission per game, max 
       "tok_per_game": "13.4k",
       "cost": 1.98,
       "cost_per_game": "$0.099"
+    },
+    {
+      "model": "<a href=\"logs/2026-07-31T14-19-51_deepseek-v4-flash-0731.html\">deepseek/deepseek-v4-flash-0731</a>",
+      "date": "2026-07-31",
+      "pts": 77,
+      "pts_pct": 0.77,
+      "w": "19",
+      "grp": "76/80",
+      "trap": "20",
+      "inv": "1",
+      "avg_time": "2m50s",
+      "tok_per_game": "20.4k",
+      "cost": 0.11,
+      "cost_per_game": "$0.006"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-26-38_grok-4.5.html\">x-ai/grok-4.5</a>",
