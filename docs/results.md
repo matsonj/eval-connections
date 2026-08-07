@@ -221,6 +221,20 @@ Latest one-shot runs for 32 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.019"
     },
     {
+      "model": "<a href=\"logs/2026-08-07T17-32-51_muse-spark-1.2.html\">meta/muse-spark-1.2</a>",
+      "date": "2026-08-07",
+      "pts": 77,
+      "pts_pct": 0.77,
+      "w": "18",
+      "grp": "75/80",
+      "trap": "20",
+      "inv": "0",
+      "avg_time": "16s",
+      "tok_per_game": "3.0k",
+      "cost": 0.22,
+      "cost_per_game": "$0.011"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T23-13-27_gpt5.6-terra-pro.html\">openai/gpt-5.6-terra-pro</a>",
       "date": "2026-07-22",
       "pts": 77,
@@ -275,20 +289,6 @@ Latest one-shot runs for 32 models (20 games each, one submission per game, max 
       "tok_per_game": "1.4k",
       "cost": 0.4,
       "cost_per_game": "$0.020"
-    },
-    {
-      "model": "<a href=\"logs/2026-08-06T16-55-50_muse-spark-1.2.html\">meta/muse-spark-1.2</a>",
-      "date": "2026-08-06",
-      "pts": 74,
-      "pts_pct": 0.74,
-      "w": "17",
-      "grp": "71/80",
-      "trap": "20",
-      "inv": "0",
-      "avg_time": "14s",
-      "tok_per_game": "2.9k",
-      "cost": 0.21,
-      "cost_per_game": "$0.011"
     },
     {
       "model": "<a href=\"logs/2026-07-30T19-14-44_gpt5.6-luna.html\">openai/gpt-5.6-luna</a>",
