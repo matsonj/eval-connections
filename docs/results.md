@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 37 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 38 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -541,6 +541,20 @@ Latest one-shot runs for 37 models (20 games each, one submission per game, max 
       "tok_per_game": "41.7k",
       "cost": 2.49,
       "cost_per_game": "$0.125"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-12T16-35-47_seed-2-1-turbo.html\">bytedance-seed/seed-2-1-turbo</a>",
+      "date": "2026-08-12",
+      "pts": 30,
+      "pts_pct": 0.3,
+      "w": "8",
+      "grp": "32/80",
+      "trap": "6",
+      "inv": "12",
+      "avg_time": "6m1s",
+      "tok_per_game": "21.6k",
+      "cost": 1.06,
+      "cost_per_game": "$0.053"
     },
     {
       "model": "<a href=\"logs/2026-08-12T16-36-14_solar-pro4.html\">upstage/solar-pro4</a>",
