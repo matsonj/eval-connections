@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 38 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 39 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -513,6 +513,20 @@ Latest one-shot runs for 38 models (20 games each, one submission per game, max 
       "tok_per_game": "4.3k",
       "cost": 0.39,
       "cost_per_game": "$0.019"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-12T18-21-17_seed-2.0-code.html\">bytedance-seed/seed-2.0-code</a>",
+      "date": "2026-08-12",
+      "pts": 56,
+      "pts_pct": 0.56,
+      "w": "13",
+      "grp": "57/80",
+      "trap": "12",
+      "inv": "0",
+      "avg_time": "1m58s",
+      "tok_per_game": "7.9k",
+      "cost": 0.44,
+      "cost_per_game": "$0.022"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-52-28_mercury-2.html\">inception/mercury-2</a>",
