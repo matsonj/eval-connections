@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 34 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 35 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -80,6 +80,20 @@ Latest one-shot runs for 34 models (20 games each, one submission per game, max 
     }
   ],
   "data": [
+    {
+      "model": "<a href=\"logs/2026-08-12T16-34-41_grok-4.6.html\">x-ai/grok-4.6</a>",
+      "date": "2026-08-12",
+      "pts": 91,
+      "pts_pct": 0.91,
+      "w": "19",
+      "grp": "78/80",
+      "trap": "32",
+      "inv": "0",
+      "avg_time": "27s",
+      "tok_per_game": "3.1k",
+      "cost": 0.31,
+      "cost_per_game": "$0.015"
+    },
     {
       "model": "<a href=\"logs/2026-07-22T22-58-18_muse-spark-1.1.html\">meta/muse-spark-1.1</a>",
       "date": "2026-07-22",
