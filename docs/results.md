@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 32 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 33 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -513,6 +513,20 @@ Latest one-shot runs for 32 models (20 games each, one submission per game, max 
       "tok_per_game": "19.4k",
       "cost": 0.05,
       "cost_per_game": "$0.002"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-12T16-05-55_nemotron-3.5-lightning.html\">nvidia/nemotron-3.5-lightning</a>",
+      "date": "2026-08-12",
+      "pts": 6,
+      "pts_pct": 0.06,
+      "w": "0",
+      "grp": "4/80",
+      "trap": "2",
+      "inv": "18",
+      "avg_time": "3m31s",
+      "tok_per_game": "25.5k",
+      "cost": 0.13,
+      "cost_per_game": "$0.006"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-58-03_granite-4.1-8b.html\">ibm-granite/granite-4.1-8b</a>",
