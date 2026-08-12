@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 39 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 40 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -233,6 +233,20 @@ Latest one-shot runs for 39 models (20 games each, one submission per game, max 
       "tok_per_game": "7.9k",
       "cost": 0.37,
       "cost_per_game": "$0.019"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-12T18-20-38_deepseek-v4-pro-0813.html\">deepseek/deepseek-v4-pro-0813</a>",
+      "date": "2026-08-12",
+      "pts": 80,
+      "pts_pct": 0.8,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "20",
+      "inv": "0",
+      "avg_time": "9m20s",
+      "tok_per_game": "16.1k",
+      "cost": 0.28,
+      "cost_per_game": "$0.014"
     },
     {
       "model": "<a href=\"logs/2026-08-07T17-32-51_muse-spark-1.2.html\">meta/muse-spark-1.2</a>",
