@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 33 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 34 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -457,6 +457,20 @@ Latest one-shot runs for 33 models (20 games each, one submission per game, max 
       "tok_per_game": "14.3k",
       "cost": 0.32,
       "cost_per_game": "$0.016"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-12T16-33-14_muse-glimmer-30b.html\">meta/muse-glimmer-30b</a>",
+      "date": "2026-08-12",
+      "pts": 61,
+      "pts_pct": 0.61,
+      "w": "10",
+      "grp": "53/80",
+      "trap": "18",
+      "inv": "1",
+      "avg_time": "27s",
+      "tok_per_game": "4.1k",
+      "cost": 0.09,
+      "cost_per_game": "$0.005"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-08-13_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",
