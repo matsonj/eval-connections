@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 35 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 36 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -527,6 +527,20 @@ Latest one-shot runs for 35 models (20 games each, one submission per game, max 
       "tok_per_game": "41.7k",
       "cost": 2.49,
       "cost_per_game": "$0.125"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-12T16-36-14_solar-pro4.html\">upstage/solar-pro4</a>",
+      "date": "2026-08-12",
+      "pts": 22,
+      "pts_pct": 0.22,
+      "w": "3",
+      "grp": "19/80",
+      "trap": "6",
+      "inv": "12",
+      "avg_time": "4m42s",
+      "tok_per_game": "15.7k",
+      "cost": 0.04,
+      "cost_per_game": "$0.002"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-07-43_laguna-xs.2.html\">poolside/laguna-xs-2.1</a>",
