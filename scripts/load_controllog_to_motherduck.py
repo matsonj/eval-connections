@@ -39,7 +39,14 @@ def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
     con.execute("CREATE SCHEMA IF NOT EXISTS controllog")
 
     if events_files:
-        ecols = ", ".join(EVENTS_COLS)
+        # idempotency_key must stay VARCHAR: a partition whose keys are all
+        # plain UUIDs (e.g. a run with zero guesses) makes read_json_auto infer
+        # UUID, and the dedup comparison then casts the target's suffixed keys
+        # ("<uuid>:prompt") to UUID, which fails with an INT128 conversion error.
+        ecols = ", ".join(
+            f"{c}::VARCHAR AS {c}" if c == "idempotency_key" else c
+            for c in EVENTS_COLS
+        )
 
         # Ensure table exists with canonical schema
         con.execute(
@@ -61,7 +68,7 @@ def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
                 SELECT 1 FROM controllog.events tgt
                 WHERE tgt.idempotency_key IS NOT NULL
                   AND src.idempotency_key IS NOT NULL
-                  AND tgt.idempotency_key = src.idempotency_key
+                  AND tgt.idempotency_key = src.idempotency_key::VARCHAR
             )
             AND NOT EXISTS (
                 SELECT 1 FROM controllog.events tgt

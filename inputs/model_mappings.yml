@@ -43,7 +43,12 @@ models:
     gemini-3.5-flash-lite: "google/gemini-3.5-flash-lite"
     gemini-3.6-flash: "google/gemini-3.6-flash"
     gemini-3.7-flash: "google/gemini-3.7-flash"
-    gemini-3.7-flash-batch: "google/gemini-3.7-flash:batch"
+    # The :batch variant is async-only: OpenRouter 404s it on /chat/completions
+    # ("only available through the Batch API, use /api/beta/batches"), so the
+    # synchronous harness can never get a response — a 2026-08-13 canonical run
+    # scored 0/20 with zero guesses and 1267s of retry backoff. Re-enable only
+    # if the harness grows a batch-API adapter.
+    # gemini-3.7-flash-batch: "google/gemini-3.7-flash:batch"
 
     # Anthropic reasoning models  
     sonnet-4: "anthropic/claude-sonnet-4"
