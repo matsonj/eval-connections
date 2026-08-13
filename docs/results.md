@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 41 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 42 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -233,6 +233,20 @@ Latest one-shot runs for 41 models (20 games each, one submission per game, max 
       "tok_per_game": "7.9k",
       "cost": 0.37,
       "cost_per_game": "$0.019"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-13T18-49-46_gemini-3.7-flash.html\">google/gemini-3.7-flash</a>",
+      "date": "2026-08-13",
+      "pts": 80,
+      "pts_pct": 0.8,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "20",
+      "inv": "0",
+      "avg_time": "4s",
+      "tok_per_game": "1.7k",
+      "cost": 0.1,
+      "cost_per_game": "$0.005"
     },
     {
       "model": "<a href=\"logs/2026-08-12T18-20-38_deepseek-v4-pro-0813.html\">deepseek/deepseek-v4-pro-0813</a>",
