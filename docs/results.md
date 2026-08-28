@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 43 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 44 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -597,6 +597,20 @@ Latest one-shot runs for 43 models (20 games each, one submission per game, max 
       "tok_per_game": "7.9k",
       "cost": 0.44,
       "cost_per_game": "$0.022"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-28T18-27-59_qwen3.8-27b.html\">qwen/qwen3.8-27b</a>",
+      "date": "2026-08-28",
+      "pts": 51,
+      "pts_pct": 0.51,
+      "w": "10",
+      "grp": "49/80",
+      "trap": "12",
+      "inv": "5",
+      "avg_time": "2m47s",
+      "tok_per_game": "10.0k",
+      "cost": 0.57,
+      "cost_per_game": "$0.029"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-52-28_mercury-2.html\">inception/mercury-2</a>",
