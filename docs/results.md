@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 44 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 45 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -261,6 +261,20 @@ Latest one-shot runs for 44 models (20 games each, one submission per game, max 
       "tok_per_game": "16.1k",
       "cost": 0.28,
       "cost_per_game": "$0.014"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-28T18-28-38_glm-5.3-flash.html\">z-ai/glm-5.3-flash</a>",
+      "date": "2026-08-28",
+      "pts": 78,
+      "pts_pct": 0.78,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "18",
+      "inv": "0",
+      "avg_time": "1m52s",
+      "tok_per_game": "4.1k",
+      "cost": 0.02,
+      "cost_per_game": "$0.001"
     },
     {
       "model": "<a href=\"logs/2026-08-07T17-32-51_muse-spark-1.2.html\">meta/muse-spark-1.2</a>",
