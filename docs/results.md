@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 45 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 46 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -597,6 +597,20 @@ Latest one-shot runs for 45 models (20 games each, one submission per game, max 
       "tok_per_game": "4.3k",
       "cost": 0.39,
       "cost_per_game": "$0.019"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-28T18-29-05_glm-5.3.html\">z-ai/glm-5.3</a>",
+      "date": "2026-08-28",
+      "pts": 57,
+      "pts_pct": 0.57,
+      "w": "17",
+      "grp": "68/80",
+      "trap": "6",
+      "inv": "3",
+      "avg_time": "5m30s",
+      "tok_per_game": "16.4k",
+      "cost": 1.41,
+      "cost_per_game": "$0.070"
     },
     {
       "model": "<a href=\"logs/2026-08-12T18-21-17_seed-2.0-code.html\">bytedance-seed/seed-2.0-code</a>",
