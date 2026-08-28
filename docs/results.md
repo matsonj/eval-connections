@@ -655,6 +655,20 @@ Latest one-shot runs for 48 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.029"
     },
     {
+      "model": "<a href=\"logs/2026-08-28T20-24-35_qwen3.8-flash.html\">qwen/qwen3.8-flash</a>",
+      "date": "2026-08-28",
+      "pts": 50,
+      "pts_pct": 0.5,
+      "w": "12",
+      "grp": "48/80",
+      "trap": "14",
+      "inv": "6",
+      "avg_time": "9m16s",
+      "tok_per_game": "41.3k",
+      "cost": 0.38,
+      "cost_per_game": "$0.019"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T22-52-28_mercury-2.html\">inception/mercury-2</a>",
       "date": "2026-07-22",
       "pts": 39,
@@ -681,20 +695,6 @@ Latest one-shot runs for 48 models (20 games each, one submission per game, max 
       "tok_per_game": "41.7k",
       "cost": 2.49,
       "cost_per_game": "$0.125"
-    },
-    {
-      "model": "<a href=\"logs/2026-08-28T18-28-20_qwen3.8-flash.html\">qwen/qwen3.8-flash</a>",
-      "date": "2026-08-28",
-      "pts": 33,
-      "pts_pct": 0.33,
-      "w": "9",
-      "grp": "36/80",
-      "trap": "6",
-      "inv": "9",
-      "avg_time": "10m58s",
-      "tok_per_game": "47.1k",
-      "cost": 0.44,
-      "cost_per_game": "$0.022"
     },
     {
       "model": "<a href=\"logs/2026-08-12T16-36-14_solar-pro4.html\">upstage/solar-pro4</a>",
