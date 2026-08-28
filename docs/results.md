@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 42 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 43 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -344,6 +344,20 @@ Latest one-shot runs for 42 models (20 games each, one submission per game, max 
       "avg_time": "16s",
       "tok_per_game": "2.1k",
       "cost": 0.02,
+      "cost_per_game": "$0.001"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-28T18-30-45_muse-spark-1.2-contributor.html\">meta/muse-spark-1.2-contributor</a>",
+      "date": "2026-08-28",
+      "pts": 74,
+      "pts_pct": 0.74,
+      "w": "19",
+      "grp": "77/80",
+      "trap": "16",
+      "inv": "0",
+      "avg_time": "30s",
+      "tok_per_game": "3.0k",
+      "cost": 0.01,
       "cost_per_game": "$0.001"
     },
     {
