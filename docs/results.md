@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 46 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 47 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -667,6 +667,20 @@ Latest one-shot runs for 46 models (20 games each, one submission per game, max 
       "tok_per_game": "41.7k",
       "cost": 2.49,
       "cost_per_game": "$0.125"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-28T18-28-20_qwen3.8-flash.html\">qwen/qwen3.8-flash</a>",
+      "date": "2026-08-28",
+      "pts": 33,
+      "pts_pct": 0.33,
+      "w": "9",
+      "grp": "36/80",
+      "trap": "6",
+      "inv": "9",
+      "avg_time": "10m58s",
+      "tok_per_game": "47.1k",
+      "cost": 0.44,
+      "cost_per_game": "$0.022"
     },
     {
       "model": "<a href=\"logs/2026-08-12T16-36-14_solar-pro4.html\">upstage/solar-pro4</a>",
