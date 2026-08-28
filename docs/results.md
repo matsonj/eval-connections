@@ -613,20 +613,6 @@ Latest one-shot runs for 48 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.070"
     },
     {
-      "model": "<a href=\"logs/2026-08-28T18-31-51_hy4-preview.html\">tencent/hy4-preview</a>",
-      "date": "2026-08-28",
-      "pts": 57,
-      "pts_pct": 0.57,
-      "w": "14",
-      "grp": "59/80",
-      "trap": "12",
-      "inv": "0",
-      "avg_time": "8m7s",
-      "tok_per_game": "19.9k",
-      "cost": 0.98,
-      "cost_per_game": "$0.049"
-    },
-    {
       "model": "<a href=\"logs/2026-08-12T18-21-17_seed-2.0-code.html\">bytedance-seed/seed-2.0-code</a>",
       "date": "2026-08-12",
       "pts": 56,
@@ -639,6 +625,20 @@ Latest one-shot runs for 48 models (20 games each, one submission per game, max 
       "tok_per_game": "7.9k",
       "cost": 0.44,
       "cost_per_game": "$0.022"
+    },
+    {
+      "model": "<a href=\"logs/2026-08-28T19-36-04_hy4-preview.html\">tencent/hy4-preview</a>",
+      "date": "2026-08-28",
+      "pts": 56,
+      "pts_pct": 0.56,
+      "w": "14",
+      "grp": "60/80",
+      "trap": "10",
+      "inv": "0",
+      "avg_time": "5m39s",
+      "tok_per_game": "18.1k",
+      "cost": 0.89,
+      "cost_per_game": "$0.045"
     },
     {
       "model": "<a href=\"logs/2026-08-28T18-27-59_qwen3.8-27b.html\">qwen/qwen3.8-27b</a>",
