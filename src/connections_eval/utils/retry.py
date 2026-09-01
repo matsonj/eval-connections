@@ -23,15 +23,6 @@ def get_last_backoff_sec() -> float:
     """Seconds slept across all retry attempts of the most recent call on this thread."""
     return getattr(_backoff_state, "backoff_sec", 0.0)
 
-
-def get_last_retry_count(exc_type_name: str) -> int:
-    """Number of times an exception whose class name is `exc_type_name` was
-    caught (and triggered, or would have triggered, a retry) during the most
-    recent decorated call on this thread. Reset at the top of every call,
-    same lifecycle as `get_last_backoff_sec`."""
-    return getattr(_backoff_state, "retry_counts", {}).get(exc_type_name, 0)
-
-
 try:
     # Optional import; only used for isinstance checks
     import requests  # type: ignore
@@ -97,7 +88,6 @@ def retry_with_backoff(
         def wrapper(*args, **kwargs) -> T:
             last_exception: Exception | None = None
             _backoff_state.backoff_sec = 0.0
-            _backoff_state.retry_counts = {}
 
             bd = base_delay(*args, **kwargs) if callable(base_delay) else base_delay
 
@@ -111,10 +101,6 @@ def retry_with_backoff(
                     if getattr(e, "non_retryable", False):
                         raise
                     last_exception = e
-                    exc_name = type(e).__name__
-                    _backoff_state.retry_counts[exc_name] = (
-                        _backoff_state.retry_counts.get(exc_name, 0) + 1
-                    )
                     if attempt == max_retries:
                         logger.error(f"Max retries ({max_retries}) exceeded for {func.__name__}")
                         break

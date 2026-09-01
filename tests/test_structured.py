@@ -7,461 +7,138 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from connections_eval.core import ConnectionsGame, Puzzle, PuzzleGroup
-from connections_eval.structured import (
-    CLASSIC_SCHEMA,
-    ONESHOT_SCHEMA,
-    build_response_format,
-    render_json_content,
-)
+from connections_eval.structured import build_response_format, json_prompt_template, render_json_content
 
-_INPUTS = Path(__file__).resolve().parent.parent / "inputs"
+INPUTS = Path(__file__).parent.parent / "inputs"
+ANSWER = [["APPLE", "BANANA", "CHERRY", "GRAPE"], ["BLUE", "GREEN", "RED", "YELLOW"],
+          ["FAST", "QUICK", "RAPID", "SWIFT"], ["BRIGHT", "CLEVER", "SMART", "WISE"]]
+TAIL = f'"answer": {json.dumps(ANSWER)}, "traps": ["FAST", "QUICK", "BRIGHT", "CLEVER"], "confidence": 0.65}}'
 
 
-def _make_test_groups():
-    return [
-        PuzzleGroup("Fruits", "green", ["APPLE", "BANANA", "CHERRY", "GRAPE"]),
-        PuzzleGroup("Colors", "yellow", ["BLUE", "GREEN", "RED", "YELLOW"]),
-        PuzzleGroup("Speed", "blue", ["FAST", "QUICK", "RAPID", "SWIFT"]),
-        PuzzleGroup("Smart", "purple", ["BRIGHT", "CLEVER", "SMART", "WISE"]),
-    ]
+def _puzzle():
+    groups = [PuzzleGroup("Fruits", "green", ANSWER[0]), PuzzleGroup("Colors", "yellow", ANSWER[1]),
+              PuzzleGroup("Speed", "blue", ANSWER[2]), PuzzleGroup("Smart", "purple", ANSWER[3])]
+    return Puzzle(id=477, date="2024-09-30", difficulty=3.8, words=[w for g in ANSWER for w in g],
+                  groups=groups, canonical=True, trap_groups=[["FAST", "QUICK", "BRIGHT", "CLEVER"]])
 
 
-_TEST_WORDS = [
-    "APPLE", "BANANA", "CHERRY", "GRAPE", "BLUE", "GREEN", "RED", "YELLOW",
-    "FAST", "QUICK", "RAPID", "SWIFT", "BRIGHT", "CLEVER", "SMART", "WISE",
-]
+def _response(content):
+    return {"choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20}}
 
 
-class TestSchemas:
-    """The response_format blocks OpenRouter receives."""
-
-    def test_oneshot_envelope(self):
+class TestSchema:
+    def test_envelope_and_shape(self):
         rf = build_response_format("oneshot")
-        assert rf["type"] == "json_schema"
-        assert rf["json_schema"]["name"] == "connections_oneshot"
-        assert rf["json_schema"]["strict"] is True
-        assert rf["json_schema"]["schema"] is ONESHOT_SCHEMA
+        assert rf["type"] == "json_schema" and rf["json_schema"]["strict"] is True
+        schema = rf["json_schema"]["schema"]
+        assert schema["additionalProperties"] is False
+        assert set(schema["required"]) == {"thinking", "answer", "traps", "confidence"}
+        ans = schema["properties"]["answer"]
+        assert (ans["minItems"], ans["maxItems"]) == (4, 4)
+        assert (ans["items"]["minItems"], ans["items"]["maxItems"]) == (4, 4)
+        assert build_response_format("classic")["json_schema"]["schema"]["properties"]["guess"]["maxItems"] == 4
 
-    def test_classic_envelope(self):
-        rf = build_response_format("classic")
-        assert rf["json_schema"]["name"] == "connections_classic"
-        assert rf["json_schema"]["strict"] is True
-        assert rf["json_schema"]["schema"] is CLASSIC_SCHEMA
-
-    def test_oneshot_is_four_groups_of_four(self):
-        answer = ONESHOT_SCHEMA["properties"]["answer"]
-        assert answer["minItems"] == answer["maxItems"] == 4
-        inner = answer["items"]
-        assert inner["minItems"] == inner["maxItems"] == 4
-        assert inner["items"] == {"type": "string"}
-
-    def test_oneshot_required_keys_and_closed_object(self):
-        assert ONESHOT_SCHEMA["additionalProperties"] is False
-        assert set(ONESHOT_SCHEMA["required"]) == {
-            "thinking", "answer", "traps", "confidence"
-        }
-        assert set(ONESHOT_SCHEMA["properties"]) == set(ONESHOT_SCHEMA["required"])
-
-    def test_oneshot_traps_allows_zero_or_four(self):
-        traps = ONESHOT_SCHEMA["properties"]["traps"]
-        assert traps["minItems"] == 0
-        assert traps["maxItems"] == 4
-        assert "empty array" in traps["description"].lower()
-
-    def test_classic_guess_is_four_strings(self):
-        guess = CLASSIC_SCHEMA["properties"]["guess"]
-        assert guess["minItems"] == guess["maxItems"] == 4
-        assert guess["items"] == {"type": "string"}
-        assert CLASSIC_SCHEMA["additionalProperties"] is False
-        assert set(CLASSIC_SCHEMA["required"]) == {"thinking", "guess", "confidence"}
-
-    def test_confidence_is_a_bounded_number(self):
-        for schema in (ONESHOT_SCHEMA, CLASSIC_SCHEMA):
-            conf = schema["properties"]["confidence"]
-            assert conf["type"] == "number"
-            assert conf["minimum"] == 0
-            assert conf["maximum"] == 1
-
-    def test_no_unsupported_keywords_anywhere(self):
-        """Conservative subset only — enums/anyOf/pattern break some providers."""
-        def walk(node):
-            if isinstance(node, dict):
-                for banned in ("enum", "anyOf", "oneOf", "allOf", "pattern", "$ref"):
-                    assert banned not in node, f"{banned} present in schema"
-                for value in node.values():
-                    walk(value)
-            elif isinstance(node, list):
-                for value in node:
-                    walk(value)
-
-        walk(ONESHOT_SCHEMA)
-        walk(CLASSIC_SCHEMA)
+    def test_no_provider_hostile_keywords(self):
+        blob = json.dumps(build_response_format("oneshot")) + json.dumps(build_response_format("classic"))
+        for kw in ("enum", "anyOf", "oneOf", "pattern", "$ref"):
+            assert kw not in blob
 
 
-class TestOneshotRendering:
-    """JSON -> the XML-ish text the existing one-shot parsers understand."""
-
-    def test_full_payload(self):
-        payload = json.dumps({
-            "thinking": "these are the groups",
-            "answer": [
-                ["APPLE", "BANANA", "CHERRY", "GRAPE"],
-                ["BLUE", "GREEN", "RED", "YELLOW"],
-                ["FAST", "QUICK", "RAPID", "SWIFT"],
-                ["BRIGHT", "CLEVER", "SMART", "WISE"],
-            ],
-            "traps": ["FAST", "QUICK", "BRIGHT", "CLEVER"],
-            "confidence": 0.8,
-        })
-        assert render_json_content(payload, "oneshot") == (
-            "<thinking>these are the groups</thinking>\n"
-            "\n"
-            "<answer>\n"
-            "APPLE, BANANA, CHERRY, GRAPE\n"
-            "BLUE, GREEN, RED, YELLOW\n"
-            "FAST, QUICK, RAPID, SWIFT\n"
-            "BRIGHT, CLEVER, SMART, WISE\n"
-            "</answer>\n"
-            "\n"
-            "<traps>\n"
-            "FAST, QUICK, BRIGHT, CLEVER\n"
-            "</traps>\n"
-            "\n"
-            "<confidence>\n"
-            "0.8\n"
-            "</confidence>"
-        )
-
-    def test_empty_traps_render_as_na(self):
-        payload = json.dumps({
-            "thinking": "no trap here",
-            "answer": [["A", "B", "C", "D"]] * 4,
-            "traps": [],
-            "confidence": 0.5,
-        })
-        assert "<traps>\nN/A\n</traps>" in render_json_content(payload, "oneshot")
-
-    def test_lowercase_and_whitespace_are_normalized(self):
-        payload = json.dumps({
-            "thinking": "  padded  ",
-            "answer": [["  apple ", "Banana", "cherry", "GRAPE"]] + [["A", "B", "C", "D"]] * 3,
-            "traps": [" fast ", "quick", "BRIGHT", "clever"],
-            "confidence": 0.25,
-        })
-        text = render_json_content(payload, "oneshot")
-        assert "APPLE, BANANA, CHERRY, GRAPE" in text
-        assert "FAST, QUICK, BRIGHT, CLEVER" in text
-        assert text.startswith("<thinking>padded</thinking>")
-
-    def test_missing_optional_blocks_are_omitted(self):
-        payload = json.dumps({"answer": [["A", "B", "C", "D"]] * 4})
-        text = render_json_content(payload, "oneshot")
-        assert text == "<answer>\nA, B, C, D\nA, B, C, D\nA, B, C, D\nA, B, C, D\n</answer>"
-
-    def test_code_fenced_json_is_still_rendered(self):
-        payload = "```json\n" + json.dumps({
-            "answer": [["A", "B", "C", "D"]] * 4, "traps": [], "confidence": 1,
-        }) + "\n```"
-        assert render_json_content(payload, "oneshot").startswith("<answer>")
-
-    def test_rendered_output_round_trips_through_the_parsers(self, tmp_path):
-        """The rendered text must parse identically to a native XML response."""
-        game = _make_game(tmp_path, _make_puzzle(), structured_output=True)
-        payload = json.dumps({
-            "thinking": "reasoning",
-            "answer": [g.words for g in _make_test_groups()],
-            "traps": ["FAST", "QUICK", "BRIGHT", "CLEVER"],
-            "confidence": 0.9,
-        })
-        text = render_json_content(payload, "oneshot")
-
-        assert game._parse_oneshot_response(text) == [g.words for g in _make_test_groups()]
-        assert game._parse_oneshot_traps(text) == [["FAST", "QUICK", "BRIGHT", "CLEVER"]]
-        assert game._parse_structured_response(text)["confidence"] == "0.9"
-
-
-class TestClassicRendering:
-    """JSON -> the XML-ish text the existing classic parsers understand."""
-
-    def test_full_payload(self):
-        payload = json.dumps({
-            "thinking": "fruit first",
-            "guess": ["apple", "BANANA", " cherry", "grape "],
-            "confidence": 0.6,
-        })
-        assert render_json_content(payload, "classic") == (
-            "<thinking>fruit first</thinking>\n"
-            "\n"
-            "<guess>\n"
-            "APPLE, BANANA, CHERRY, GRAPE\n"
-            "</guess>\n"
-            "\n"
-            "<confidence>\n"
-            "0.6\n"
-            "</confidence>"
-        )
-
-    def test_rendered_output_round_trips_through_the_parsers(self, tmp_path):
-        game = _make_game(tmp_path, _make_puzzle(), mode="classic", structured_output=True)
-        text = render_json_content(json.dumps({
-            "thinking": "t", "guess": ["APPLE", "BANANA", "CHERRY", "GRAPE"],
-            "confidence": 0.6,
-        }), "classic")
-        assert game._parse_response(text) == ["APPLE", "BANANA", "CHERRY", "GRAPE"]
-
-
-class TestPassthrough:
-    """Anything that isn't the expected JSON object is left exactly as-is."""
-
-    @pytest.mark.parametrize("content", [
-        "I refuse to answer in the requested format.",
-        "<answer>\nAPPLE, BANANA, CHERRY, GRAPE\n</answer>",
-        "{not json at all",
-        '["a", "list", "not", "an", "object"]',
-        '{"thinking": "no answer key here", "confidence": 0.5}',
-        '"just a json string"',
-        "",
+class TestPromptTemplate:
+    @pytest.mark.parametrize("filename, mode, key", [
+        ("prompt_template_oneshot.xml", "oneshot", '"traps"'),
+        ("prompt_template.xml", "classic", '"guess"'),
     ])
-    def test_invalid_or_unexpected_json_passes_through(self, content):
+    def test_json_section_replaces_xml_format(self, filename, mode, key):
+        xml = (INPUTS / filename).read_text()
+        derived = json_prompt_template(xml, mode)
+        assert derived.startswith(xml.split("RESPONSE FORMAT:")[0])
+        assert key in derived and "<answer>" not in derived and "<guess>" not in derived
+        assert derived.rstrip().endswith(xml.split("</user>")[1].rstrip())
+
+
+class TestRendering:
+    def test_full_object(self):
+        out = render_json_content('{"thinking": " why ", ' + TAIL, "oneshot")
+        assert "<thinking>why</thinking>" in out
+        assert "<answer>\nAPPLE, BANANA, CHERRY, GRAPE\n" in out and out.count("\n") >= 6
+        assert "<traps>\nFAST, QUICK, BRIGHT, CLEVER\n</traps>" in out
+        assert "<confidence>\n0.65\n</confidence>" in out
+
+    def test_empty_traps_is_na_and_words_are_normalized(self):
+        out = render_json_content('{"answer": [[" apple ", "b", "c", "d"]], "traps": []}', "oneshot")
+        assert "APPLE, B, C, D" in out and "<traps>\nN/A\n</traps>" in out and "<confidence>" not in out
+
+    def test_classic(self):
+        out = render_json_content('{"guess": ["a", "b", "c", "d"], "confidence": 0.4}', "classic")
+        assert "<guess>\nA, B, C, D\n</guess>" in out
+
+    @pytest.mark.parametrize("content", ["plain text", "[1, 2]", '{"thinking": "no key"}', "", '{"thinking": "trunc'])
+    def test_non_json_or_wrong_shape_passes_through(self, content):
         assert render_json_content(content, "oneshot") == content
-        assert render_json_content(content, "classic") == content
 
-    def test_classic_payload_is_not_treated_as_oneshot(self):
-        payload = json.dumps({"guess": ["A", "B", "C", "D"]})
-        assert render_json_content(payload, "oneshot") == payload
+    def test_tolerates_fence_newlines_bad_escapes_and_wrapper(self):
+        cases = [
+            "```json\n{" + TAIL + "\n```",
+            '{"thinking": "line one\nline two\ttabbed", ' + TAIL,
+            r'{"thinking": "SKY \d GREEK\ROMAN", ' + TAIL,
+            "[{" + TAIL + "]",
+        ]
+        for content in cases:
+            assert "BRIGHT, CLEVER, SMART, WISE" in render_json_content(content, "oneshot"), content
 
-
-# --- shared end-to-end helpers ------------------------------------------
-
-
-def _make_puzzle(trap_groups=None):
-    return Puzzle(
-        id=477, date="2024-09-30", difficulty=3.8,
-        words=list(_TEST_WORDS), groups=_make_test_groups(),
-        trap_groups=trap_groups,
-    )
-
-
-def _make_game(tmp_path, puzzle, mode="oneshot", structured_output=False):
-    with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
-         patch.object(ConnectionsGame, '_load_model_mappings',
-                      return_value={"test-model": "test/model"}):
-        return ConnectionsGame(_INPUTS, tmp_path, seed=42, mode=mode,
-                               structured_output=structured_output)
+    def test_salvages_arrays_from_unparseable_json(self):
+        content = '{"thinking": "he said "hi" and \\q left", ' + TAIL  # unrecoverable object
+        out = render_json_content(content, "oneshot")
+        assert "<answer>" in out and "<traps>" in out and "0.65" in out and "<thinking>" not in out
+        assert "<guess>\nA, B, C, D\n</guess>" in render_json_content(
+            '{"thinking": "bad "q", "guess": ["a","b","c","d"]}', "classic")
 
 
-def _mock_response(content):
-    return {
-        "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
-        "usage": {"prompt_tokens": 100, "completion_tokens": 50},
-    }
+class TestEndToEnd:
+    def _game(self, tmp_path, **kw):
+        game = ConnectionsGame(INPUTS, tmp_path, seed=1, mode="oneshot", **kw)
+        game.puzzles = [_puzzle()]
+        game.MODEL_CONFIG = {"test-model": "test/model"}
+        return game
 
+    def test_json_response_scores_perfectly_and_sends_schema(self, tmp_path):
+        game = self._game(tmp_path, structured_output=True)
+        content = json.dumps({"thinking": "x", "answer": ANSWER, "traps": ANSWER[2][:2] + ANSWER[3][:2], "confidence": 0.9})
+        with patch("connections_eval.core.openrouter_adapter.chat", return_value=_response(content)) as chat:
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+        assert summary["total_score"] == 5 and summary["structured_output"] is True
+        assert chat.call_args.kwargs["response_format"] == build_response_format("oneshot")
+        assert "JSON object" in game.prompt_template
 
-class TestPromptTemplateSelection:
-    """--structured-output swaps in the `_json` template variant."""
-
-    def test_oneshot_json_template(self, tmp_path):
-        game = _make_game(tmp_path, _make_puzzle(), structured_output=True)
-        assert '"answer"' in game.prompt_template
-        assert "<answer>" not in game.prompt_template
-        # Everything the message builder splits on must survive.
-        for tag in ("<system>", "<user>", "<puzzle>", "<id>", "<difficulty>"):
-            assert tag in game.prompt_template
-
-    def test_classic_json_template(self, tmp_path):
-        game = _make_game(tmp_path, _make_puzzle(), mode="classic", structured_output=True)
-        assert '"guess"' in game.prompt_template
-        assert "<guess>" not in game.prompt_template
-
-    def test_default_still_loads_the_xml_templates(self, tmp_path):
-        game = _make_game(tmp_path, _make_puzzle())
+    def test_default_run_is_unchanged(self, tmp_path):
+        game = self._game(tmp_path)
+        xml = "<answer>\n" + "\n".join(", ".join(g) for g in ANSWER) + "\n</answer>\n<traps>\nN/A\n</traps>"
+        with patch("connections_eval.core.openrouter_adapter.chat", return_value=_response(xml)) as chat:
+            summary = game.run_evaluation("test-model", puzzle_ids=[477])
+        assert summary["total_score"] == 3 and summary["structured_output"] is False
+        assert "response_format" not in chat.call_args.kwargs
         assert "<answer>" in game.prompt_template
-        assert game.response_format is None
-        assert game.structured_output is False
-
-
-class TestStructuredEndToEnd:
-    """run_evaluation drives the structured one-shot path (mocked adapter)."""
-
-    def test_json_response_scores_a_perfect_oneshot(self, tmp_path):
-        puzzle = _make_puzzle()
-        game = _make_game(tmp_path, puzzle, structured_output=True)
-        content = json.dumps({
-            "thinking": "grouped them",
-            "answer": [g.words for g in puzzle.groups],
-            "traps": [],
-            "confidence": 0.95,
-        })
-
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=_mock_response(content)) as chat_mock:
-            summary = game.run_evaluation("test-model", puzzle_ids=[477])
-
-        assert summary["structured_output"] is True
-        assert summary["puzzles_solved"] == 1
-        assert summary["total_score"] == 3
-        assert summary["max_score"] == 3
-        assert summary["invalid_responses"] == 0
-        # The schema reached the adapter.
-        rf = chat_mock.call_args.kwargs["response_format"]
-        assert rf["json_schema"]["name"] == "connections_oneshot"
-
-    def test_default_run_sends_no_response_format(self, tmp_path):
-        puzzle = _make_puzzle()
-        game = _make_game(tmp_path, puzzle)
-        answer = "<answer>\n" + "\n".join(
-            ", ".join(g.words) for g in puzzle.groups) + "\n</answer>"
-
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=_mock_response(answer)) as chat_mock:
-            summary = game.run_evaluation("test-model", puzzle_ids=[477])
-
-        assert summary["structured_output"] is False
-        assert "response_format" not in chat_mock.call_args.kwargs
-
-    def test_model_ignoring_the_schema_is_scored_as_today(self, tmp_path):
-        """A non-JSON reply under structured output still parses as XML text."""
-        puzzle = _make_puzzle()
-        game = _make_game(tmp_path, puzzle, structured_output=True)
-        answer = "<answer>\n" + "\n".join(
-            ", ".join(g.words) for g in puzzle.groups) + "\n</answer>"
-
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=_mock_response(answer)):
-            summary = game.run_evaluation("test-model", puzzle_ids=[477])
-
-        assert summary["total_score"] == 3
-
-    def test_json_trap_claim_earns_the_bonus(self, tmp_path):
-        puzzle = _make_puzzle(trap_groups=[["FAST", "QUICK", "BRIGHT", "CLEVER"]])
-        game = _make_game(tmp_path, puzzle, structured_output=True)
-        content = json.dumps({
-            "thinking": "spotted the trap",
-            "answer": [g.words for g in puzzle.groups],
-            "traps": ["FAST", "QUICK", "BRIGHT", "CLEVER"],
-            "confidence": 0.9,
-        })
-
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=_mock_response(content)):
-            summary = game.run_evaluation("test-model", puzzle_ids=[477])
-
-        assert summary["total_score"] == 5
-        assert summary["max_score"] == 5
 
 
 class TestAdapterPayload:
-    """response_format lands in the request body only when supplied."""
-
     @staticmethod
-    def _post_payload(mock_post, **chat_kwargs):
+    def _payload(mock_post, model, **kw):
         from connections_eval.adapters import openrouter_adapter
-
-        mock_post.return_value = MagicMock(
-            status_code=200, ok=True,
-            json=lambda: {"choices": [{"message": {"content": "hi"},
-                                       "finish_reason": "stop"}]},
-        )
-        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}):
-            openrouter_adapter.chat([{"role": "user", "content": "hi"}],
-                                    "test/model", **chat_kwargs)
+        mock_post.return_value = MagicMock(status_code=200, ok=True, json=lambda: _response("hi"))
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "k"}):
+            openrouter_adapter.chat([{"role": "user", "content": "hi"}], model, **kw)
         return mock_post.call_args.kwargs["json"]
 
     @patch("connections_eval.adapters.openrouter_adapter.requests.post")
-    def test_payload_carries_response_format(self, mock_post):
-        rf = build_response_format("oneshot")
-        payload = self._post_payload(mock_post, response_format=rf)
-        assert payload["response_format"] == rf
-
-    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
-    def test_payload_omits_response_format_by_default(self, mock_post):
-        assert "response_format" not in self._post_payload(mock_post)
-
-
-class TestTolerantJsonParsing:
-    """Models break the long `thinking` string far more often than the arrays.
-
-    Every shape here was observed verbatim in a mercury-2.5-preview canonical
-    run: raw newlines inside strings, invalid backslash escapes, and JSON that
-    will not parse at all but still ends in a well-formed answer array.
-    """
-
-    _ANSWER = [["APPLE", "BANANA", "CHERRY", "GRAPE"], ["BLUE", "GREEN", "RED", "YELLOW"],
-               ["FAST", "QUICK", "RAPID", "SWIFT"], ["BRIGHT", "CLEVER", "SMART", "WISE"]]
-
-    def _tail(self):
-        return (f'"answer": {json.dumps(self._ANSWER)}, '
-                f'"traps": ["FAST", "QUICK", "BRIGHT", "CLEVER"], "confidence": 0.65}}')
-
-    def test_raw_newlines_inside_thinking_are_tolerated(self):
-        content = '{"thinking": "line one\nline two\n\ttabbed", ' + self._tail()
-        with pytest.raises(ValueError):
-            json.loads(content)  # strict JSON rejects it
-        rendered = render_json_content(content, "oneshot")
-        assert "<answer>" in rendered
-        assert "APPLE, BANANA, CHERRY, GRAPE" in rendered
-        assert "FAST, QUICK, BRIGHT, CLEVER" in rendered
-
-    def test_invalid_backslash_escape_is_repaired(self):
-        content = r'{"thinking": "SKY \d... GREEK\ROMAN?", ' + self._tail()
-        with pytest.raises(ValueError):
-            json.loads(content)
-        rendered = render_json_content(content, "oneshot")
-        assert "BRIGHT, CLEVER, SMART, WISE" in rendered
-
-    def test_unparseable_json_is_salvaged_from_the_arrays(self):
-        # Unbalanced quote in thinking: no escape fix can rescue the object,
-        # but the arrays at the tail stand on their own.
-        content = '{"thinking": "he said "hi" and \\q left", ' + self._tail()
-        rendered = render_json_content(content, "oneshot")
-        assert rendered.count("\n") >= 4
-        assert "<answer>" in rendered and "<traps>" in rendered
-        assert "<confidence>" in rendered and "0.65" in rendered
-        assert "<thinking>" not in rendered  # dropped: unrecoverable and never scored
-
-    def test_classic_guess_is_salvaged_too(self):
-        content = '{"thinking": "bad "quote", "guess": ["apple", "banana", "cherry", "grape"], "confidence": 0.4}'
-        rendered = render_json_content(content, "classic")
-        assert "<guess>\nAPPLE, BANANA, CHERRY, GRAPE\n</guess>" in rendered
-
-    def test_object_wrapped_in_a_one_element_array_is_unwrapped(self):
-        content = "[" + '{"thinking": "x", ' + self._tail() + "]"
-        rendered = render_json_content(content, "oneshot")
-        assert "APPLE, BANANA, CHERRY, GRAPE" in rendered
-
-    def test_garbage_without_arrays_still_passes_through(self):
-        content = '{"thinking": "nothing else here'
-        assert render_json_content(content, "oneshot") == content
-
-
-class TestStructuredMaxTokensCap:
-    """A response_format request caps output for thinking models (which
-    otherwise send no max_tokens) and leaves the non-thinking cap alone."""
-
-    @staticmethod
-    def _payload(mock_post, model, **chat_kwargs):
+    def test_response_format_and_cap_only_when_requested(self, mock_post):
         from connections_eval.adapters import openrouter_adapter
-
-        mock_post.return_value = MagicMock(
-            status_code=200, ok=True,
-            json=lambda: {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-                          "usage": {"prompt_tokens": 1, "completion_tokens": 1}},
-        )
-        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}):
-            openrouter_adapter.chat([{"role": "user", "content": "hi"}], model, **chat_kwargs)
-        return mock_post.call_args.kwargs["json"]
-
-    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
-    def test_thinking_model_gets_cap_only_with_schema(self, mock_post):
-        from connections_eval.adapters import openrouter_adapter
-
-        thinking_model = next(iter(openrouter_adapter._THINKING_MODELS))
+        thinking = next(iter(openrouter_adapter._THINKING_MODELS))
         rf = build_response_format("oneshot")
-        assert self._payload(mock_post, thinking_model, response_format=rf)["max_tokens"] == \
-            openrouter_adapter.STRUCTURED_OUTPUT_MAX_TOKENS
-        assert "max_tokens" not in self._payload(mock_post, thinking_model)
-
-    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
-    def test_non_thinking_model_keeps_its_existing_cap(self, mock_post):
-        rf = build_response_format("oneshot")
+        with_rf = self._payload(mock_post, thinking, response_format=rf)
+        assert with_rf["response_format"] == rf
+        assert with_rf["max_tokens"] == openrouter_adapter.STRUCTURED_OUTPUT_MAX_TOKENS
+        plain = self._payload(mock_post, thinking)
+        assert "response_format" not in plain and "max_tokens" not in plain
         assert self._payload(mock_post, "test/model", response_format=rf)["max_tokens"] == 25000

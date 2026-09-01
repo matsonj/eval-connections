@@ -13,10 +13,8 @@ from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info, extract_cache_info
 from .utils.logging import log_exchange, log_summary, setup_logger
 from .utils.retry import get_last_backoff_sec
-from .structured import build_response_format, render_json_content
-from .linter import (
-    feedback_message, lint_classic, lint_oneshot, parse_guess_words, splice_segment,
-)
+from .structured import build_response_format, render_json_content, json_prompt_template
+from .linter import feedback_message, lint_oneshot, splice_segment
 import controllog as cl
 from .adapters import openrouter_adapter
 
@@ -316,16 +314,11 @@ class ConnectionsGame:
 
     def _load_prompt_template(self) -> str:
         """Load prompt template from XML file (default filename depends on mode).
-
-        Structured output uses the `_json` variant of the same template, which
-        differs only in its RESPONSE FORMAT section.
-        """
+        Structured output swaps in a JSON RESPONSE FORMAT section."""
         filename = "prompt_template_oneshot.xml" if self.mode == "oneshot" else "prompt_template.xml"
-        if self.structured_output:
-            filename = filename.replace(".xml", "_json.xml")
-        template_file = self.inputs_path / filename
-        with open(template_file, 'r') as f:
-            return f.read()
+        with open(self.inputs_path / filename, 'r') as f:
+            template = f.read()
+        return json_prompt_template(template, self.mode) if self.structured_output else template
 
     def _load_model_mappings(self) -> Dict[str, str]:
         """Load model mappings from YAML file."""
@@ -644,10 +637,6 @@ class ConnectionsGame:
         except Exception:
             pass
 
-    def _lint_protocol(self) -> str:
-        """Wording for lint feedback: "json" under structured output, else "xml"."""
-        return "json" if self.structured_output else "xml"
-
     def _chat_response_format_kwargs(self) -> Dict[str, Any]:
         """Extra chat() kwargs for structured output — empty unless opted in.
 
@@ -881,7 +870,6 @@ class ConnectionsGame:
         exchange_data["native_finish_reason"] = response["choices"][0].get("native_finish_reason")
         exchange_data["provider"] = response.get("provider")
         exchange_data["usage"] = response.get("usage")
-        exchange_data["partial_retries"] = openrouter_adapter.get_last_partial_retries()
 
         log_exchange(self.logger, exchange_data)
 
@@ -1180,7 +1168,7 @@ class ConnectionsGame:
             if not lint.ok and lint_retries < self.MAX_LINT_RETRIES:
                 failure = lint.failures[0]
                 segment = failure.segment
-                feedback = feedback_message(lint, protocol=self._lint_protocol())
+                feedback = feedback_message(lint, "json" if self.structured_output else "xml")
                 # Deliberately not an ONESHOT*/INVALID* string: aggregation keys
                 # off those prefixes, and this turn is neither a scored
                 # submission nor a counted invalid — it is a repair request.
@@ -1353,24 +1341,9 @@ class ConnectionsGame:
         validation_error = self._validate_guess(state, words)
         if validation_error:
             state.invalid_count += 1
-            # _validate_guess stays the gate (its semantics decide what counts as
-            # invalid); the linter only phrases the reply, so the model is told
-            # which structural rule it broke and which segment to re-send. The
-            # prefix must stay INVALID_RESPONSE — _run_puzzle_interactive and the
-            # MotherDuck aggregation both key off it.
-            solved_words = set(w.upper() for w in state.puzzle.words) - set(
-                self._get_remaining_words(state))
-            lint = lint_classic(response, state.puzzle.words, solved_words)
-            if lint.ok:
-                # Defensive: _validate_guess rejected something the linter has no
-                # rule for. Keep the old wording rather than saying nothing.
-                remaining_words = self._get_remaining_words(state)
-                detail = (f"{validation_error}. Available words: "
-                          f"{', '.join(sorted(remaining_words))}. You provided: "
-                          f"{', '.join(words) if words else 'no valid words'}")
-            else:
-                detail = feedback_message(lint, protocol=self._lint_protocol())
-            invalid_message = f"INVALID_RESPONSE: {detail}"
+            # Get remaining words (not from solved groups)
+            remaining_words = self._get_remaining_words(state)
+            invalid_message = f"INVALID_RESPONSE: {validation_error}. Available words: {', '.join(sorted(remaining_words))}. You provided: {', '.join(words) if words else 'no valid words'}"
             if state.invalid_count >= self.MAX_INVALID:
                 state.finished = True
             return invalid_message
@@ -1407,14 +1380,32 @@ class ConnectionsGame:
         return f"INCORRECT. {remaining_guesses} INCORRECT GUESSES REMAINING."
 
     def _parse_response(self, response: str) -> List[str]:
-        """Parse response into list of words, handling structured XML format.
+        """Parse response into list of words, handling structured XML format."""
+        import re
 
-        Delegates to linter.parse_guess_words so the game and the linter can
-        never disagree about which words a turn actually contained. Behaviour is
-        unchanged: thinking blocks are stripped, the <guess> block wins, then an
-        ALL-CAPS comma run, then a bare comma split.
-        """
-        return parse_guess_words(response)
+        # Strip <thinking>/<think> blocks first so that any <guess> examples
+        # inside reasoning don't get picked up by the guess regex.
+        # Also handle unclosed tags (truncated responses).
+        cleaned = re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', response, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r'<think(?:ing)?>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
+
+        # First try to extract from <guess> tags
+        guess_match = re.search(r'<guess>(.*?)</guess>', cleaned, re.IGNORECASE | re.DOTALL)
+        if guess_match:
+            guess_text = guess_match.group(1).strip()
+            words = [word.strip().upper() for word in guess_text.split(',')]
+            return [word for word in words if word]
+
+        # Fallback: try to find 4 comma-separated words in ALL CAPS
+        caps_pattern = r'\b[A-Z][A-Z\s]*\b(?:\s*,\s*[A-Z][A-Z\s]*\b){3}'
+        caps_match = re.search(caps_pattern, cleaned)
+        if caps_match:
+            words = [word.strip().upper() for word in caps_match.group().split(',')]
+            return [word for word in words if word]
+
+        # Final fallback: original comma-split logic
+        words = [word.strip().upper() for word in cleaned.split(',')]
+        return [word for word in words if word]
 
     def _parse_structured_response(self, response: str) -> Dict[str, str]:
         """

@@ -5,7 +5,7 @@ import yaml
 import os
 import logging
 from typing import Dict, List, Optional, Set
-from ..utils.retry import retry_with_backoff, get_last_backoff_sec, get_last_retry_count
+from ..utils.retry import retry_with_backoff, get_last_backoff_sec
 from ..utils.rate_limiter import get_default as get_rate_limiter
 
 logger = logging.getLogger(__name__)
@@ -393,12 +393,6 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     response_data["_backoff_sec"] = get_last_backoff_sec()
     return response_data
 
-
-def get_last_partial_retries() -> int:
-    """Number of PartialResponseError retries during the most recent chat()
-    call on this thread. Mirrors get_last_backoff_sec's thread-local, reset-
-    per-call lifecycle."""
-    return get_last_retry_count("PartialResponseError")
 
 
 def _get_api_key() -> str:

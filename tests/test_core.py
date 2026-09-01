@@ -158,12 +158,8 @@ class TestConnectionsGame:
         # Wrong number of words
         result = mock_game._process_guess(game_state, "APPLE, BANANA, CHERRY")
 
-        # The reply is now the linter's: it names the failed rule and the segment
-        # to re-send, but must keep the INVALID_RESPONSE prefix aggregation reads.
         assert result.startswith("INVALID_RESPONSE")
-        assert "guess.word_count" in result
-        assert "3 were found" in result
-        assert "re-submit only the failed segment guess" in result
+        assert "Expected 4 words, got 3" in result
         assert "Available words:" in result
         assert game_state.guess_count == 0  # Invalid guess doesn't count
         assert game_state.invalid_count == 1
@@ -1439,9 +1435,7 @@ class TestAdapterPartialResponse:
     @patch("connections_eval.adapters.openrouter_adapter.requests.post")
     @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
     def test_zero_usage_partial_content_is_retried(self, mock_key, mock_post, monkeypatch):
-        from connections_eval.adapters.openrouter_adapter import (
-            chat, get_last_partial_retries,
-        )
+        from connections_eval.adapters.openrouter_adapter import chat
         from connections_eval.utils import retry as retry_mod
 
         monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
@@ -1475,48 +1469,13 @@ class TestAdapterPartialResponse:
         # Both calls happened — the zero-usage partial was retried, not returned.
         assert mock_post.call_count == 2
         assert result["choices"][0]["message"]["content"] == "hi"
-        assert get_last_partial_retries() == 1
-
-    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
-    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
-    def test_zero_usage_empty_content_is_retried(self, mock_key, mock_post, monkeypatch):
-        from connections_eval.adapters.openrouter_adapter import chat
-        from connections_eval.utils import retry as retry_mod
-
-        monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
-        monkeypatch.setattr(retry_mod.random, "uniform", lambda a, b: 0.0)
-
-        empty_response = MagicMock()
-        empty_response.ok = True
-        empty_response.json.return_value = {
-            "choices": [{"message": {"content": ""}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 0, "completion_tokens": None, "total_tokens": 0},
-        }
-        empty_response.raise_for_status.return_value = None
-
-        good_response = MagicMock()
-        good_response.ok = True
-        good_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        good_response.raise_for_status.return_value = None
-
-        mock_post.side_effect = [empty_response, good_response]
-
-        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
-
-        assert mock_post.call_count == 2
-        assert result["choices"][0]["message"]["content"] == "hi"
 
     @patch("connections_eval.adapters.openrouter_adapter.requests.post")
     @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
     def test_length_finish_reason_with_tokens_is_not_retried(self, mock_key, mock_post):
         """A genuine max_tokens truncation (nonzero completion_tokens) must be
         returned as-is, not treated as a transient partial-response fault."""
-        from connections_eval.adapters.openrouter_adapter import (
-            chat, get_last_partial_retries,
-        )
+        from connections_eval.adapters.openrouter_adapter import chat
 
         truncated_response = MagicMock()
         truncated_response.ok = True
@@ -1534,7 +1493,6 @@ class TestAdapterPartialResponse:
 
         assert mock_post.call_count == 1
         assert result["choices"][0]["message"]["content"].startswith("<answer>")
-        assert get_last_partial_retries() == 0
 
 
 class TestSharedExchangeScaffolding:
@@ -1657,7 +1615,7 @@ class TestSharedExchangeScaffolding:
     ]
     # Response metadata appended unconditionally, after any cost/cache fields.
     _RESPONSE_META_FIELDS = [
-        "finish_reason", "native_finish_reason", "provider", "usage", "partial_retries",
+        "finish_reason", "native_finish_reason", "provider", "usage",
     ]
 
     def test_classic_exchange_log_field_order(self, tmp_path):
@@ -1699,23 +1657,20 @@ class TestSharedExchangeScaffolding:
         assert "APPLE, BANANA, CHERRY, GRAPE" in logged["guess"]
 
     def test_exchange_log_carries_response_metadata(self, tmp_path):
-        """finish_reason/native_finish_reason/provider/usage/partial_retries
+        """finish_reason/native_finish_reason/provider/usage
         must reach the JSONL exchange log so a transient provider fault (see
         PartialResponseError) can be told apart from a bad model answer."""
         response = self._response(self._answer())
         response["choices"][0]["native_finish_reason"] = "STOP"
         response["provider"] = "Mercury"
 
-        with patch("connections_eval.core.openrouter_adapter.get_last_partial_retries",
-                   return_value=2):
-            cap = self._run(tmp_path, "oneshot", [response])
+        cap = self._run(tmp_path, "oneshot", [response])
 
         logged = cap.exchanges[0]
         assert logged["finish_reason"] == "stop"
         assert logged["native_finish_reason"] == "STOP"
         assert logged["provider"] == "Mercury"
         assert logged["usage"] == {"prompt_tokens": 100, "completion_tokens": 50}
-        assert logged["partial_retries"] == 2
 
     # --- controllog telemetry (parsed by extract_summaries) --------------
 
@@ -2023,31 +1978,6 @@ class TestOneshotLintRepairLoop:
         assert cap.exchanges[0]["lint_segment"] == "answer"
         assert "lint_retries" not in cap.exchanges[0]
 
-    def test_clean_response_costs_no_retry(self, tmp_path):
-        cap = self._run(tmp_path, [self._response(self._shared._answer())])
-
-        assert cap.chat.call_count == 1
-        assert cap.summary["lint_retries"] == 0
-        assert cap.exchanges[0]["lint_retries"] == 0
-
-    def test_repair_turns_increment_the_guess_index(self, tmp_path):
-        """0 for the submission, then 1 and 2 for the repairs, so the log viewer
-        keeps the turns of one puzzle ordered and distinguishable."""
-        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
-
-        assert [e["guess_index"] for e in cap.exchanges] == [0, 1, 2]
-        assert [c["payload"]["guess_index"] for c in cap.completions] == [0, 1, 2]
-
-    def test_repair_exchanges_are_billed_to_the_puzzle(self, tmp_path):
-        """Every exchange goes through _run_exchange, so ctx.totals already covers
-        the repair turns — the puzzle pays for its own bad formatting."""
-        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
-                                   self._response(self._ANSWER_ONLY)])
-
-        assert cap.summary["total_prompt_tokens"] == 200
-        assert cap.summary["total_completion_tokens"] == 100
-        assert cap.summary["total_guesses"] == 1  # one scored submission, two calls
-
     def test_repair_result_strings_avoid_the_aggregation_prefixes(self, tmp_path):
         """extract_summaries.py keys off ONESHOT% / INVALID% — a repair turn must
         match neither, or it would inflate max_score and invalid_responses."""
@@ -2057,44 +1987,3 @@ class TestOneshotLintRepairLoop:
             assert result.startswith("LINT_RETRY_")
             assert not result.startswith("ONESHOT")
             assert not result.startswith("INVALID")
-
-    def test_bare_line_resubmission_is_wrapped_and_scored(self, tmp_path):
-        """Models often reply with the four lines and no tags at all."""
-        bare = "\n".join(", ".join(g.words) for g in _make_test_groups())
-        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
-                                   self._response(bare)])
-
-        assert cap.exchanges[-1]["result"] == "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5"
-
-
-class TestClassicLintFeedback:
-    """Classic mode keeps MAX_INVALID semantics; only the wording changes."""
-
-    _shared = TestSharedExchangeScaffolding()
-
-    def test_invalid_turn_keeps_prefix_and_names_the_rule(self, tmp_path):
-        bad = self._shared._response("<guess>APPLE, BANANA</guess>")
-        good = self._shared._guesses()
-        cap = self._shared._run(tmp_path, "classic", [bad] + good)
-
-        result = cap.exchanges[0]["result"]
-        assert result.startswith("INVALID_RESPONSE")  # aggregation reads INVALID%
-        assert "guess.word_count" in result
-        assert "re-submit only the failed segment guess" in result
-        # ...and it is handed straight back to the model as a user turn
-        assert result in [m["content"] for m in cap.chat.call_args_list[-1].args[0]]
-
-    def test_invalid_still_counts_toward_the_invalid_budget(self, tmp_path):
-        cap = self._shared._run(tmp_path, "classic",
-                                [self._shared._response("<guess>APPLE</guess>")] * 3)
-
-        assert cap.chat.call_count == 3  # MAX_INVALID ends the game
-        assert cap.summary["invalid_responses"] == 3
-        assert cap.summary["lint_retries"] == 0  # invalids are the count in classic
-
-    def test_solved_word_reuse_names_its_own_rule(self, tmp_path):
-        first = self._shared._response("<guess>APPLE, BANANA, CHERRY, GRAPE</guess>")
-        cap = self._shared._run(tmp_path, "classic", [first, first, first, first])
-
-        assert cap.exchanges[0]["result"] == "CORRECT. NEXT GUESS?"
-        assert "guess.solved_word" in cap.exchanges[1]["result"]

@@ -207,35 +207,3 @@ class TestStructuredOutputFlag:
         result, cls = self._invoke(mock_game_class, [])
         assert result.exit_code == 0
         assert cls.call_args.kwargs["structured_output"] is False
-
-    @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}, clear=True)
-    @patch('connections_eval.cli.openrouter_adapter.assert_model_exists')
-    @patch('connections_eval.cli.ConnectionsGame')
-    def test_oneshot_structured_output(self, mock_game_class, mock_preflight):
-        result, cls = self._invoke(
-            mock_game_class, ["--mode", "oneshot", "--structured-output"])
-        assert result.exit_code == 0
-        assert cls.call_args.kwargs["structured_output"] is True
-        assert cls.call_args.kwargs["mode"] == "oneshot"
-
-
-class TestStructuredPromptFileValidation:
-    """_validate_run_args checks the template core.py will actually load."""
-
-    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
-
-    @pytest.mark.parametrize("mode,structured,expected", [
-        ("classic", False, "prompt_template.xml"),
-        ("classic", True, "prompt_template_json.xml"),
-        ("oneshot", False, "prompt_template_oneshot.xml"),
-        ("oneshot", True, "prompt_template_oneshot_json.xml"),
-    ])
-    def test_effective_template_exists(self, mode, structured, expected):
-        """Every mode/flag combination resolves to a template that exists."""
-        assert (self._INPUTS / expected).exists()
-        # Interactive run so no API key / model lookup is needed; validation
-        # passes only because the resolved template is on disk.
-        assert _validate_run_args(
-            None, True, None, None, False, self._INPUTS,
-            "prompt_template.xml", mode, None, structured,
-        ) is None

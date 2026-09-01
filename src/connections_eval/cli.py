@@ -88,16 +88,14 @@ def _validate_run_args(
         raise typer.Exit(1)
 
     puzzles_file = inputs_path / "connections_puzzles.yml"
-    # When --prompt-file was left at its default, the template ConnectionsGame
-    # actually loads depends on mode and --structured-output, not prompt_file
-    # (see core.py's _load_prompt_template), so check existence of that file
-    # instead. An explicit --prompt-file override is respected as given.
+    # When mode is oneshot and --prompt-file was left at its default, the
+    # template ConnectionsGame actually loads is prompt_template_oneshot.xml
+    # (core.py's _load_prompt_template switches on mode, not prompt_file), so
+    # check existence of that file instead. An explicit --prompt-file override
+    # is respected as given.
     effective_prompt_file = prompt_file
-    if prompt_file == "prompt_template.xml":
-        if mode == "oneshot":
-            effective_prompt_file = "prompt_template_oneshot.xml"
-        if structured_output:
-            effective_prompt_file = effective_prompt_file.replace(".xml", "_json.xml")
+    if mode == "oneshot" and prompt_file == "prompt_template.xml":
+        effective_prompt_file = "prompt_template_oneshot.xml"
     template_file = inputs_path / effective_prompt_file
     if not puzzles_file.exists():
         console.print(f"Puzzles file not found: {puzzles_file}", style="red")
