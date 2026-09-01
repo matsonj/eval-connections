@@ -13,6 +13,7 @@ prompt), so results are not directly comparable with XML-format runs.
 """
 
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 ONESHOT_SCHEMA_NAME = "connections_oneshot"
@@ -112,26 +113,73 @@ def build_response_format(mode: str) -> Dict[str, Any]:
     }
 
 
-def _loads(content: str) -> Optional[Dict[str, Any]]:
-    """Parse `content` as a JSON object, tolerating a markdown code fence.
+_INVALID_ESCAPE = re.compile(r'\\(?!["\\/bfnrtu])')
+_ANSWER_ARRAY = re.compile(r'"answer"\s*:\s*(\[\s*\[.*?\]\s*\])', re.DOTALL)
+_GUESS_ARRAY = re.compile(r'"guess"\s*:\s*(\[[^\[\]]*\])', re.DOTALL)
+_TRAPS_ARRAY = re.compile(r'"traps"\s*:\s*(\[[^\[\]]*\])', re.DOTALL)
+_CONFIDENCE = re.compile(r'"confidence"\s*:\s*([0-9]*\.?[0-9]+)')
 
-    Returns None when the content is not a JSON object — callers then leave the
-    text untouched so the existing parsers handle it exactly as they do today.
-    """
-    text = content.strip()
-    if not text:
-        return None
+
+def _strip_fence(text: str) -> str:
     if text.startswith("```"):
         # ```json\n{...}\n```  — strip the fence and retry.
         body = text.split("\n", 1)[1] if "\n" in text else ""
         if body.rstrip().endswith("```"):
             body = body.rstrip()[: -len("```")]
         text = body.strip()
-    try:
-        data = json.loads(text)
-    except (ValueError, TypeError):
+    return text
+
+
+def _salvage(text: str) -> Optional[Dict[str, Any]]:
+    """Recover the scoring-relevant arrays from JSON that will not parse.
+
+    Models routinely break the long free-text `thinking` string (raw newlines,
+    stray backslashes) while the short `answer`/`guess`/`traps` arrays at the
+    end are well formed. Those arrays hold only plain strings, so they can be
+    parsed on their own. `thinking` is dropped; the linter never reads it.
+    """
+    data: Dict[str, Any] = {}
+    for key, pattern in (("answer", _ANSWER_ARRAY), ("guess", _GUESS_ARRAY),
+                         ("traps", _TRAPS_ARRAY)):
+        m = pattern.search(text)
+        if not m:
+            continue
+        try:
+            data[key] = json.loads(m.group(1), strict=False)
+        except (ValueError, TypeError):
+            continue
+    m = _CONFIDENCE.search(text)
+    if m:
+        try:
+            data["confidence"] = float(m.group(1))
+        except ValueError:
+            pass
+    return data if ("answer" in data or "guess" in data) else None
+
+
+def _loads(content: str) -> Optional[Dict[str, Any]]:
+    """Parse `content` as a JSON object, tolerating the ways models break JSON.
+
+    In order: a markdown code fence; literal control characters inside strings
+    (`strict=False`); invalid backslash escapes (re-escaped); and finally a
+    salvage pass that extracts just the answer/guess/traps arrays from text that
+    still will not parse. Returns None when nothing usable is found — callers
+    then leave the text untouched so the existing parsers handle it exactly as
+    they do today.
+    """
+    text = _strip_fence((content or "").strip())
+    if not text:
         return None
-    return data if isinstance(data, dict) else None
+    for candidate in (text, _INVALID_ESCAPE.sub(r"\\\\", text)):
+        try:
+            data = json.loads(candidate, strict=False)
+        except (ValueError, TypeError):
+            continue
+        # Some models wrap the object in a one-element array: [{...}].
+        if isinstance(data, list) and len(data) == 1 and isinstance(data[0], dict):
+            data = data[0]
+        return data if isinstance(data, dict) else None
+    return _salvage(text)
 
 
 def _render_words(words: Any) -> str:

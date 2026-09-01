@@ -644,6 +644,10 @@ class ConnectionsGame:
         except Exception:
             pass
 
+    def _lint_protocol(self) -> str:
+        """Wording for lint feedback: "json" under structured output, else "xml"."""
+        return "json" if self.structured_output else "xml"
+
     def _chat_response_format_kwargs(self) -> Dict[str, Any]:
         """Extra chat() kwargs for structured output — empty unless opted in.
 
@@ -1176,7 +1180,7 @@ class ConnectionsGame:
             if not lint.ok and lint_retries < self.MAX_LINT_RETRIES:
                 failure = lint.failures[0]
                 segment = failure.segment
-                feedback = feedback_message(lint)
+                feedback = feedback_message(lint, protocol=self._lint_protocol())
                 # Deliberately not an ONESHOT*/INVALID* string: aggregation keys
                 # off those prefixes, and this turn is neither a scored
                 # submission nor a counted invalid — it is a repair request.
@@ -1365,7 +1369,7 @@ class ConnectionsGame:
                           f"{', '.join(sorted(remaining_words))}. You provided: "
                           f"{', '.join(words) if words else 'no valid words'}")
             else:
-                detail = feedback_message(lint)
+                detail = feedback_message(lint, protocol=self._lint_protocol())
             invalid_message = f"INVALID_RESPONSE: {detail}"
             if state.invalid_count >= self.MAX_INVALID:
                 state.finished = True

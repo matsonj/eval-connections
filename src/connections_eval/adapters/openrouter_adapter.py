@@ -128,6 +128,10 @@ def extract_provider_slug(model: str) -> Optional[str]:
     return None
 
 
+# Output cap applied only when a response_format schema is sent (see chat()).
+STRUCTURED_OUTPUT_MAX_TOKENS = 12000
+
+
 def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
                      provider: Optional[str] = None, **_kwargs) -> float:
     # Free-tier endpoints (model IDs ending in `:free`) hit aggressive rate limits;
@@ -228,6 +232,14 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     # schema (opt-in; callers that don't pass one get an unchanged payload).
     if response_format:
         payload["response_format"] = response_format
+        # The thinking-model path deliberately sets no max_tokens, but under a
+        # JSON schema some small models degenerate into runaway output (granite-
+        # 4.2-8b: one 15.8k-token, 233s generation, then requests that never
+        # returned before the 600s timeout and were retried for most of an
+        # hour). The structured payload is short, so a cap costs nothing on a
+        # healthy response and bounds the failure. setdefault keeps the
+        # non-thinking path's existing 25000.
+        payload.setdefault("max_tokens", STRUCTURED_OUTPUT_MAX_TOKENS)
 
     # Pin to a specific provider for prompt caching
     if provider:

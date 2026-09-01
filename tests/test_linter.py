@@ -344,3 +344,29 @@ class TestSpliceSegment:
 
         assert lint_oneshot(merged, WORDS).ok
         assert merged.count("<traps>") == 1
+
+
+class TestJsonProtocolFeedback:
+    """Structured-output runs cannot honor 'send only the <answer> block' — the
+    schema forces a whole JSON object — so the wording switches to JSON terms."""
+
+    def test_missing_tag_becomes_invalid_json_explanation(self):
+        result = lint_oneshot("not json at all", WORDS)
+        text = feedback_message(result, protocol="json")
+        assert result.first_rule == "answer.missing_tag"
+        assert "valid JSON object" in text
+        assert "<answer>" not in text
+        assert 'complete JSON object' in text and '"answer" value corrected' in text
+
+    def test_rule_messages_are_rephrased_in_json_terms(self):
+        body = "A B C D\n" + "\n".join(GOOD_ANSWER_BODY.splitlines()[1:])
+        result = lint_oneshot(answer(body), WORDS)
+        text = feedback_message(result, protocol="json")
+        assert result.first_rule == "answer.words_per_line"
+        assert '"answer" array' in text
+        assert "<answer>" not in text
+        assert "group 1" in text
+
+    def test_xml_protocol_is_unchanged_by_default(self):
+        result = lint_oneshot(answer("A B C D"), WORDS)
+        assert "<answer>...</answer> block" in feedback_message(result)

@@ -376,3 +376,92 @@ class TestAdapterPayload:
     @patch("connections_eval.adapters.openrouter_adapter.requests.post")
     def test_payload_omits_response_format_by_default(self, mock_post):
         assert "response_format" not in self._post_payload(mock_post)
+
+
+class TestTolerantJsonParsing:
+    """Models break the long `thinking` string far more often than the arrays.
+
+    Every shape here was observed verbatim in a mercury-2.5-preview canonical
+    run: raw newlines inside strings, invalid backslash escapes, and JSON that
+    will not parse at all but still ends in a well-formed answer array.
+    """
+
+    _ANSWER = [["APPLE", "BANANA", "CHERRY", "GRAPE"], ["BLUE", "GREEN", "RED", "YELLOW"],
+               ["FAST", "QUICK", "RAPID", "SWIFT"], ["BRIGHT", "CLEVER", "SMART", "WISE"]]
+
+    def _tail(self):
+        return (f'"answer": {json.dumps(self._ANSWER)}, '
+                f'"traps": ["FAST", "QUICK", "BRIGHT", "CLEVER"], "confidence": 0.65}}')
+
+    def test_raw_newlines_inside_thinking_are_tolerated(self):
+        content = '{"thinking": "line one\nline two\n\ttabbed", ' + self._tail()
+        with pytest.raises(ValueError):
+            json.loads(content)  # strict JSON rejects it
+        rendered = render_json_content(content, "oneshot")
+        assert "<answer>" in rendered
+        assert "APPLE, BANANA, CHERRY, GRAPE" in rendered
+        assert "FAST, QUICK, BRIGHT, CLEVER" in rendered
+
+    def test_invalid_backslash_escape_is_repaired(self):
+        content = r'{"thinking": "SKY \d... GREEK\ROMAN?", ' + self._tail()
+        with pytest.raises(ValueError):
+            json.loads(content)
+        rendered = render_json_content(content, "oneshot")
+        assert "BRIGHT, CLEVER, SMART, WISE" in rendered
+
+    def test_unparseable_json_is_salvaged_from_the_arrays(self):
+        # Unbalanced quote in thinking: no escape fix can rescue the object,
+        # but the arrays at the tail stand on their own.
+        content = '{"thinking": "he said "hi" and \\q left", ' + self._tail()
+        rendered = render_json_content(content, "oneshot")
+        assert rendered.count("\n") >= 4
+        assert "<answer>" in rendered and "<traps>" in rendered
+        assert "<confidence>" in rendered and "0.65" in rendered
+        assert "<thinking>" not in rendered  # dropped: unrecoverable and never scored
+
+    def test_classic_guess_is_salvaged_too(self):
+        content = '{"thinking": "bad "quote", "guess": ["apple", "banana", "cherry", "grape"], "confidence": 0.4}'
+        rendered = render_json_content(content, "classic")
+        assert "<guess>\nAPPLE, BANANA, CHERRY, GRAPE\n</guess>" in rendered
+
+    def test_object_wrapped_in_a_one_element_array_is_unwrapped(self):
+        content = "[" + '{"thinking": "x", ' + self._tail() + "]"
+        rendered = render_json_content(content, "oneshot")
+        assert "APPLE, BANANA, CHERRY, GRAPE" in rendered
+
+    def test_garbage_without_arrays_still_passes_through(self):
+        content = '{"thinking": "nothing else here'
+        assert render_json_content(content, "oneshot") == content
+
+
+class TestStructuredMaxTokensCap:
+    """A response_format request caps output for thinking models (which
+    otherwise send no max_tokens) and leaves the non-thinking cap alone."""
+
+    @staticmethod
+    def _payload(mock_post, model, **chat_kwargs):
+        from connections_eval.adapters import openrouter_adapter
+
+        mock_post.return_value = MagicMock(
+            status_code=200, ok=True,
+            json=lambda: {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+                          "usage": {"prompt_tokens": 1, "completion_tokens": 1}},
+        )
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}):
+            openrouter_adapter.chat([{"role": "user", "content": "hi"}], model, **chat_kwargs)
+        return mock_post.call_args.kwargs["json"]
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    def test_thinking_model_gets_cap_only_with_schema(self, mock_post):
+        from connections_eval.adapters import openrouter_adapter
+
+        thinking_model = next(iter(openrouter_adapter._THINKING_MODELS))
+        rf = build_response_format("oneshot")
+        assert self._payload(mock_post, thinking_model, response_format=rf)["max_tokens"] == \
+            openrouter_adapter.STRUCTURED_OUTPUT_MAX_TOKENS
+        assert "max_tokens" not in self._payload(mock_post, thinking_model)
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    def test_non_thinking_model_keeps_its_existing_cap(self, mock_post):
+        rf = build_response_format("oneshot")
+        assert self._payload(mock_post, "test/model", response_format=rf)["max_tokens"] == 25000

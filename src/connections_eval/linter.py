@@ -123,18 +123,26 @@ def _quote(items: Iterable[str]) -> str:
     return ", ".join(items)
 
 
-def feedback_message(result: LintResult, segment_hint: Optional[str] = None) -> str:
+def feedback_message(result: LintResult, segment_hint: Optional[str] = None,
+                     protocol: str = "xml") -> str:
     """Render the model-facing text for a failed lint.
 
     Leads with the first (highest-priority) failure and names the segment to
     re-submit; any remaining failures are appended as a short "Also:" list so
     the model can fix everything in one shot. Returns "" for a passing result.
+
+    protocol "json" is for structured-output runs: the provider forces a whole
+    JSON object, so asking for a bare <answer> block would contradict the
+    schema (models answer with empty content). The rule text is rewritten in
+    JSON terms and the model is asked for the full object with that key fixed.
     """
     if result.ok or not result.failures:
         return ""
 
     first = result.failures[0]
     segment = segment_hint or first.segment
+    if protocol == "json":
+        return _feedback_json(result, first, segment)
     instruction = _SEGMENT_INSTRUCTIONS.get(
         segment, f"the complete <{segment}>...</{segment}> block and nothing else")
     text = (f"Response failed linting rule {first.rule}: {first.message.rstrip('.')}. "
@@ -154,6 +162,53 @@ def feedback_message(result: LintResult, segment_hint: Optional[str] = None) -> 
     if other:
         text += " Also: " + "; ".join(
             f"{f.rule}: {f.message.rstrip('.')}" for f in other) + "."
+    return text
+
+
+# JSON-protocol wording for structured-output runs (see feedback_message).
+_JSON_SEGMENT_INSTRUCTIONS: Dict[str, str] = {
+    "answer": ('the "answer" value corrected: an array of exactly four arrays, each '
+               'holding exactly four of the 16 puzzle words in ALL CAPS, every word used '
+               'once, no category names or commentary inside the strings'),
+    "traps": ('the "traps" value corrected: an array of exactly four puzzle words in ALL '
+              'CAPS, or an empty array if there is no trap'),
+    "guess": ('the "guess" value corrected: an array of exactly four puzzle words in ALL '
+              'CAPS'),
+}
+_JSON_MISSING = {
+    "answer.missing_tag": 'the response was not a valid JSON object with an "answer" array '
+                          '(invalid JSON — check for unescaped quotes, backslashes or line '
+                          'breaks inside strings — or the key was absent)',
+    "guess.missing_tag": 'the response was not a valid JSON object with a "guess" array',
+}
+
+
+def _json_terms(message: str) -> str:
+    """Rephrase an XML-protocol rule message in JSON terms."""
+    for tag in ("answer", "traps", "guess"):
+        message = message.replace(f"<{tag}>...</{tag}> block", f'"{tag}" array')
+        message = message.replace(f"<{tag}> block", f'"{tag}" array')
+        message = message.replace(f"<{tag}> line", f'"{tag}" array')
+    return message.replace("line ", "group ").replace(" lines", " groups")
+
+
+def _feedback_json(result: LintResult, first: LintFailure, segment: str) -> str:
+    message = _JSON_MISSING.get(first.rule) or _json_terms(first.message.rstrip('.'))
+    instruction = _JSON_SEGMENT_INSTRUCTIONS.get(
+        segment, f'the "{segment}" value corrected')
+    text = (f"Response failed linting rule {first.rule}: {message}. "
+            f"Please re-submit the complete JSON object required by the response schema "
+            f"with {instruction}. Keep \"thinking\" to one short sentence.")
+    extra = result.failures[1:]
+    same_rule = [f for f in extra if f.rule == first.rule]
+    other = [f for f in extra if f.rule != first.rule]
+    if same_rule:
+        n = len(same_rule)
+        text += (f" The same rule ({first.rule}) fails on {n} more "
+                 f"{'group' if n == 1 else 'groups'}.")
+    if other:
+        text += " Also: " + "; ".join(
+            f"{f.rule}: {_json_terms(f.message.rstrip('.'))}" for f in other) + "."
     return text
 
 
