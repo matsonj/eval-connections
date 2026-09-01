@@ -140,10 +140,20 @@ def feedback_message(result: LintResult, segment_hint: Optional[str] = None) -> 
     text = (f"Response failed linting rule {first.rule}: {first.message.rstrip('.')}. "
             f"Please re-submit only the failed segment {segment}: {instruction}.")
 
+    # Repeats of the lead rule (e.g. every line of a space-separated block
+    # failing answer.words_per_line) collapse to a count; the model already has
+    # one worked example and the instruction covers the whole block. Other
+    # rules are spelled out so everything can be fixed in one re-submission.
     extra = result.failures[1:]
-    if extra:
+    same_rule = [f for f in extra if f.rule == first.rule]
+    other = [f for f in extra if f.rule != first.rule]
+    if same_rule:
+        n = len(same_rule)
+        text += (f" The same rule ({first.rule}) fails on {n} more "
+                 f"{'line' if n == 1 else 'lines'} of that block.")
+    if other:
         text += " Also: " + "; ".join(
-            f"{f.rule}: {f.message.rstrip('.')}" for f in extra) + "."
+            f"{f.rule}: {f.message.rstrip('.')}" for f in other) + "."
     return text
 
 
@@ -307,6 +317,13 @@ def _lint_traps(cleaned: str, known: Set[str], available: str) -> List[LintFailu
     if len(lines) != 1:
         return fail(f"the <traps> block must hold exactly one line (or N/A), but it has "
                     f"{len(lines)}")
+
+    head = lines[0].split(',', 1)[0]
+    if ':' in head:
+        label = head.split(':', 1)[0].strip()
+        return fail(f'the <traps> line, "{lines[0]}", is prefixed with the category label '
+                    f'"{label}:"; it must be exactly four words, ALL CAPS, separated by '
+                    f'commas, or N/A — no category names')
 
     items = [item.upper() for item in _split_items(lines[0])]
     if len(items) != 4:
