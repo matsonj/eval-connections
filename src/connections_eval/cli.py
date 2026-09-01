@@ -359,6 +359,8 @@ def _display_summary(summary: dict, interactive: bool):
     table.add_row("Correct Guesses", str(summary["correct_guesses"]))
     table.add_row("Incorrect Guesses", str(summary["incorrect_guesses"]))
     table.add_row("Invalid Responses", str(summary["invalid_responses"]))
+    # Structural re-submissions (one-shot only); .get keeps pre-linter summaries renderable
+    table.add_row("Lint Retries", str(summary.get("lint_retries", 0)))
 
     is_oneshot = summary.get("mode") == "oneshot"
     if is_oneshot:

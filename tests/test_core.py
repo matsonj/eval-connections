@@ -158,8 +158,12 @@ class TestConnectionsGame:
         # Wrong number of words
         result = mock_game._process_guess(game_state, "APPLE, BANANA, CHERRY")
 
+        # The reply is now the linter's: it names the failed rule and the segment
+        # to re-send, but must keep the INVALID_RESPONSE prefix aggregation reads.
         assert result.startswith("INVALID_RESPONSE")
-        assert "Expected 4 words, got 3" in result
+        assert "guess.word_count" in result
+        assert "3 were found" in result
+        assert "re-submit only the failed segment guess" in result
         assert "Available words:" in result
         assert game_state.guess_count == 0  # Invalid guess doesn't count
         assert game_state.invalid_count == 1
@@ -1669,7 +1673,7 @@ class TestSharedExchangeScaffolding:
                         [self._response(self._answer(), cost=0.01, cached=40)])
 
         assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
-            "score", "groups_correct", "trap_bonus", "trap_claims",
+            "score", "groups_correct", "trap_bonus", "trap_claims", "lint_retries",
             "cost", "upstream_cost", "cached_tokens"] + self._RESPONSE_META_FIELDS
 
     def test_classic_exchange_log_records_post_guess_index(self, tmp_path):
@@ -1830,10 +1834,12 @@ class TestSharedExchangeScaffolding:
         assert cap.summary["max_score"] == 5
 
     def test_invalid_and_error_markers_carry_unreviewed_ceiling(self, tmp_path):
-        invalid = self._run(tmp_path, "oneshot", [self._response("no answer here")],
-                            trap_groups=None)
-        assert invalid.exchanges[0]["result"] == "ONESHOT_INVALID_MAX_3"
-        assert invalid.exchanges[0]["trap_claims"] == []
+        # A response with no <answer> block now buys MAX_LINT_RETRIES repair
+        # turns first; only the last exchange carries the scoring verdict.
+        invalid = self._run(tmp_path, "oneshot",
+                            [self._response("no answer here")] * 3, trap_groups=None)
+        assert invalid.exchanges[-1]["result"] == "ONESHOT_INVALID_MAX_3"
+        assert invalid.exchanges[-1]["trap_claims"] == []
         assert invalid.summary["invalid_responses"] == 1
 
         errored = self._run(tmp_path, "oneshot", RuntimeError("boom"), trap_groups=None)
@@ -1936,3 +1942,159 @@ class TestSharedExchangeScaffolding:
         assert {e["puzzle_id"] for e in exchanges} == {477, 246}
         # Per-puzzle accounting stayed separate rather than doubling up
         assert all(e["prompt_tokens"] == 100 for e in exchanges)
+
+
+class TestOneshotLintRepairLoop:
+    """A structurally broken one-shot response buys up to MAX_LINT_RETRIES repair
+    turns before it is scored. The repair turns must stay invisible to the
+    MotherDuck aggregation, which keys off the ONESHOT / INVALID prefixes."""
+
+    # Reuse the shared runner: it captures exchanges, telemetry and the summary.
+    _shared = TestSharedExchangeScaffolding()
+
+    # Real granite-4.2-8b failure shape: one line space-separated, rest fine.
+    _BROKEN_ANSWER = (
+        "<answer>\n"
+        "APPLE BANANA CHERRY GRAPE\n"
+        "BLUE, GREEN, RED, YELLOW\n"
+        "FAST, QUICK, RAPID, SWIFT\n"
+        "BRIGHT, CLEVER, SMART, WISE\n"
+        "</answer>\n"
+        "<traps>\nAPPLE, BLUE, FAST, BRIGHT\n</traps>"
+    )
+    _ANSWER_ONLY = ("<answer>\n" + "\n".join(
+        ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>")
+
+    def _run(self, tmp_path, side_effect, **kwargs):
+        return self._shared._run(tmp_path, "oneshot", side_effect, **kwargs)
+
+    def _response(self, content):
+        return self._shared._response(content)
+
+    def test_answer_resubmission_is_merged_and_scored(self, tmp_path):
+        """The model re-sends only the <answer> block; it is spliced back into the
+        original response, so the untouched <traps> claim still earns its bonus."""
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_ONLY)])
+
+        assert [e["result"] for e in cap.exchanges] == [
+            "LINT_RETRY_answer.words_per_line",
+            "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5",
+        ]
+        assert cap.summary["puzzles_solved"] == 1
+        assert cap.summary["total_score"] == 5
+        assert cap.summary["invalid_responses"] == 0
+
+    def test_repair_request_names_the_rule_and_the_segment(self, tmp_path):
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_ONLY)])
+
+        # The adapter is handed the same list object every turn, so read the
+        # final transcript rather than a per-call snapshot.
+        transcript = cap.chat.call_args_list[-1].args[0]
+        assert [m["role"] for m in transcript] == ["system", "user", "assistant", "user"]
+        followup = transcript[-1]["content"]
+        assert followup.startswith("Response failed linting rule answer.words_per_line: ")
+        assert "re-submit only the failed segment answer" in followup
+
+    def test_retries_are_capped_and_end_in_oneshot_invalid(self, tmp_path):
+        """Three broken responses: two repairs, then the third is scored as-is."""
+        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
+
+        assert cap.chat.call_count == 3
+        # The second turn's tagless reply is wrapped in <answer> tags before
+        # splicing, so the rule it trips changes — the cap does not.
+        assert [e["result"] for e in cap.exchanges] == [
+            "LINT_RETRY_answer.missing_tag",
+            "LINT_RETRY_answer.line_count",
+            "ONESHOT_INVALID_MAX_5",
+        ]
+        assert cap.summary["invalid_responses"] == 1
+        assert cap.summary["lint_retries"] == 2
+
+    def test_lint_retries_reach_the_summary_and_the_scoring_exchange(self, tmp_path):
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_ONLY)])
+
+        assert cap.summary["lint_retries"] == 1
+        # Only the scoring exchange carries the count; the repair turn names its rule
+        assert cap.exchanges[-1]["lint_retries"] == 1
+        assert cap.exchanges[0]["lint_rule"] == "answer.words_per_line"
+        assert cap.exchanges[0]["lint_segment"] == "answer"
+        assert "lint_retries" not in cap.exchanges[0]
+
+    def test_clean_response_costs_no_retry(self, tmp_path):
+        cap = self._run(tmp_path, [self._response(self._shared._answer())])
+
+        assert cap.chat.call_count == 1
+        assert cap.summary["lint_retries"] == 0
+        assert cap.exchanges[0]["lint_retries"] == 0
+
+    def test_repair_turns_increment_the_guess_index(self, tmp_path):
+        """0 for the submission, then 1 and 2 for the repairs, so the log viewer
+        keeps the turns of one puzzle ordered and distinguishable."""
+        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
+
+        assert [e["guess_index"] for e in cap.exchanges] == [0, 1, 2]
+        assert [c["payload"]["guess_index"] for c in cap.completions] == [0, 1, 2]
+
+    def test_repair_exchanges_are_billed_to_the_puzzle(self, tmp_path):
+        """Every exchange goes through _run_exchange, so ctx.totals already covers
+        the repair turns — the puzzle pays for its own bad formatting."""
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_ONLY)])
+
+        assert cap.summary["total_prompt_tokens"] == 200
+        assert cap.summary["total_completion_tokens"] == 100
+        assert cap.summary["total_guesses"] == 1  # one scored submission, two calls
+
+    def test_repair_result_strings_avoid_the_aggregation_prefixes(self, tmp_path):
+        """extract_summaries.py keys off ONESHOT% / INVALID% — a repair turn must
+        match neither, or it would inflate max_score and invalid_responses."""
+        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
+
+        for result in [e["result"] for e in cap.exchanges[:-1]]:
+            assert result.startswith("LINT_RETRY_")
+            assert not result.startswith("ONESHOT")
+            assert not result.startswith("INVALID")
+
+    def test_bare_line_resubmission_is_wrapped_and_scored(self, tmp_path):
+        """Models often reply with the four lines and no tags at all."""
+        bare = "\n".join(", ".join(g.words) for g in _make_test_groups())
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(bare)])
+
+        assert cap.exchanges[-1]["result"] == "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5"
+
+
+class TestClassicLintFeedback:
+    """Classic mode keeps MAX_INVALID semantics; only the wording changes."""
+
+    _shared = TestSharedExchangeScaffolding()
+
+    def test_invalid_turn_keeps_prefix_and_names_the_rule(self, tmp_path):
+        bad = self._shared._response("<guess>APPLE, BANANA</guess>")
+        good = self._shared._guesses()
+        cap = self._shared._run(tmp_path, "classic", [bad] + good)
+
+        result = cap.exchanges[0]["result"]
+        assert result.startswith("INVALID_RESPONSE")  # aggregation reads INVALID%
+        assert "guess.word_count" in result
+        assert "re-submit only the failed segment guess" in result
+        # ...and it is handed straight back to the model as a user turn
+        assert result in [m["content"] for m in cap.chat.call_args_list[-1].args[0]]
+
+    def test_invalid_still_counts_toward_the_invalid_budget(self, tmp_path):
+        cap = self._shared._run(tmp_path, "classic",
+                                [self._shared._response("<guess>APPLE</guess>")] * 3)
+
+        assert cap.chat.call_count == 3  # MAX_INVALID ends the game
+        assert cap.summary["invalid_responses"] == 3
+        assert cap.summary["lint_retries"] == 0  # invalids are the count in classic
+
+    def test_solved_word_reuse_names_its_own_rule(self, tmp_path):
+        first = self._shared._response("<guess>APPLE, BANANA, CHERRY, GRAPE</guess>")
+        cap = self._shared._run(tmp_path, "classic", [first, first, first, first])
+
+        assert cap.exchanges[0]["result"] == "CORRECT. NEXT GUESS?"
+        assert "guess.solved_word" in cap.exchanges[1]["result"]
