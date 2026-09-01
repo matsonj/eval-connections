@@ -347,6 +347,20 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.022"
     },
     {
+      "model": "<a href=\"logs/2026-09-01T19-05-01_qwen3.8-flash.html\">qwen/qwen3.8-flash</a>",
+      "date": "2026-09-01",
+      "pts": 75,
+      "pts_pct": 0.75,
+      "w": "19",
+      "grp": "76/80",
+      "trap": "18",
+      "inv": "1",
+      "avg_time": "13m35s",
+      "tok_per_game": "59.6k",
+      "cost": 0.56,
+      "cost_per_game": "$0.028"
+    },
+    {
       "model": "<a href=\"logs/2026-07-24T17-25-27_opus-5.html\">anthropic/claude-opus-5</a>",
       "date": "2026-07-24",
       "pts": 74,
@@ -667,20 +681,6 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "tok_per_game": "10.0k",
       "cost": 0.57,
       "cost_per_game": "$0.029"
-    },
-    {
-      "model": "<a href=\"logs/2026-08-28T20-24-35_qwen3.8-flash.html\">qwen/qwen3.8-flash</a>",
-      "date": "2026-08-28",
-      "pts": 50,
-      "pts_pct": 0.5,
-      "w": "12",
-      "grp": "48/80",
-      "trap": "14",
-      "inv": "6",
-      "avg_time": "9m16s",
-      "tok_per_game": "41.3k",
-      "cost": 0.38,
-      "cost_per_game": "$0.019"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-52-28_mercury-2.html\">inception/mercury-2</a>",
