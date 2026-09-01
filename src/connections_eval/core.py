@@ -13,6 +13,9 @@ from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info, extract_cache_info
 from .utils.logging import log_exchange, log_summary, setup_logger
 from .utils.retry import get_last_backoff_sec
+from .linter import (
+    feedback_message, lint_classic, lint_oneshot, parse_guess_words, splice_segment,
+)
 import controllog as cl
 from .adapters import openrouter_adapter
 
@@ -58,6 +61,9 @@ class PuzzleResult:
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
     total_backoff_sec: float = 0.0
+    # One-shot mode only: extra exchanges spent asking the model to re-submit a
+    # segment that failed structural linting (see ConnectionsGame.MAX_LINT_RETRIES).
+    lint_retries: int = 0
     # One-shot mode only. score = base (0/1/2, perfect=3) + trap_bonus (0 or 2).
     # max_score is 5 when the puzzle has trap annotations, else 3 (0 in classic).
     score: int = 0
@@ -75,6 +81,8 @@ class EvalStats:
     correct_guesses: int = 0
     incorrect_guesses: int = 0
     invalid_responses: int = 0
+    # One-shot only: re-submission exchanges caused by structural lint failures
+    lint_retries: int = 0
     total_time_sec: float = 0.0
     total_tokens: int = 0
     total_prompt_tokens: int = 0
@@ -98,6 +106,7 @@ class EvalStats:
         self.correct_guesses += len(result.solved_groups)
         self.incorrect_guesses += result.mistake_count
         self.invalid_responses += result.invalid_count
+        self.lint_retries += result.lint_retries
         self.total_time_sec += result.time_sec
         self.total_tokens += result.total_tokens
         self.total_prompt_tokens += result.total_prompt_tokens
@@ -228,6 +237,11 @@ class ConnectionsGame:
     MAX_GUESSES = 6
     MAX_MISTAKES = 4
     MAX_INVALID = 3
+    # One-shot only: how many times a structurally broken response may be sent
+    # back to the model for re-submission of the offending segment before it is
+    # scored as-is (and so counted ONESHOT_INVALID). Classic mode keeps using
+    # MAX_INVALID — there, an invalid turn is already a counted, costed event.
+    MAX_LINT_RETRIES = 2
 
     def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None, verbose: bool = False,
                  mode: str = "classic", reasoning_effort: Optional[str] = None):
@@ -1080,8 +1094,17 @@ class ConnectionsGame:
                                attempt: Optional[int] = None) -> PuzzleResult:
         """Run a single puzzle in one-shot mode with an AI model.
 
-        A single API call: the model submits all 4 groups at once and there is no
-        feedback loop. Base score 0/1/2/3 (perfect = 3) plus a 2-point trap bonus.
+        One scored submission per puzzle: the model sorts all 4 groups at once
+        and gets no feedback about correctness. Base score 0/1/2/3 (perfect = 3)
+        plus a 2-point trap bonus.
+
+        The only feedback allowed is structural. Before scoring, the response is
+        linted against the RESPONSE FORMAT (see linter.lint_oneshot); a failure
+        buys up to MAX_LINT_RETRIES extra exchanges that name the broken rule and
+        ask for that segment alone. The re-submitted block is spliced back into
+        the original response, so the model's <thinking> and a clean <traps>
+        survive a repair. Only the final, merged content is scored.
+
         See _puzzle_context for the `attempt` semantics.
         """
         ctx = self._puzzle_context(puzzle, model_name, attempt)
@@ -1092,25 +1115,66 @@ class ConnectionsGame:
         start_time = time.time()
         self._emit_puzzle_start(puzzle, ctx)
 
+        # Repair-loop state. `merged` is the running full response; `segment` is
+        # the block the model was last asked to re-send (None on the first turn,
+        # i.e. nothing to splice into yet).
+        merged = ""
+        segment: Optional[str] = None
+        feedback = ""
+        lint_retries = 0
+        puzzle_words = [w.upper() for w in puzzle.words]
+
         def verdict_fn(content: str, structured: Dict[str, str]) -> _Verdict:
-            nonlocal outcome
-            outcome, verdict = self._score_oneshot_submission(puzzle, content, puzzle_max)
+            nonlocal outcome, merged, segment, feedback
+            merged = content if segment is None else splice_segment(merged, content, segment)
+
+            lint = lint_oneshot(merged, puzzle_words)
+            if not lint.ok and lint_retries < self.MAX_LINT_RETRIES:
+                failure = lint.failures[0]
+                segment = failure.segment
+                feedback = feedback_message(lint)
+                # Deliberately not an ONESHOT*/INVALID* string: aggregation keys
+                # off those prefixes, and this turn is neither a scored
+                # submission nor a counted invalid — it is a repair request.
+                return _Verdict(
+                    result=f"LINT_RETRY_{failure.rule}",
+                    guess_text=self._extract_oneshot_answer_text(merged),
+                    log_extra={"lint_rule": failure.rule,
+                               "lint_segment": failure.segment,
+                               "lint_retry": lint_retries + 1},
+                )
+
+            segment = None
+            outcome, verdict = self._score_oneshot_submission(puzzle, merged, puzzle_max)
+            verdict.log_extra["lint_retries"] = lint_retries
             return verdict
 
-        exchange = self._run_exchange(
-            ctx, puzzle, messages,
-            verdict_fn=verdict_fn,
-            guess_index_fn=lambda: 0,
-            # Mode marker: without it, a run whose every call errors has no
-            # ONESHOT_* completion strings and the MotherDuck aggregation would
-            # misclassify it as classic. MAX carries the per-puzzle score ceiling.
-            error_payload_extra={"result": f"ONESHOT_API_ERROR_MAX_{puzzle_max}"},
-        )
+        while True:
+            exchange = self._run_exchange(
+                ctx, puzzle, messages,
+                verdict_fn=verdict_fn,
+                # 0 for the first submission, then 1 and 2 for the repair turns:
+                # a per-puzzle attempt index, so the log viewer keeps the turns in
+                # order and distinguishable instead of stacking three "Guess 0"s.
+                guess_index_fn=lambda: lint_retries,
+                # Mode marker: without it, a run whose every call errors has no
+                # ONESHOT_* completion strings and the MotherDuck aggregation would
+                # misclassify it as classic. MAX carries the per-puzzle score ceiling.
+                error_payload_extra={"result": f"ONESHOT_API_ERROR_MAX_{puzzle_max}"},
+            )
+            if not exchange.ok or not exchange.verdict.result.startswith("LINT_RETRY_"):
+                break
+            messages.append({"role": "assistant", "content": exchange.content})
+            messages.append({"role": "user", "content": feedback})
+            lint_retries += 1
 
         if not exchange.ok:
-            # The error path already moved the task to FAILED. No tokens or cost
-            # are claimed for a failed call, but the puzzle still contributes its
-            # score ceiling so a partially-failed run's max_score stays honest.
+            # The error path already moved the task to FAILED. The failed call
+            # itself claims no tokens or cost (the error path only accumulates
+            # backoff), but any earlier lint-repair exchanges that did succeed
+            # are already in ctx.totals and stay claimed. The puzzle still
+            # contributes its score ceiling so a partially-failed run's
+            # max_score stays honest.
             return PuzzleResult(
                 won=False,
                 guess_count=0,
@@ -1118,14 +1182,8 @@ class ConnectionsGame:
                 invalid_count=0,
                 solved_groups=[],
                 time_sec=time.time() - start_time,
-                total_tokens=0,
-                total_prompt_tokens=0,
-                total_completion_tokens=0,
-                token_count_method=ctx.totals.token_method,
-                total_cached_tokens=0,
-                total_cost=0.0,
-                total_upstream_cost=0.0,
-                total_backoff_sec=ctx.totals.backoff_sec,
+                **ctx.totals.as_result_fields(),
+                lint_retries=lint_retries,
                 score=0,
                 groups_correct=0,
                 trap_bonus=0,
@@ -1145,6 +1203,7 @@ class ConnectionsGame:
             solved_groups=outcome.solved_groups,
             time_sec=time_sec,
             **ctx.totals.as_result_fields(),
+            lint_retries=lint_retries,
             score=outcome.score,
             groups_correct=outcome.groups_correct,
             trap_bonus=outcome.trap_bonus,
@@ -1246,9 +1305,24 @@ class ConnectionsGame:
         validation_error = self._validate_guess(state, words)
         if validation_error:
             state.invalid_count += 1
-            # Get remaining words (not from solved groups)
-            remaining_words = self._get_remaining_words(state)
-            invalid_message = f"INVALID_RESPONSE: {validation_error}. Available words: {', '.join(sorted(remaining_words))}. You provided: {', '.join(words) if words else 'no valid words'}"
+            # _validate_guess stays the gate (its semantics decide what counts as
+            # invalid); the linter only phrases the reply, so the model is told
+            # which structural rule it broke and which segment to re-send. The
+            # prefix must stay INVALID_RESPONSE — _run_puzzle_interactive and the
+            # MotherDuck aggregation both key off it.
+            solved_words = set(w.upper() for w in state.puzzle.words) - set(
+                self._get_remaining_words(state))
+            lint = lint_classic(response, state.puzzle.words, solved_words)
+            if lint.ok:
+                # Defensive: _validate_guess rejected something the linter has no
+                # rule for. Keep the old wording rather than saying nothing.
+                remaining_words = self._get_remaining_words(state)
+                detail = (f"{validation_error}. Available words: "
+                          f"{', '.join(sorted(remaining_words))}. You provided: "
+                          f"{', '.join(words) if words else 'no valid words'}")
+            else:
+                detail = feedback_message(lint)
+            invalid_message = f"INVALID_RESPONSE: {detail}"
             if state.invalid_count >= self.MAX_INVALID:
                 state.finished = True
             return invalid_message
@@ -1285,32 +1359,14 @@ class ConnectionsGame:
         return f"INCORRECT. {remaining_guesses} INCORRECT GUESSES REMAINING."
 
     def _parse_response(self, response: str) -> List[str]:
-        """Parse response into list of words, handling structured XML format."""
-        import re
+        """Parse response into list of words, handling structured XML format.
 
-        # Strip <thinking>/<think> blocks first so that any <guess> examples
-        # inside reasoning don't get picked up by the guess regex.
-        # Also handle unclosed tags (truncated responses).
-        cleaned = re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', response, flags=re.IGNORECASE | re.DOTALL)
-        cleaned = re.sub(r'<think(?:ing)?>.*', '', cleaned, flags=re.IGNORECASE | re.DOTALL)
-
-        # First try to extract from <guess> tags
-        guess_match = re.search(r'<guess>(.*?)</guess>', cleaned, re.IGNORECASE | re.DOTALL)
-        if guess_match:
-            guess_text = guess_match.group(1).strip()
-            words = [word.strip().upper() for word in guess_text.split(',')]
-            return [word for word in words if word]
-
-        # Fallback: try to find 4 comma-separated words in ALL CAPS
-        caps_pattern = r'\b[A-Z][A-Z\s]*\b(?:\s*,\s*[A-Z][A-Z\s]*\b){3}'
-        caps_match = re.search(caps_pattern, cleaned)
-        if caps_match:
-            words = [word.strip().upper() for word in caps_match.group().split(',')]
-            return [word for word in words if word]
-
-        # Final fallback: original comma-split logic
-        words = [word.strip().upper() for word in cleaned.split(',')]
-        return [word for word in words if word]
+        Delegates to linter.parse_guess_words so the game and the linter can
+        never disagree about which words a turn actually contained. Behaviour is
+        unchanged: thinking blocks are stripped, the <guess> block wins, then an
+        ALL-CAPS comma run, then a bare comma split.
+        """
+        return parse_guess_words(response)
 
     def _parse_structured_response(self, response: str) -> Dict[str, str]:
         """

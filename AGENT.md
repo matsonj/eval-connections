@@ -19,6 +19,7 @@
 
 ## Architecture
 - **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics. Both runners (`_run_puzzle_ai` classic, `_run_puzzle_oneshot_ai` one-shot) share `_run_exchange()` for transport + accounting + telemetry (including the API-error path) and supply only a per-mode verdict callback returning a `_Verdict`; keep mode-specific result strings and log fields in those callbacks
+- **Linter**: `src/connections_eval/linter.py` - Pure, structural-only validation of a response against the prompt's RESPONSE FORMAT (`lint_oneshot`, `lint_classic`, `feedback_message`, `splice_segment`). Never reveals correctness. One-shot mode spends up to `ConnectionsGame.MAX_LINT_RETRIES` extra exchanges asking the model to re-submit just the failed segment (logged as `LINT_RETRY_<rule>`, spliced back into the original response, then scored); classic mode uses it only to word its `INVALID_RESPONSE:` replies
 - **CLI**: `src/connections_eval/cli.py` - Typer-based command interface
 - **Adapters**: `src/connections_eval/adapters/openrouter_adapter.py` - Unified OpenRouter integration for 200+ AI models
 - **Utils**: `src/connections_eval/utils/` - Timing, tokens, logging, retry utilities
