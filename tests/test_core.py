@@ -1425,6 +1425,114 @@ class TestAdapterChoicesFix:
         assert result["_backoff_sec"] == 0.0
 
 
+class TestAdapterPartialResponse:
+    """OpenRouter occasionally returns HTTP 200 with `choices` present, a
+    partial (or empty) `content`, and a `usage` block whose completion_tokens
+    is 0 — a transient upstream fault, not a real model answer. That must be
+    retried (via PartialResponseError), but a genuine max_tokens truncation
+    (finish_reason "length" with nonzero completion_tokens) must not be."""
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_zero_usage_partial_content_is_retried(self, mock_key, mock_post, monkeypatch):
+        from connections_eval.adapters.openrouter_adapter import (
+            chat, get_last_partial_retries,
+        )
+        from connections_eval.utils import retry as retry_mod
+
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
+        monkeypatch.setattr(retry_mod.random, "uniform", lambda a, b: 0.0)
+
+        partial_response = MagicMock()
+        partial_response.ok = True
+        partial_response.json.return_value = {
+            "choices": [{
+                "message": {"content": "<answer>\nAPPLE, BANANA, CHERRY, GR"},
+                "finish_reason": "stop",
+                "native_finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "provider": "SomeProvider",
+        }
+        partial_response.raise_for_status.return_value = None
+
+        good_response = MagicMock()
+        good_response.ok = True
+        good_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        good_response.raise_for_status.return_value = None
+
+        mock_post.side_effect = [partial_response, good_response]
+
+        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
+
+        # Both calls happened — the zero-usage partial was retried, not returned.
+        assert mock_post.call_count == 2
+        assert result["choices"][0]["message"]["content"] == "hi"
+        assert get_last_partial_retries() == 1
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_zero_usage_empty_content_is_retried(self, mock_key, mock_post, monkeypatch):
+        from connections_eval.adapters.openrouter_adapter import chat
+        from connections_eval.utils import retry as retry_mod
+
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
+        monkeypatch.setattr(retry_mod.random, "uniform", lambda a, b: 0.0)
+
+        empty_response = MagicMock()
+        empty_response.ok = True
+        empty_response.json.return_value = {
+            "choices": [{"message": {"content": ""}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 0, "completion_tokens": None, "total_tokens": 0},
+        }
+        empty_response.raise_for_status.return_value = None
+
+        good_response = MagicMock()
+        good_response.ok = True
+        good_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        good_response.raise_for_status.return_value = None
+
+        mock_post.side_effect = [empty_response, good_response]
+
+        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
+
+        assert mock_post.call_count == 2
+        assert result["choices"][0]["message"]["content"] == "hi"
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_length_finish_reason_with_tokens_is_not_retried(self, mock_key, mock_post):
+        """A genuine max_tokens truncation (nonzero completion_tokens) must be
+        returned as-is, not treated as a transient partial-response fault."""
+        from connections_eval.adapters.openrouter_adapter import (
+            chat, get_last_partial_retries,
+        )
+
+        truncated_response = MagicMock()
+        truncated_response.ok = True
+        truncated_response.json.return_value = {
+            "choices": [{
+                "message": {"content": "<answer>\nAPPLE, BANANA, CHERRY, GR"},
+                "finish_reason": "length",
+            }],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 25000, "total_tokens": 25100},
+        }
+        truncated_response.raise_for_status.return_value = None
+        mock_post.return_value = truncated_response
+
+        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
+
+        assert mock_post.call_count == 1
+        assert result["choices"][0]["message"]["content"].startswith("<answer>")
+        assert get_last_partial_retries() == 0
+
+
 class TestSharedExchangeScaffolding:
     """Both runners share _run_exchange for transport, accounting and telemetry.
     These lock in the compatibility contract that MotherDuck aggregation
@@ -1543,12 +1651,16 @@ class TestSharedExchangeScaffolding:
         "thinking", "guess", "confidence", "latency_ms", "backoff_ms",
         "inference_ms", "prompt_tokens", "completion_tokens", "result",
     ]
+    # Response metadata appended unconditionally, after any cost/cache fields.
+    _RESPONSE_META_FIELDS = [
+        "finish_reason", "native_finish_reason", "provider", "usage", "partial_retries",
+    ]
 
     def test_classic_exchange_log_field_order(self, tmp_path):
         cap = self._run(tmp_path, "classic", self._guesses(cost=0.01, cached=40))
 
         assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
-            "cost", "upstream_cost", "cached_tokens"]
+            "cost", "upstream_cost", "cached_tokens"] + self._RESPONSE_META_FIELDS
         # Classic exchanges carry no one-shot score fields
         assert all("score" not in e for e in cap.exchanges)
 
@@ -1558,7 +1670,7 @@ class TestSharedExchangeScaffolding:
 
         assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
             "score", "groups_correct", "trap_bonus", "trap_claims",
-            "cost", "upstream_cost", "cached_tokens"]
+            "cost", "upstream_cost", "cached_tokens"] + self._RESPONSE_META_FIELDS
 
     def test_classic_exchange_log_records_post_guess_index(self, tmp_path):
         """Classic logs the guess index *after* the guess is counted, so a run of
@@ -1581,6 +1693,25 @@ class TestSharedExchangeScaffolding:
         assert logged["trap_claims"] == ["APPLE, BLUE, FAST, BRIGHT"]
         # 'guess' is the <answer> block, not the classic <guess> tag
         assert "APPLE, BANANA, CHERRY, GRAPE" in logged["guess"]
+
+    def test_exchange_log_carries_response_metadata(self, tmp_path):
+        """finish_reason/native_finish_reason/provider/usage/partial_retries
+        must reach the JSONL exchange log so a transient provider fault (see
+        PartialResponseError) can be told apart from a bad model answer."""
+        response = self._response(self._answer())
+        response["choices"][0]["native_finish_reason"] = "STOP"
+        response["provider"] = "Mercury"
+
+        with patch("connections_eval.core.openrouter_adapter.get_last_partial_retries",
+                   return_value=2):
+            cap = self._run(tmp_path, "oneshot", [response])
+
+        logged = cap.exchanges[0]
+        assert logged["finish_reason"] == "stop"
+        assert logged["native_finish_reason"] == "STOP"
+        assert logged["provider"] == "Mercury"
+        assert logged["usage"] == {"prompt_tokens": 100, "completion_tokens": 50}
+        assert logged["partial_retries"] == 2
 
     # --- controllog telemetry (parsed by extract_summaries) --------------
 

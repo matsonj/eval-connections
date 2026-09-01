@@ -5,7 +5,7 @@ import yaml
 import os
 import logging
 from typing import Dict, List, Optional, Set
-from ..utils.retry import retry_with_backoff, get_last_backoff_sec
+from ..utils.retry import retry_with_backoff, get_last_backoff_sec, get_last_retry_count
 from ..utils.rate_limiter import get_default as get_rate_limiter
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,16 @@ class InsufficientCreditsError(RuntimeError):
     Never resolves within a retry window, so it skips retries and aborts
     the whole run (a credit wall poisons every subsequent puzzle)."""
     non_retryable = True
+
+
+class PartialResponseError(requests.RequestException):
+    """OpenRouter returned HTTP 200 with a `usage` block whose completion_tokens
+    is 0 despite `choices` being present — a transient upstream fault (the
+    provider was killed/restarted mid-generation) rather than a real model
+    answer. `content` may be empty or a partial generation cut off mid-sentence
+    with no closing tag. Re-running the identical request typically succeeds,
+    so this is raised as a RequestException to feed the existing retry loop —
+    it is not a rate-limit signal, so callers must not treat it like a 429."""
 
 
 # Cache the thinking models set
@@ -320,14 +330,37 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         limiter.release(openrouter_model)
         raise requests.RequestException(f"OpenRouter 200 OK but no 'choices' in body: {err}")
 
+    choice = response_data["choices"][0]
+    message = choice.get("message", {})
+    content = message.get("content", "") or ""
+    raw_usage = response_data.get("usage")
+
+    # OpenRouter occasionally returns HTTP 200 with `choices` present, a real
+    # (but partial, cut off mid-sentence with no closing tag) or empty
+    # `content`, finish_reason "stop", and a `usage` block whose token counts
+    # are all zero. That's a transient upstream fault (re-running the same
+    # request usually succeeds), not a real model answer — not a rate signal
+    # either, so this doesn't touch the AIMD limiter beyond releasing the
+    # in-flight slot. completion_tokens > 0 (including a genuine max_tokens
+    # truncation with finish_reason "length") is never retried here.
+    if raw_usage is not None and (raw_usage.get("completion_tokens") or 0) == 0:
+        limiter.release(openrouter_model)
+        finish_reason = choice.get("finish_reason")
+        native_finish_reason = choice.get("native_finish_reason")
+        response_provider = response_data.get("provider")
+        tail = content[-120:] if content else ""
+        raise PartialResponseError(
+            "OpenRouter returned zero completion_tokens with finish_reason="
+            f"{finish_reason!r}, native_finish_reason={native_finish_reason!r}, "
+            f"provider={response_provider!r}, content_length={len(content)}, "
+            f"content_tail={tail!r}"
+        )
+
     limiter.on_success(openrouter_model)
     limiter.release(openrouter_model)
 
     # DEBUG: Log if content is missing but tokens were used
-    choice = response_data["choices"][0]
-    message = choice.get("message", {})
-    content = message.get("content", "")
-    usage = response_data.get("usage", {})
+    usage = raw_usage or {}
     completion_tokens = usage.get("completion_tokens", 0)
 
     if (not content or content.strip() == "") and completion_tokens > 0:
@@ -337,6 +370,13 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
 
     response_data["_backoff_sec"] = get_last_backoff_sec()
     return response_data
+
+
+def get_last_partial_retries() -> int:
+    """Number of PartialResponseError retries during the most recent chat()
+    call on this thread. Mirrors get_last_backoff_sec's thread-local, reset-
+    per-call lifecycle."""
+    return get_last_retry_count("PartialResponseError")
 
 
 def _get_api_key() -> str:

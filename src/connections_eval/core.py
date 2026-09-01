@@ -748,7 +748,8 @@ class ConnectionsGame:
                     "inference_ms": inference_ms,
                     "prompt_tokens": None,
                     "completion_tokens": None,
-                    "result": "API_ERROR"
+                    "result": "API_ERROR",
+                    "error_type": type(e).__name__,
                 })
 
                 self.logger.error(f"API call failed: {str(e)}")
@@ -820,6 +821,15 @@ class ConnectionsGame:
             exchange_data["cached_tokens"] = cache_info["cached_tokens"]
         if cache_info.get("cache_discount") is not None:
             exchange_data["cache_discount"] = cache_info["cache_discount"]
+
+        # Response metadata for distinguishing transient provider faults (e.g.
+        # zero-usage partial responses, see PartialResponseError) from real
+        # model answers when triaging INVALID results after the fact.
+        exchange_data["finish_reason"] = response["choices"][0].get("finish_reason")
+        exchange_data["native_finish_reason"] = response["choices"][0].get("native_finish_reason")
+        exchange_data["provider"] = response.get("provider")
+        exchange_data["usage"] = response.get("usage")
+        exchange_data["partial_retries"] = openrouter_adapter.get_last_partial_retries()
 
         log_exchange(self.logger, exchange_data)
 
