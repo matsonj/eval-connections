@@ -711,6 +711,20 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.125"
     },
     {
+      "model": "<a href=\"logs/2026-09-01T21-17-11_granite-4.2-8b.html\">ibm-granite/granite-4.2-8b</a>",
+      "date": "2026-09-01",
+      "pts": 25,
+      "pts_pct": 0.25,
+      "w": "0",
+      "grp": "11/80",
+      "trap": "14",
+      "inv": "1",
+      "avg_time": "11s",
+      "tok_per_game": "2.7k",
+      "cost": 0.01,
+      "cost_per_game": "$0.000"
+    },
+    {
       "model": "<a href=\"logs/2026-08-12T16-36-14_solar-pro4.html\">upstage/solar-pro4</a>",
       "date": "2026-08-12",
       "pts": 22,
@@ -737,20 +751,6 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "tok_per_game": "19.4k",
       "cost": 0.05,
       "cost_per_game": "$0.002"
-    },
-    {
-      "model": "<a href=\"logs/2026-09-01T18-58-00_granite-4.2-8b.html\">ibm-granite/granite-4.2-8b</a>",
-      "date": "2026-09-01",
-      "pts": 11,
-      "pts_pct": 0.11,
-      "w": "0",
-      "grp": "5/80",
-      "trap": "6",
-      "inv": "12",
-      "avg_time": "15s",
-      "tok_per_game": "2.2k",
-      "cost": 0.01,
-      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2026-09-01T18-56-36_mercury-2.5-preview.html\">inception/mercury-2.5-preview</a>",
