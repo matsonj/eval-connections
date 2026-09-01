@@ -13,6 +13,7 @@ from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info, extract_cache_info
 from .utils.logging import log_exchange, log_summary, setup_logger
 from .utils.retry import get_last_backoff_sec
+from .structured import build_response_format, render_json_content
 import controllog as cl
 from .adapters import openrouter_adapter
 
@@ -230,7 +231,8 @@ class ConnectionsGame:
     MAX_INVALID = 3
 
     def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None, verbose: bool = False,
-                 mode: str = "classic", reasoning_effort: Optional[str] = None):
+                 mode: str = "classic", reasoning_effort: Optional[str] = None,
+                 structured_output: bool = False):
         """
         Initialize the game engine.
 
@@ -243,6 +245,11 @@ class ConnectionsGame:
             reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
                 'low', 'medium', 'high'); adapter defaults to 'minimal' when unset.
                 Ignored for non-thinking models.
+            structured_output: Opt-in JSON mode. Loads the `_json` prompt template
+                variant and sends a `response_format` JSON schema so the provider
+                constrains the model's output; responses are normalized back to the
+                usual text protocol in _extract_content. Changes the response
+                protocol, so results are not comparable with XML-format runs.
         """
         self.inputs_path = inputs_path
         self.log_path = log_path
@@ -250,6 +257,9 @@ class ConnectionsGame:
         self.verbose = verbose
         self.mode = mode
         self.reasoning_effort = reasoning_effort
+        self.structured_output = structured_output
+        # Built once per game: the schema depends only on the mode.
+        self.response_format = build_response_format(mode) if structured_output else None
         self.rng = random.Random(self.seed)
 
         self.puzzles = self._load_puzzles()
@@ -291,8 +301,14 @@ class ConnectionsGame:
         return puzzles
 
     def _load_prompt_template(self) -> str:
-        """Load prompt template from XML file (default filename depends on mode)."""
+        """Load prompt template from XML file (default filename depends on mode).
+
+        Structured output uses the `_json` variant of the same template, which
+        differs only in its RESPONSE FORMAT section.
+        """
         filename = "prompt_template_oneshot.xml" if self.mode == "oneshot" else "prompt_template.xml"
+        if self.structured_output:
+            filename = filename.replace(".xml", "_json.xml")
         template_file = self.inputs_path / filename
         with open(template_file, 'r') as f:
             return f.read()
@@ -542,6 +558,7 @@ class ConnectionsGame:
             "threads": threads,
             "mode": mode,
             "reasoning_effort": self.reasoning_effort,
+            "structured_output": self.structured_output,
             "avg_time_sec": round(avg_time, 1),
             "avg_inference_sec": round(avg_inference, 1),
             "total_inference_sec": round(total_inference_sec, 3),
@@ -613,8 +630,21 @@ class ConnectionsGame:
         except Exception:
             pass
 
+    def _chat_response_format_kwargs(self) -> Dict[str, Any]:
+        """Extra chat() kwargs for structured output — empty unless opted in.
+
+        Kept as a splat so a default run's request is byte-for-byte what it was
+        before structured output existed (no `response_format` kwarg at all).
+        """
+        return {"response_format": self.response_format} if self.response_format else {}
+
     def _extract_content(self, response: Dict) -> str:
-        """Extract the assistant text from a response, with reasoning fallbacks."""
+        """Extract the assistant text from a response, with reasoning fallbacks.
+
+        Under structured output the model returns JSON; it is rendered here into
+        the same text protocol every parser, linter and log downstream expects,
+        so nothing past this boundary knows the difference.
+        """
         choice = response["choices"][0]
         message = choice["message"]
         content = message.get("content", "")
@@ -637,7 +667,10 @@ class ConnectionsGame:
                 self.logger.info("Found extended_thinking field, using it as content")
                 content = message["extended_thinking"]
 
-        return content.strip() if content else ""
+        content = content.strip() if content else ""
+        if content and self.structured_output:
+            content = render_json_content(content, self.mode)
+        return content
 
     def _accumulate_token_usage(
         self, response: Dict, messages: List[Dict], content: str,
@@ -700,6 +733,7 @@ class ConnectionsGame:
                 response = openrouter_adapter.chat(
                     messages, ctx.model_id, provider=ctx.pinned_provider,
                     session_id=ctx.session_id, reasoning_effort=self.reasoning_effort,
+                    **self._chat_response_format_kwargs(),
                 )
 
                 backoff_sec = float(response.pop("_backoff_sec", 0.0))

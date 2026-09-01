@@ -137,7 +137,8 @@ def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
 
 @retry_with_backoff(max_retries=5, base_delay=_chat_base_delay, exceptions=(requests.RequestException,))
 def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None,
-         session_id: Optional[str] = None, reasoning_effort: Optional[str] = None) -> Dict:
+         session_id: Optional[str] = None, reasoning_effort: Optional[str] = None,
+         response_format: Optional[Dict] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.
 
@@ -156,6 +157,10 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
             'low', 'medium', 'high'). Defaults to 'minimal' when unset — cheapest
             solves score best. Ignored for non-thinking models.
+        response_format: Optional OpenRouter/OpenAI `response_format` block (e.g.
+            a `{"type": "json_schema", ...}` from connections_eval.structured).
+            Sent verbatim so the provider constrains the model's output. Omitted
+            from the payload entirely when unset.
 
     Returns:
         Raw API response JSON
@@ -218,6 +223,11 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             "include": True  # Request cost and usage information
         }
     }
+
+    # Structured output: make the provider constrain the response to a JSON
+    # schema (opt-in; callers that don't pass one get an unchanged payload).
+    if response_format:
+        payload["response_format"] = response_format
 
     # Pin to a specific provider for prompt caching
     if provider:
