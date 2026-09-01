@@ -1425,6 +1425,76 @@ class TestAdapterChoicesFix:
         assert result["_backoff_sec"] == 0.0
 
 
+class TestAdapterPartialResponse:
+    """OpenRouter occasionally returns HTTP 200 with `choices` present, a
+    partial (or empty) `content`, and a `usage` block whose completion_tokens
+    is 0 — a transient upstream fault, not a real model answer. That must be
+    retried (via PartialResponseError), but a genuine max_tokens truncation
+    (finish_reason "length" with nonzero completion_tokens) must not be."""
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_zero_usage_partial_content_is_retried(self, mock_key, mock_post, monkeypatch):
+        from connections_eval.adapters.openrouter_adapter import chat
+        from connections_eval.utils import retry as retry_mod
+
+        monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
+        monkeypatch.setattr(retry_mod.random, "uniform", lambda a, b: 0.0)
+
+        partial_response = MagicMock()
+        partial_response.ok = True
+        partial_response.json.return_value = {
+            "choices": [{
+                "message": {"content": "<answer>\nAPPLE, BANANA, CHERRY, GR"},
+                "finish_reason": "stop",
+                "native_finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "provider": "SomeProvider",
+        }
+        partial_response.raise_for_status.return_value = None
+
+        good_response = MagicMock()
+        good_response.ok = True
+        good_response.json.return_value = {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        good_response.raise_for_status.return_value = None
+
+        mock_post.side_effect = [partial_response, good_response]
+
+        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
+
+        # Both calls happened — the zero-usage partial was retried, not returned.
+        assert mock_post.call_count == 2
+        assert result["choices"][0]["message"]["content"] == "hi"
+
+    @patch("connections_eval.adapters.openrouter_adapter.requests.post")
+    @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
+    def test_length_finish_reason_with_tokens_is_not_retried(self, mock_key, mock_post):
+        """A genuine max_tokens truncation (nonzero completion_tokens) must be
+        returned as-is, not treated as a transient partial-response fault."""
+        from connections_eval.adapters.openrouter_adapter import chat
+
+        truncated_response = MagicMock()
+        truncated_response.ok = True
+        truncated_response.json.return_value = {
+            "choices": [{
+                "message": {"content": "<answer>\nAPPLE, BANANA, CHERRY, GR"},
+                "finish_reason": "length",
+            }],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 25000, "total_tokens": 25100},
+        }
+        truncated_response.raise_for_status.return_value = None
+        mock_post.return_value = truncated_response
+
+        result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
+
+        assert mock_post.call_count == 1
+        assert result["choices"][0]["message"]["content"].startswith("<answer>")
+
+
 class TestSharedExchangeScaffolding:
     """Both runners share _run_exchange for transport, accounting and telemetry.
     These lock in the compatibility contract that MotherDuck aggregation
@@ -1543,12 +1613,16 @@ class TestSharedExchangeScaffolding:
         "thinking", "guess", "confidence", "latency_ms", "backoff_ms",
         "inference_ms", "prompt_tokens", "completion_tokens", "result",
     ]
+    # Response metadata appended unconditionally, after any cost/cache fields.
+    _RESPONSE_META_FIELDS = [
+        "finish_reason", "native_finish_reason", "provider", "usage",
+    ]
 
     def test_classic_exchange_log_field_order(self, tmp_path):
         cap = self._run(tmp_path, "classic", self._guesses(cost=0.01, cached=40))
 
         assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
-            "cost", "upstream_cost", "cached_tokens"]
+            "cost", "upstream_cost", "cached_tokens"] + self._RESPONSE_META_FIELDS
         # Classic exchanges carry no one-shot score fields
         assert all("score" not in e for e in cap.exchanges)
 
@@ -1557,8 +1631,8 @@ class TestSharedExchangeScaffolding:
                         [self._response(self._answer(), cost=0.01, cached=40)])
 
         assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
-            "score", "groups_correct", "trap_bonus", "trap_claims",
-            "cost", "upstream_cost", "cached_tokens"]
+            "score", "groups_correct", "trap_bonus", "trap_claims", "lint_retries",
+            "cost", "upstream_cost", "cached_tokens"] + self._RESPONSE_META_FIELDS
 
     def test_classic_exchange_log_records_post_guess_index(self, tmp_path):
         """Classic logs the guess index *after* the guess is counted, so a run of
@@ -1581,6 +1655,22 @@ class TestSharedExchangeScaffolding:
         assert logged["trap_claims"] == ["APPLE, BLUE, FAST, BRIGHT"]
         # 'guess' is the <answer> block, not the classic <guess> tag
         assert "APPLE, BANANA, CHERRY, GRAPE" in logged["guess"]
+
+    def test_exchange_log_carries_response_metadata(self, tmp_path):
+        """finish_reason/native_finish_reason/provider/usage
+        must reach the JSONL exchange log so a transient provider fault (see
+        PartialResponseError) can be told apart from a bad model answer."""
+        response = self._response(self._answer())
+        response["choices"][0]["native_finish_reason"] = "STOP"
+        response["provider"] = "Mercury"
+
+        cap = self._run(tmp_path, "oneshot", [response])
+
+        logged = cap.exchanges[0]
+        assert logged["finish_reason"] == "stop"
+        assert logged["native_finish_reason"] == "STOP"
+        assert logged["provider"] == "Mercury"
+        assert logged["usage"] == {"prompt_tokens": 100, "completion_tokens": 50}
 
     # --- controllog telemetry (parsed by extract_summaries) --------------
 
@@ -1699,10 +1789,12 @@ class TestSharedExchangeScaffolding:
         assert cap.summary["max_score"] == 5
 
     def test_invalid_and_error_markers_carry_unreviewed_ceiling(self, tmp_path):
-        invalid = self._run(tmp_path, "oneshot", [self._response("no answer here")],
-                            trap_groups=None)
-        assert invalid.exchanges[0]["result"] == "ONESHOT_INVALID_MAX_3"
-        assert invalid.exchanges[0]["trap_claims"] == []
+        # A response with no <answer> block now buys MAX_LINT_RETRIES repair
+        # turns first; only the last exchange carries the scoring verdict.
+        invalid = self._run(tmp_path, "oneshot",
+                            [self._response("no answer here")] * 3, trap_groups=None)
+        assert invalid.exchanges[-1]["result"] == "ONESHOT_INVALID_MAX_3"
+        assert invalid.exchanges[-1]["trap_claims"] == []
         assert invalid.summary["invalid_responses"] == 1
 
         errored = self._run(tmp_path, "oneshot", RuntimeError("boom"), trap_groups=None)
@@ -1805,3 +1897,93 @@ class TestSharedExchangeScaffolding:
         assert {e["puzzle_id"] for e in exchanges} == {477, 246}
         # Per-puzzle accounting stayed separate rather than doubling up
         assert all(e["prompt_tokens"] == 100 for e in exchanges)
+
+
+class TestOneshotLintRepairLoop:
+    """A structurally broken one-shot response buys up to MAX_LINT_RETRIES repair
+    turns before it is scored. The repair turns must stay invisible to the
+    MotherDuck aggregation, which keys off the ONESHOT / INVALID prefixes."""
+
+    # Reuse the shared runner: it captures exchanges, telemetry and the summary.
+    _shared = TestSharedExchangeScaffolding()
+
+    # Real granite-4.2-8b failure shape: one line space-separated, rest fine.
+    _BROKEN_ANSWER = (
+        "<answer>\n"
+        "APPLE BANANA CHERRY GRAPE\n"
+        "BLUE, GREEN, RED, YELLOW\n"
+        "FAST, QUICK, RAPID, SWIFT\n"
+        "BRIGHT, CLEVER, SMART, WISE\n"
+        "</answer>\n"
+        "<traps>\nAPPLE, BLUE, FAST, BRIGHT\n</traps>"
+    )
+    _ANSWER_ONLY = ("<answer>\n" + "\n".join(
+        ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>")
+
+    def _run(self, tmp_path, side_effect, **kwargs):
+        return self._shared._run(tmp_path, "oneshot", side_effect, **kwargs)
+
+    def _response(self, content):
+        return self._shared._response(content)
+
+    def test_answer_resubmission_is_merged_and_scored(self, tmp_path):
+        """The model re-sends only the <answer> block; it is spliced back into the
+        original response, so the untouched <traps> claim still earns its bonus."""
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_ONLY)])
+
+        assert [e["result"] for e in cap.exchanges] == [
+            "LINT_RETRY_answer.words_per_line",
+            "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5",
+        ]
+        assert cap.summary["puzzles_solved"] == 1
+        assert cap.summary["total_score"] == 5
+        assert cap.summary["invalid_responses"] == 0
+
+    def test_repair_request_names_the_rule_and_the_segment(self, tmp_path):
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_ONLY)])
+
+        # The adapter is handed the same list object every turn, so read the
+        # final transcript rather than a per-call snapshot.
+        transcript = cap.chat.call_args_list[-1].args[0]
+        assert [m["role"] for m in transcript] == ["system", "user", "assistant", "user"]
+        followup = transcript[-1]["content"]
+        assert followup.startswith("Response failed linting rule answer.words_per_line: ")
+        assert "re-submit only the failed segment answer" in followup
+
+    def test_retries_are_capped_and_end_in_oneshot_invalid(self, tmp_path):
+        """Three broken responses: two repairs, then the third is scored as-is."""
+        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
+
+        assert cap.chat.call_count == 3
+        # The second turn's tagless reply is wrapped in <answer> tags before
+        # splicing, so the rule it trips changes — the cap does not.
+        assert [e["result"] for e in cap.exchanges] == [
+            "LINT_RETRY_answer.missing_tag",
+            "LINT_RETRY_answer.line_count",
+            "ONESHOT_INVALID_MAX_5",
+        ]
+        assert cap.summary["invalid_responses"] == 1
+        assert cap.summary["lint_retries"] == 2
+
+    def test_lint_retries_reach_the_summary_and_the_scoring_exchange(self, tmp_path):
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_ONLY)])
+
+        assert cap.summary["lint_retries"] == 1
+        # Only the scoring exchange carries the count; the repair turn names its rule
+        assert cap.exchanges[-1]["lint_retries"] == 1
+        assert cap.exchanges[0]["lint_rule"] == "answer.words_per_line"
+        assert cap.exchanges[0]["lint_segment"] == "answer"
+        assert "lint_retries" not in cap.exchanges[0]
+
+    def test_repair_result_strings_avoid_the_aggregation_prefixes(self, tmp_path):
+        """extract_summaries.py keys off ONESHOT% / INVALID% — a repair turn must
+        match neither, or it would inflate max_score and invalid_responses."""
+        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
+
+        for result in [e["result"] for e in cap.exchanges[:-1]]:
+            assert result.startswith("LINT_RETRY_")
+            assert not result.startswith("ONESHOT")
+            assert not result.startswith("INVALID")

@@ -61,9 +61,17 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             -- max 5|3) or ONESHOT_INVALID_MAX_M. Legacy pre-trap runs used bare
             -- ONESHOT_SCORE_N (N in 0,1,2,5; groups = LEAST(N, 4); max 5) — the
             -- fallbacks below.
+            -- Lint repair turns: LINT_RETRY_<rule>. Deliberately prefixed with
+            -- neither ONESHOT nor INVALID so they add nothing to mode detection,
+            -- max_score, invalid_responses or the score sums; total_guesses is the
+            -- one count that sees every completion, so it excludes them explicitly.
             SELECT
                 e.run_id,
-                COUNT(CASE WHEN e.kind = 'model_completion' THEN 1 END) AS total_guesses,
+                -- LINT_RETRY_* rows are structural re-submission turns, not guesses:
+                -- excluded here so a repaired one-shot puzzle still counts as one guess.
+                COUNT(CASE WHEN e.kind = 'model_completion'
+                            AND COALESCE(e.payload_json.result, '') NOT LIKE 'LINT_RETRY%'
+                           THEN 1 END) AS total_guesses,
                 COUNT(CASE WHEN e.payload_json.result = 'CORRECT' OR e.payload_json.result LIKE 'CORRECT%' THEN 1 END)
                   + COALESCE(SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
                         COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'GROUPS_([0-9]+)', 1), '') AS INTEGER),

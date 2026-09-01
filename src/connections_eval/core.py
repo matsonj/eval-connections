@@ -13,6 +13,8 @@ from .utils.timing import Timer
 from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info, extract_cache_info
 from .utils.logging import log_exchange, log_summary, setup_logger
 from .utils.retry import get_last_backoff_sec
+from .structured import build_response_format, render_json_content, json_prompt_template
+from .linter import feedback_message, lint_oneshot, splice_segment
 import controllog as cl
 from .adapters import openrouter_adapter
 
@@ -58,6 +60,9 @@ class PuzzleResult:
     total_cost: float = 0.0
     total_upstream_cost: float = 0.0
     total_backoff_sec: float = 0.0
+    # One-shot mode only: extra exchanges spent asking the model to re-submit a
+    # segment that failed structural linting (see ConnectionsGame.MAX_LINT_RETRIES).
+    lint_retries: int = 0
     # One-shot mode only. score = base (0/1/2, perfect=3) + trap_bonus (0 or 2).
     # max_score is 5 when the puzzle has trap annotations, else 3 (0 in classic).
     score: int = 0
@@ -75,6 +80,8 @@ class EvalStats:
     correct_guesses: int = 0
     incorrect_guesses: int = 0
     invalid_responses: int = 0
+    # One-shot only: re-submission exchanges caused by structural lint failures
+    lint_retries: int = 0
     total_time_sec: float = 0.0
     total_tokens: int = 0
     total_prompt_tokens: int = 0
@@ -98,6 +105,7 @@ class EvalStats:
         self.correct_guesses += len(result.solved_groups)
         self.incorrect_guesses += result.mistake_count
         self.invalid_responses += result.invalid_count
+        self.lint_retries += result.lint_retries
         self.total_time_sec += result.time_sec
         self.total_tokens += result.total_tokens
         self.total_prompt_tokens += result.total_prompt_tokens
@@ -228,9 +236,15 @@ class ConnectionsGame:
     MAX_GUESSES = 6
     MAX_MISTAKES = 4
     MAX_INVALID = 3
+    # One-shot only: how many times a structurally broken response may be sent
+    # back to the model for re-submission of the offending segment before it is
+    # scored as-is (and so counted ONESHOT_INVALID). Classic mode keeps using
+    # MAX_INVALID — there, an invalid turn is already a counted, costed event.
+    MAX_LINT_RETRIES = 2
 
     def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None, verbose: bool = False,
-                 mode: str = "classic", reasoning_effort: Optional[str] = None):
+                 mode: str = "classic", reasoning_effort: Optional[str] = None,
+                 structured_output: bool = False):
         """
         Initialize the game engine.
 
@@ -243,6 +257,11 @@ class ConnectionsGame:
             reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
                 'low', 'medium', 'high'); adapter defaults to 'minimal' when unset.
                 Ignored for non-thinking models.
+            structured_output: Opt-in JSON mode. Loads the `_json` prompt template
+                variant and sends a `response_format` JSON schema so the provider
+                constrains the model's output; responses are normalized back to the
+                usual text protocol in _extract_content. Changes the response
+                protocol, so results are not comparable with XML-format runs.
         """
         self.inputs_path = inputs_path
         self.log_path = log_path
@@ -250,6 +269,9 @@ class ConnectionsGame:
         self.verbose = verbose
         self.mode = mode
         self.reasoning_effort = reasoning_effort
+        self.structured_output = structured_output
+        # Built once per game: the schema depends only on the mode.
+        self.response_format = build_response_format(mode) if structured_output else None
         self.rng = random.Random(self.seed)
 
         self.puzzles = self._load_puzzles()
@@ -291,11 +313,12 @@ class ConnectionsGame:
         return puzzles
 
     def _load_prompt_template(self) -> str:
-        """Load prompt template from XML file (default filename depends on mode)."""
+        """Load prompt template from XML file (default filename depends on mode).
+        Structured output swaps in a JSON RESPONSE FORMAT section."""
         filename = "prompt_template_oneshot.xml" if self.mode == "oneshot" else "prompt_template.xml"
-        template_file = self.inputs_path / filename
-        with open(template_file, 'r') as f:
-            return f.read()
+        with open(self.inputs_path / filename, 'r') as f:
+            template = f.read()
+        return json_prompt_template(template, self.mode) if self.structured_output else template
 
     def _load_model_mappings(self) -> Dict[str, str]:
         """Load model mappings from YAML file."""
@@ -542,6 +565,7 @@ class ConnectionsGame:
             "threads": threads,
             "mode": mode,
             "reasoning_effort": self.reasoning_effort,
+            "structured_output": self.structured_output,
             "avg_time_sec": round(avg_time, 1),
             "avg_inference_sec": round(avg_inference, 1),
             "total_inference_sec": round(total_inference_sec, 3),
@@ -613,8 +637,21 @@ class ConnectionsGame:
         except Exception:
             pass
 
+    def _chat_response_format_kwargs(self) -> Dict[str, Any]:
+        """Extra chat() kwargs for structured output — empty unless opted in.
+
+        Kept as a splat so a default run's request is byte-for-byte what it was
+        before structured output existed (no `response_format` kwarg at all).
+        """
+        return {"response_format": self.response_format} if self.response_format else {}
+
     def _extract_content(self, response: Dict) -> str:
-        """Extract the assistant text from a response, with reasoning fallbacks."""
+        """Extract the assistant text from a response, with reasoning fallbacks.
+
+        Under structured output the model returns JSON; it is rendered here into
+        the same text protocol every parser, linter and log downstream expects,
+        so nothing past this boundary knows the difference.
+        """
         choice = response["choices"][0]
         message = choice["message"]
         content = message.get("content", "")
@@ -637,7 +674,10 @@ class ConnectionsGame:
                 self.logger.info("Found extended_thinking field, using it as content")
                 content = message["extended_thinking"]
 
-        return content.strip() if content else ""
+        content = content.strip() if content else ""
+        if content and self.structured_output:
+            content = render_json_content(content, self.mode)
+        return content
 
     def _accumulate_token_usage(
         self, response: Dict, messages: List[Dict], content: str,
@@ -700,6 +740,7 @@ class ConnectionsGame:
                 response = openrouter_adapter.chat(
                     messages, ctx.model_id, provider=ctx.pinned_provider,
                     session_id=ctx.session_id, reasoning_effort=self.reasoning_effort,
+                    **self._chat_response_format_kwargs(),
                 )
 
                 backoff_sec = float(response.pop("_backoff_sec", 0.0))
@@ -748,7 +789,8 @@ class ConnectionsGame:
                     "inference_ms": inference_ms,
                     "prompt_tokens": None,
                     "completion_tokens": None,
-                    "result": "API_ERROR"
+                    "result": "API_ERROR",
+                    "error_type": type(e).__name__,
                 })
 
                 self.logger.error(f"API call failed: {str(e)}")
@@ -820,6 +862,14 @@ class ConnectionsGame:
             exchange_data["cached_tokens"] = cache_info["cached_tokens"]
         if cache_info.get("cache_discount") is not None:
             exchange_data["cache_discount"] = cache_info["cache_discount"]
+
+        # Response metadata for distinguishing transient provider faults (e.g.
+        # zero-usage partial responses, see PartialResponseError) from real
+        # model answers when triaging INVALID results after the fact.
+        exchange_data["finish_reason"] = response["choices"][0].get("finish_reason")
+        exchange_data["native_finish_reason"] = response["choices"][0].get("native_finish_reason")
+        exchange_data["provider"] = response.get("provider")
+        exchange_data["usage"] = response.get("usage")
 
         log_exchange(self.logger, exchange_data)
 
@@ -1080,8 +1130,17 @@ class ConnectionsGame:
                                attempt: Optional[int] = None) -> PuzzleResult:
         """Run a single puzzle in one-shot mode with an AI model.
 
-        A single API call: the model submits all 4 groups at once and there is no
-        feedback loop. Base score 0/1/2/3 (perfect = 3) plus a 2-point trap bonus.
+        One scored submission per puzzle: the model sorts all 4 groups at once
+        and gets no feedback about correctness. Base score 0/1/2/3 (perfect = 3)
+        plus a 2-point trap bonus.
+
+        The only feedback allowed is structural. Before scoring, the response is
+        linted against the RESPONSE FORMAT (see linter.lint_oneshot); a failure
+        buys up to MAX_LINT_RETRIES extra exchanges that name the broken rule and
+        ask for that segment alone. The re-submitted block is spliced back into
+        the original response, so the model's <thinking> and a clean <traps>
+        survive a repair. Only the final, merged content is scored.
+
         See _puzzle_context for the `attempt` semantics.
         """
         ctx = self._puzzle_context(puzzle, model_name, attempt)
@@ -1092,25 +1151,66 @@ class ConnectionsGame:
         start_time = time.time()
         self._emit_puzzle_start(puzzle, ctx)
 
+        # Repair-loop state. `merged` is the running full response; `segment` is
+        # the block the model was last asked to re-send (None on the first turn,
+        # i.e. nothing to splice into yet).
+        merged = ""
+        segment: Optional[str] = None
+        feedback = ""
+        lint_retries = 0
+        puzzle_words = [w.upper() for w in puzzle.words]
+
         def verdict_fn(content: str, structured: Dict[str, str]) -> _Verdict:
-            nonlocal outcome
-            outcome, verdict = self._score_oneshot_submission(puzzle, content, puzzle_max)
+            nonlocal outcome, merged, segment, feedback
+            merged = content if segment is None else splice_segment(merged, content, segment)
+
+            lint = lint_oneshot(merged, puzzle_words)
+            if not lint.ok and lint_retries < self.MAX_LINT_RETRIES:
+                failure = lint.failures[0]
+                segment = failure.segment
+                feedback = feedback_message(lint, "json" if self.structured_output else "xml")
+                # Deliberately not an ONESHOT*/INVALID* string: aggregation keys
+                # off those prefixes, and this turn is neither a scored
+                # submission nor a counted invalid — it is a repair request.
+                return _Verdict(
+                    result=f"LINT_RETRY_{failure.rule}",
+                    guess_text=self._extract_oneshot_answer_text(merged),
+                    log_extra={"lint_rule": failure.rule,
+                               "lint_segment": failure.segment,
+                               "lint_retry": lint_retries + 1},
+                )
+
+            segment = None
+            outcome, verdict = self._score_oneshot_submission(puzzle, merged, puzzle_max)
+            verdict.log_extra["lint_retries"] = lint_retries
             return verdict
 
-        exchange = self._run_exchange(
-            ctx, puzzle, messages,
-            verdict_fn=verdict_fn,
-            guess_index_fn=lambda: 0,
-            # Mode marker: without it, a run whose every call errors has no
-            # ONESHOT_* completion strings and the MotherDuck aggregation would
-            # misclassify it as classic. MAX carries the per-puzzle score ceiling.
-            error_payload_extra={"result": f"ONESHOT_API_ERROR_MAX_{puzzle_max}"},
-        )
+        while True:
+            exchange = self._run_exchange(
+                ctx, puzzle, messages,
+                verdict_fn=verdict_fn,
+                # 0 for the first submission, then 1 and 2 for the repair turns:
+                # a per-puzzle attempt index, so the log viewer keeps the turns in
+                # order and distinguishable instead of stacking three "Guess 0"s.
+                guess_index_fn=lambda: lint_retries,
+                # Mode marker: without it, a run whose every call errors has no
+                # ONESHOT_* completion strings and the MotherDuck aggregation would
+                # misclassify it as classic. MAX carries the per-puzzle score ceiling.
+                error_payload_extra={"result": f"ONESHOT_API_ERROR_MAX_{puzzle_max}"},
+            )
+            if not exchange.ok or not exchange.verdict.result.startswith("LINT_RETRY_"):
+                break
+            messages.append({"role": "assistant", "content": exchange.content})
+            messages.append({"role": "user", "content": feedback})
+            lint_retries += 1
 
         if not exchange.ok:
-            # The error path already moved the task to FAILED. No tokens or cost
-            # are claimed for a failed call, but the puzzle still contributes its
-            # score ceiling so a partially-failed run's max_score stays honest.
+            # The error path already moved the task to FAILED. The failed call
+            # itself claims no tokens or cost (the error path only accumulates
+            # backoff), but any earlier lint-repair exchanges that did succeed
+            # are already in ctx.totals and stay claimed. The puzzle still
+            # contributes its score ceiling so a partially-failed run's
+            # max_score stays honest.
             return PuzzleResult(
                 won=False,
                 guess_count=0,
@@ -1118,14 +1218,8 @@ class ConnectionsGame:
                 invalid_count=0,
                 solved_groups=[],
                 time_sec=time.time() - start_time,
-                total_tokens=0,
-                total_prompt_tokens=0,
-                total_completion_tokens=0,
-                token_count_method=ctx.totals.token_method,
-                total_cached_tokens=0,
-                total_cost=0.0,
-                total_upstream_cost=0.0,
-                total_backoff_sec=ctx.totals.backoff_sec,
+                **ctx.totals.as_result_fields(),
+                lint_retries=lint_retries,
                 score=0,
                 groups_correct=0,
                 trap_bonus=0,
@@ -1145,6 +1239,7 @@ class ConnectionsGame:
             solved_groups=outcome.solved_groups,
             time_sec=time_sec,
             **ctx.totals.as_result_fields(),
+            lint_retries=lint_retries,
             score=outcome.score,
             groups_correct=outcome.groups_correct,
             trap_bonus=outcome.trap_bonus,

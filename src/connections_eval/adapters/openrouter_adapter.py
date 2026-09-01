@@ -36,6 +36,16 @@ class InsufficientCreditsError(RuntimeError):
     non_retryable = True
 
 
+class PartialResponseError(requests.RequestException):
+    """OpenRouter returned HTTP 200 with a `usage` block whose completion_tokens
+    is 0 despite `choices` being present — a transient upstream fault (the
+    provider was killed/restarted mid-generation) rather than a real model
+    answer. `content` may be empty or a partial generation cut off mid-sentence
+    with no closing tag. Re-running the identical request typically succeeds,
+    so this is raised as a RequestException to feed the existing retry loop —
+    it is not a rate-limit signal, so callers must not treat it like a 429."""
+
+
 # Cache the thinking models set
 _THINKING_MODELS = _load_thinking_models()
 
@@ -118,6 +128,10 @@ def extract_provider_slug(model: str) -> Optional[str]:
     return None
 
 
+# Output cap applied only when a response_format schema is sent (see chat()).
+STRUCTURED_OUTPUT_MAX_TOKENS = 12000
+
+
 def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
                      provider: Optional[str] = None, **_kwargs) -> float:
     # Free-tier endpoints (model IDs ending in `:free`) hit aggressive rate limits;
@@ -127,7 +141,8 @@ def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
 
 @retry_with_backoff(max_retries=5, base_delay=_chat_base_delay, exceptions=(requests.RequestException,))
 def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None,
-         session_id: Optional[str] = None, reasoning_effort: Optional[str] = None) -> Dict:
+         session_id: Optional[str] = None, reasoning_effort: Optional[str] = None,
+         response_format: Optional[Dict] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.
 
@@ -146,6 +161,10 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
             'low', 'medium', 'high'). Defaults to 'minimal' when unset — cheapest
             solves score best. Ignored for non-thinking models.
+        response_format: Optional OpenRouter/OpenAI `response_format` block (e.g.
+            a `{"type": "json_schema", ...}` from connections_eval.structured).
+            Sent verbatim so the provider constrains the model's output. Omitted
+            from the payload entirely when unset.
 
     Returns:
         Raw API response JSON
@@ -208,6 +227,19 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             "include": True  # Request cost and usage information
         }
     }
+
+    # Structured output: make the provider constrain the response to a JSON
+    # schema (opt-in; callers that don't pass one get an unchanged payload).
+    if response_format:
+        payload["response_format"] = response_format
+        # The thinking-model path deliberately sets no max_tokens, but under a
+        # JSON schema some small models degenerate into runaway output (granite-
+        # 4.2-8b: one 15.8k-token, 233s generation, then requests that never
+        # returned before the 600s timeout and were retried for most of an
+        # hour). The structured payload is short, so a cap costs nothing on a
+        # healthy response and bounds the failure. setdefault keeps the
+        # non-thinking path's existing 25000.
+        payload.setdefault("max_tokens", STRUCTURED_OUTPUT_MAX_TOKENS)
 
     # Pin to a specific provider for prompt caching
     if provider:
@@ -320,14 +352,37 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         limiter.release(openrouter_model)
         raise requests.RequestException(f"OpenRouter 200 OK but no 'choices' in body: {err}")
 
+    choice = response_data["choices"][0]
+    message = choice.get("message", {})
+    content = message.get("content", "") or ""
+    raw_usage = response_data.get("usage")
+
+    # OpenRouter occasionally returns HTTP 200 with `choices` present, a real
+    # (but partial, cut off mid-sentence with no closing tag) or empty
+    # `content`, finish_reason "stop", and a `usage` block whose token counts
+    # are all zero. That's a transient upstream fault (re-running the same
+    # request usually succeeds), not a real model answer — not a rate signal
+    # either, so this doesn't touch the AIMD limiter beyond releasing the
+    # in-flight slot. completion_tokens > 0 (including a genuine max_tokens
+    # truncation with finish_reason "length") is never retried here.
+    if raw_usage is not None and (raw_usage.get("completion_tokens") or 0) == 0:
+        limiter.release(openrouter_model)
+        finish_reason = choice.get("finish_reason")
+        native_finish_reason = choice.get("native_finish_reason")
+        response_provider = response_data.get("provider")
+        tail = content[-120:] if content else ""
+        raise PartialResponseError(
+            "OpenRouter returned zero completion_tokens with finish_reason="
+            f"{finish_reason!r}, native_finish_reason={native_finish_reason!r}, "
+            f"provider={response_provider!r}, content_length={len(content)}, "
+            f"content_tail={tail!r}"
+        )
+
     limiter.on_success(openrouter_model)
     limiter.release(openrouter_model)
 
     # DEBUG: Log if content is missing but tokens were used
-    choice = response_data["choices"][0]
-    message = choice.get("message", {})
-    content = message.get("content", "")
-    usage = response_data.get("usage", {})
+    usage = raw_usage or {}
     completion_tokens = usage.get("completion_tokens", 0)
 
     if (not content or content.strip() == "") and completion_tokens > 0:
@@ -337,6 +392,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
 
     response_data["_backoff_sec"] = get_last_backoff_sec()
     return response_data
+
 
 
 def _get_api_key() -> str:

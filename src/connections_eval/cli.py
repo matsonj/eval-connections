@@ -30,6 +30,7 @@ def _validate_run_args(
     model: Optional[str], interactive: bool, puzzles: Optional[int],
     puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
     prompt_file: str, mode: str, reasoning_effort: Optional[str] = None,
+    structured_output: bool = False,
 ) -> Optional[List[int]]:
     """
     Validate run command arguments and return parsed puzzle IDs.
@@ -151,6 +152,16 @@ def run(
         "--reasoning-effort",
         help="Reasoning effort for thinking models: minimal, low, medium, high, xhigh (default: minimal; ignored for non-thinking models)"
     ),
+    structured_output: bool = typer.Option(
+        False,
+        "--structured-output",
+        help=(
+            "Opt-in: ask the provider for a JSON schema response (OpenRouter "
+            "response_format) instead of the XML-ish text format, eliminating "
+            "delimiter/format failures. Changes the response protocol and the "
+            "prompt, so results are NOT directly comparable with default runs."
+        )
+    ),
     threads: int = typer.Option(
         8,
         "--threads",
@@ -190,7 +201,7 @@ def run(
     """Run connections evaluation."""
     parsed_puzzle_ids = _validate_run_args(
         model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
-        reasoning_effort,
+        reasoning_effort, structured_output,
     )
 
     # Get model name for interactive mode
@@ -202,7 +213,8 @@ def run(
     # Initialize game
     try:
         game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode,
-                               reasoning_effort=reasoning_effort)
+                               reasoning_effort=reasoning_effort,
+                               structured_output=structured_output)
 
         # Fail fast on a bad OpenRouter slug instead of burning the retry
         # budget on every puzzle.
@@ -245,6 +257,8 @@ def run(
         console.print(f"Evaluation Mode: {mode}")
         if reasoning_effort:
             console.print(f"Reasoning Effort: {reasoning_effort}")
+        if structured_output:
+            console.print("Structured Output: enabled (JSON schema; not comparable with XML-format runs)")
         if parsed_puzzle_ids is not None:
             console.print(f"Puzzles: {len(parsed_puzzle_ids)} specific IDs")
         else:
@@ -330,6 +344,8 @@ def _display_summary(summary: dict, interactive: bool):
     table.add_row("Model/Run", summary["model"])
     if summary.get("reasoning_effort"):
         table.add_row("Reasoning Effort", summary["reasoning_effort"])
+    if summary.get("structured_output"):
+        table.add_row("Structured Output", "JSON schema")
     table.add_row("Puzzles Attempted", str(summary["puzzles_attempted"]))
     table.add_row("Puzzles Solved", str(summary["puzzles_solved"]))
 
@@ -341,6 +357,8 @@ def _display_summary(summary: dict, interactive: bool):
     table.add_row("Correct Guesses", str(summary["correct_guesses"]))
     table.add_row("Incorrect Guesses", str(summary["incorrect_guesses"]))
     table.add_row("Invalid Responses", str(summary["invalid_responses"]))
+    # Structural re-submissions (one-shot only); .get keeps pre-linter summaries renderable
+    table.add_row("Lint Retries", str(summary.get("lint_retries", 0)))
 
     is_oneshot = summary.get("mode") == "oneshot"
     if is_oneshot:

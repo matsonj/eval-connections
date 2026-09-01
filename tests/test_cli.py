@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 from typer.testing import CliRunner
 
-from connections_eval.cli import app, _display_summary
+from connections_eval.cli import app, _display_summary, _validate_run_args
 
 
 class TestCLI:
@@ -152,3 +152,58 @@ class TestOneshotSummaryDisplay:
         # Should not raise, and should surface the one-shot-specific rows
         # (Total Score / Avg Score) instead of the classic "Guess Accuracy" row.
         _display_summary(summary, interactive=False)
+
+
+class TestStructuredOutputFlag:
+    """--structured-output is opt-in and reaches the game engine."""
+
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    _SUMMARY = {
+        "run_id": "test-run",
+        "model": "grok3",
+        "seed": 12345,
+        "structured_output": True,
+        "puzzles_attempted": 1,
+        "puzzles_solved": 1,
+        "total_guesses": 4,
+        "correct_guesses": 4,
+        "incorrect_guesses": 0,
+        "invalid_responses": 0,
+        "avg_time_sec": 1.0,
+        "total_tokens": 100,
+        "token_count_method": "API",
+    }
+
+    def _invoke(self, mock_game_class, extra_args):
+        mock_game = MagicMock()
+        mock_game.seed = 12345
+        mock_game.MODEL_CONFIG = {"grok3": "x-ai/grok-3"}
+        mock_game.run_evaluation.return_value = dict(self._SUMMARY)
+        mock_game_class.return_value = mock_game
+
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pathlib.Path.mkdir'), \
+             patch('builtins.open', MagicMock()):
+            result = self.runner.invoke(app, ["run", "--model", "grok3"] + extra_args)
+        return result, mock_game_class
+
+    @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}, clear=True)
+    @patch('connections_eval.cli.openrouter_adapter.assert_model_exists')
+    @patch('connections_eval.cli.ConnectionsGame')
+    def test_flag_enables_structured_output(self, mock_game_class, mock_preflight):
+        result, cls = self._invoke(mock_game_class, ["--structured-output"])
+        assert result.exit_code == 0
+        # call_args is the last construction — the real game, not the
+        # validation probe built earlier in _validate_run_args.
+        assert cls.call_args.kwargs["structured_output"] is True
+        assert "Structured Output" in result.stdout
+
+    @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}, clear=True)
+    @patch('connections_eval.cli.openrouter_adapter.assert_model_exists')
+    @patch('connections_eval.cli.ConnectionsGame')
+    def test_default_is_off(self, mock_game_class, mock_preflight):
+        result, cls = self._invoke(mock_game_class, [])
+        assert result.exit_code == 0
+        assert cls.call_args.kwargs["structured_output"] is False
