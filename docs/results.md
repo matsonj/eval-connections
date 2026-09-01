@@ -683,6 +683,20 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.029"
     },
     {
+      "model": "<a href=\"logs/2026-09-01T21-17-48_mercury-2.5-preview.html\">inception/mercury-2.5-preview</a>",
+      "date": "2026-09-01",
+      "pts": 45,
+      "pts_pct": 0.45,
+      "w": "8",
+      "grp": "47/80",
+      "trap": "6",
+      "inv": "0",
+      "avg_time": "8s",
+      "tok_per_game": "5.9k",
+      "cost": 0.01,
+      "cost_per_game": "$0.001"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T22-52-28_mercury-2.html\">inception/mercury-2</a>",
       "date": "2026-07-22",
       "pts": 39,
@@ -751,20 +765,6 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "tok_per_game": "19.4k",
       "cost": 0.05,
       "cost_per_game": "$0.002"
-    },
-    {
-      "model": "<a href=\"logs/2026-09-01T18-56-36_mercury-2.5-preview.html\">inception/mercury-2.5-preview</a>",
-      "date": "2026-09-01",
-      "pts": 10,
-      "pts_pct": 0.1,
-      "w": "1",
-      "grp": "11/80",
-      "trap": "0",
-      "inv": "15",
-      "avg_time": "3s",
-      "tok_per_game": "1.3k",
-      "cost": 0.0,
-      "cost_per_game": "$0.000"
     },
     {
       "model": "<a href=\"logs/2026-08-12T16-05-55_nemotron-3.5-lightning.html\">nvidia/nemotron-3.5-lightning</a>",
