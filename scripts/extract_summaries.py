@@ -2,27 +2,25 @@
 """Extract run summaries from MotherDuck controllog and create a CSV report."""
 
 import csv
-import os
 from pathlib import Path
-from typing import List, Dict, Any
-import duckdb  # type: ignore
+from typing import List, Dict, Any, Optional
+
+from connections_eval.utils.motherduck import connect_motherduck
 
 
-def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any]]:
-    """Extract all run summaries by aggregating from controllog events and postings."""
+def extract_run_summaries_from_motherduck(db: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Extract all run summaries by aggregating from controllog events and postings.
+
+    db defaults to $MOTHERDUCK_DB (else "md:").
+    """
     summaries = []
-    
-    print(f"Connecting to MotherDuck database: {db}")
-    con = duckdb.connect(db)
-    
+
+    con = connect_motherduck(db)
+
     try:
-        # Query to aggregate run summaries from controllog events and postings
-        # This aggregates metrics per run_id
-        # Note: payload_json and dims_json are STRUCT types, not JSON, so we use dot notation
+        # payload_json and dims_json are STRUCT types, not JSON, so we use dot notation.
         query = """
         WITH run_metadata AS (
-            -- Get run metadata (model, timestamps) from events
-            -- Model is in payload_json.model for model_prompt/model_completion events
             SELECT
                 e.run_id,
                 MAX(CASE WHEN e.kind IN ('model_prompt', 'model_completion') THEN e.payload_json.model END) AS model,
@@ -34,10 +32,8 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             GROUP BY e.run_id
         ),
         puzzle_stats AS (
-            -- Count puzzles attempted and solved per run
-            -- puzzles_attempted: count all unique puzzle_ids from any event
-            -- puzzles_solved: count puzzles that reached DONE state (from postings)
-            SELECT 
+            -- puzzles_solved: puzzles whose truth.state posting reached DONE.
+            SELECT
                 e.run_id,
                 COUNT(DISTINCT e.payload_json.puzzle_id) AS puzzles_attempted,
                 COUNT(DISTINCT CASE 
@@ -51,20 +47,10 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             GROUP BY e.run_id
         ),
         guess_stats AS (
-            -- Aggregate guess statistics from model_completion events, plus
-            -- model_response_error events (needed for one-shot mode detection:
-            -- an all-error one-shot run has no completions, and its error events
-            -- carry result ONESHOT_API_ERROR_MAX_M).
-            -- Classic results: CORRECT / INCORRECT / INVALID prefixes.
-            -- One-shot results (4.0 trap scoring): ONESHOT_SCORE_S_GROUPS_G_TRAP_T_MAX_M
-            -- (S = total incl. trap bonus, G = groups matched, T = 0|2, M = per-puzzle
-            -- max 5|3) or ONESHOT_INVALID_MAX_M. Legacy pre-trap runs used bare
-            -- ONESHOT_SCORE_N (N in 0,1,2,5; groups = LEAST(N, 4); max 5) — the
-            -- fallbacks below.
-            -- Lint repair turns: LINT_RETRY_<rule>. Deliberately prefixed with
-            -- neither ONESHOT nor INVALID so they add nothing to mode detection,
-            -- max_score, invalid_responses or the score sums; total_guesses is the
-            -- one count that sees every completion, so it excludes them explicitly.
+            -- The regexp_extract rules below mirror connections_eval/results.py
+            -- (the reference parser) — keep the two in sync. model_response_error
+            -- rows are included because an all-error one-shot run has no
+            -- completions, only ONESHOT_API_ERROR_MAX_M error events.
             SELECT
                 e.run_id,
                 -- LINT_RETRY_* rows are structural re-submission turns, not guesses:
@@ -89,9 +75,8 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
                 SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT_SCORE_%' THEN
                     COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'TRAP_([0-9]+)', 1), '') AS INTEGER), 0)
                     END) AS total_trap_bonus,
-                -- Per-puzzle score ceiling summed across ALL one-shot events
-                -- (completions, invalids, API errors); legacy rows without a
-                -- MAX_ tag count 5 each.
+                -- Ceiling summed across ALL one-shot events (completions,
+                -- invalids, API errors); legacy rows with no MAX_ tag count 5.
                 SUM(CASE WHEN e.payload_json.result LIKE 'ONESHOT%' THEN
                     COALESCE(TRY_CAST(NULLIF(regexp_extract(e.payload_json.result, 'MAX_([0-9]+)', 1), '') AS INTEGER), 5)
                     END) AS oneshot_max_score,
@@ -108,21 +93,17 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             GROUP BY e.run_id
         ),
         token_stats AS (
-            -- Aggregate token and cost statistics from postings
-            -- Tokens: filter to provider: account_id to avoid double-counting (project: has identical values)
-            -- Money: already filtered by specific vendor: prefixes, no duplication risk
+            -- The vendor:/provider: filter is what stops double-counting: the
+            -- project: side of every token posting carries identical values.
+            -- Cost is split by vendor prefix — openrouter is what the account
+            -- was billed, upstream is the BYOK provider charge.
             SELECT
                 e.run_id,
-                -- Total tokens: sum of all token postings (both prompt and completion phases)
                 SUM(CASE WHEN p.account_type = 'resource.tokens' AND p.unit = '+tokens' AND p.dims_json.phase = 'prompt' THEN ABS(p.delta_numeric) ELSE 0 END) +
                 SUM(CASE WHEN p.account_type = 'resource.tokens' AND p.unit = '+tokens' AND p.dims_json.phase = 'completion' THEN ABS(p.delta_numeric) ELSE 0 END) AS total_tokens,
-                -- Prompt tokens
                 SUM(CASE WHEN p.account_type = 'resource.tokens' AND p.unit = '+tokens' AND p.dims_json.phase = 'prompt' THEN ABS(p.delta_numeric) ELSE 0 END) AS total_prompt_tokens,
-                -- Completion tokens
                 SUM(CASE WHEN p.account_type = 'resource.tokens' AND p.unit = '+tokens' AND p.dims_json.phase = 'completion' THEN ABS(p.delta_numeric) ELSE 0 END) AS total_completion_tokens,
-                -- OpenRouter cost (vendor:openrouter)
                 SUM(CASE WHEN p.account_type = 'resource.money' AND p.unit = '$' AND p.account_id LIKE 'vendor:openrouter%' THEN ABS(p.delta_numeric) ELSE 0 END) AS total_cost,
-                -- Upstream cost (vendor:upstream)
                 SUM(CASE WHEN p.account_type = 'resource.money' AND p.unit = '$' AND p.account_id LIKE 'vendor:upstream%' THEN ABS(p.delta_numeric) ELSE 0 END) AS total_upstream_cost
             FROM controllog.postings p
             JOIN controllog.events e ON p.event_id = e.event_id
@@ -131,11 +112,10 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
             GROUP BY e.run_id
         ),
         time_stats AS (
-            -- Aggregate time statistics from postings.
-            -- Filter to project: account_id to avoid double-counting (agent: has identical values).
-            -- total_time_sec is wall time; total_backoff_sec is time spent in retry backoff
-            -- (e.g. upstream 429s). Historical runs have no backoff postings -> NULL.
-            -- NULL-safe kind lookup: legacy postings pre-date the dims_json.kind field.
+            -- project: only (the agent: side duplicates it). total_backoff_sec is
+            -- retry-backoff time and stays NULL for historical runs that never
+            -- emitted backoff postings; COALESCE(kind,'wall') covers postings
+            -- written before dims_json.kind existed.
             SELECT
                 e.run_id,
                 SUM(CASE
@@ -210,11 +190,10 @@ def extract_run_summaries_from_motherduck(db: str = "md:") -> List[Dict[str, Any
                     summary["model"] = "unknown"
             
             summaries.append(summary)
-            print(f"  Found run summary: {summary.get('run_id', 'unknown')}")
-        
+
     finally:
         con.close()
-    
+
     print(f"\nExtracted {len(summaries)} run summaries total")
     return summaries
 
@@ -324,13 +303,10 @@ def summaries_to_csv(summaries: List[Dict[str, Any]], output_file: str = "result
 def main():
     """Main function to extract summaries and create CSV."""
     print("🔍 Extracting run summaries from MotherDuck...")
-    
-    # Get MotherDuck database connection string from environment
-    db = os.environ.get("MOTHERDUCK_DB", "md:")
-    
-    # Extract summaries from MotherDuck
-    summaries = extract_run_summaries_from_motherduck(db)
-    
+
+    summaries = extract_run_summaries_from_motherduck()
+
+
     if not summaries:
         print("❌ No run summaries found in MotherDuck")
         return
