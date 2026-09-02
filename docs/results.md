@@ -669,18 +669,18 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.045"
     },
     {
-      "model": "<a href=\"logs/2026-08-28T18-27-59_qwen3.8-27b.html\">qwen/qwen3.8-27b</a>",
-      "date": "2026-08-28",
-      "pts": 51,
-      "pts_pct": 0.51,
+      "model": "<a href=\"logs/2026-09-02T01-47-16_qwen3.8-27b.html\">qwen/qwen3.8-27b</a>",
+      "date": "2026-09-02",
+      "pts": 54,
+      "pts_pct": 0.54,
       "w": "10",
-      "grp": "49/80",
-      "trap": "12",
-      "inv": "5",
-      "avg_time": "2m47s",
-      "tok_per_game": "10.0k",
-      "cost": 0.57,
-      "cost_per_game": "$0.029"
+      "grp": "54/80",
+      "trap": "10",
+      "inv": "1",
+      "avg_time": "4m20s",
+      "tok_per_game": "19.4k",
+      "cost": 0.76,
+      "cost_per_game": "$0.038"
     },
     {
       "model": "<a href=\"logs/2026-09-01T21-17-48_mercury-2.5-preview.html\">inception/mercury-2.5-preview</a>",
