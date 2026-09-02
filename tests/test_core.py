@@ -1356,12 +1356,11 @@ class TestReasoningEffort:
         return mock_post.call_args.kwargs["json"]
 
     def test_thinking_model_defaults_to_minimal(self):
-        # openai/o3 is in the thinking section of model_mappings.yml
-        payload = self._call_chat(model="openai/o3")
+        payload = self._call_chat(model="openai/o3", thinking=True)
         assert payload["reasoning"] == {"effort": "minimal"}
 
     def test_thinking_model_effort_override(self):
-        payload = self._call_chat(model="openai/o3", reasoning_effort="high")
+        payload = self._call_chat(model="openai/o3", reasoning_effort="high", thinking=True)
         assert payload["reasoning"] == {"effort": "high"}
 
     def test_non_thinking_model_ignores_effort(self):

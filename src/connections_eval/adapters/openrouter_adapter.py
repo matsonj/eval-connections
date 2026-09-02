@@ -1,7 +1,6 @@
 """OpenRouter API adapter."""
 
 import requests
-import yaml
 import os
 import logging
 from typing import Dict, List, Optional, Set
@@ -9,23 +8,6 @@ from ..utils.retry import retry_with_backoff, get_last_backoff_sec
 from ..utils.rate_limiter import get_default as get_rate_limiter
 
 logger = logging.getLogger(__name__)
-
-
-def _load_thinking_models() -> Set[str]:
-    """Load the set of thinking model IDs from model_mappings.yml."""
-    # Get the path to the yaml file relative to this module
-    current_dir = os.path.dirname(__file__)
-    yaml_path = os.path.join(current_dir, '../../../inputs/model_mappings.yml')
-    yaml_path = os.path.abspath(yaml_path)
-    
-    try:
-        with open(yaml_path, 'r') as f:
-            config = yaml.safe_load(f)
-            thinking_models = config['models']['thinking']
-            return set(thinking_models.values())
-    except (FileNotFoundError, KeyError, yaml.YAMLError):
-        # Fallback to empty set if config loading fails
-        return set()
 
 
 class InsufficientCreditsError(RuntimeError):
@@ -45,9 +27,6 @@ class PartialResponseError(requests.RequestException):
     so this is raised as a RequestException to feed the existing retry loop —
     it is not a rate-limit signal, so callers must not treat it like a 429."""
 
-
-# Cache the thinking models set
-_THINKING_MODELS = _load_thinking_models()
 
 # Cache of OpenRouter's live model catalog (fetched once per process)
 _MODEL_CATALOG: Optional[Set[str]] = None
@@ -142,7 +121,7 @@ def _chat_base_delay(messages: List[Dict], model: str, timeout: int = 300,
 @retry_with_backoff(max_retries=5, base_delay=_chat_base_delay, exceptions=(requests.RequestException,))
 def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optional[str] = None,
          session_id: Optional[str] = None, reasoning_effort: Optional[str] = None,
-         response_format: Optional[Dict] = None) -> Dict:
+         thinking: bool = False, response_format: Optional[Dict] = None) -> Dict:
     """
     Call OpenRouter Chat Completions API.
 
@@ -161,6 +140,11 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
             'low', 'medium', 'high'). Defaults to 'minimal' when unset — cheapest
             solves score best. Ignored for non-thinking models.
+        thinking: Whether `model` is a reasoning/thinking model — the caller
+            (core.py) decides this from the model's presence in the YAML's
+            `models.thinking` mapping. Governs whether a `reasoning` block is
+            sent, the extended 600s timeout floor, and skipping the default
+            max_tokens/temperature.
         response_format: Optional OpenRouter/OpenAI `response_format` block (e.g.
             a `{"type": "json_schema", ...}` from connections_eval.structured).
             Sent verbatim so the provider constrains the model's output. Omitted
@@ -174,19 +158,16 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     """
     # Model ID is already the full OpenRouter model ID from YAML mapping
     openrouter_model = model
-    
+
     url = "https://openrouter.ai/api/v1/chat/completions"
-    
+
     headers = {
         "Authorization": f"Bearer {_get_api_key()}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://github.com/matsonj/eval-connections",
         "X-Title": "Connections Eval"
     }
-    
-    # Check if this is a thinking model
-    is_thinking_model = openrouter_model in _THINKING_MODELS
-    
+
     # For Anthropic models, add cache_control breakpoints to enable prompt
     # caching via OpenRouter.  We mark the last assistant message with
     # cache_control so the entire conversation prefix up to that point is
@@ -255,7 +236,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         payload["session_id"] = session_id
 
     # Handle different model types
-    if is_thinking_model:
+    if thinking:
         if timeout < 600:
             timeout = 600
         payload["reasoning"] = {"effort": reasoning_effort or "minimal"}
@@ -265,134 +246,115 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             "max_tokens": 25000,
             "temperature": 0.0,
         })
-    
+
     # Wait our turn at the shared rate limiter before hitting the network.
     # Each retry attempt acquires a fresh permit so the in-flight cap stays accurate.
     limiter = get_rate_limiter()
     limiter.acquire(openrouter_model)
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=timeout)
-    except BaseException:
-        limiter.release(openrouter_model)
-        raise
 
-    # 429 → feed the AIMD signal so the bucket halves before the retry decorator
-    # backs off; all other workers on this model see the new (slower) rate too.
-    if response.status_code == 429:
-        ra_raw = response.headers.get("Retry-After") or response.headers.get("retry-after")
-        try:
-            ra = float(ra_raw) if ra_raw is not None else None
-        except ValueError:
-            ra = None
-        limiter.on_429(openrouter_model, retry_after=ra)
-        limiter.release(openrouter_model)
-        # Let the retry decorator handle the actual sleep + retry loop.
+        # 429 → feed the AIMD signal so the bucket halves before the retry decorator
+        # backs off; all other workers on this model see the new (slower) rate too.
+        if response.status_code == 429:
+            ra_raw = response.headers.get("Retry-After")
+            try:
+                ra = float(ra_raw) if ra_raw is not None else None
+            except ValueError:
+                ra = None
+            limiter.on_429(openrouter_model, retry_after=ra)
+            # Let the retry decorator handle the actual sleep + retry loop.
+            response.raise_for_status()
+
+        # 402 = insufficient credits. Retrying can't fix it and every subsequent
+        # puzzle would fail the same way — abort the run with the API's own
+        # explanation (it includes the exact affordable token count).
+        if response.status_code == 402:
+            try:
+                detail = response.json().get("error", {}).get("message", "")
+            except Exception:
+                detail = ""
+            raise InsufficientCreditsError(
+                f"OpenRouter credits exhausted (402): {detail or 'Payment Required'} — "
+                f"top up at https://openrouter.ai/settings/credits"
+            )
+
+        # Check for OpenRouter-specific errors before raising
+        if not response.ok:
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("error", {}).get("message", "")
+
+                # Check for data policy configuration error
+                if "data policy" in error_msg.lower() and response.status_code == 404:
+                    logger.error(f"[OpenRouter] Data policy configuration required for model: {openrouter_model}")
+                    logger.error(f"[OpenRouter] Error details: {error_msg}")
+                    detailed_msg = (
+                        f"OpenRouter data policy error for model '{openrouter_model}': {error_msg}\n"
+                        f"Configure your data policy settings at: https://openrouter.ai/settings/privacy"
+                    )
+                    error = requests.HTTPError(detailed_msg)
+                    error.response = response
+                    raise error
+            except (ValueError, KeyError):
+                # If we can't parse the error JSON, fall through to default handling
+                pass
+
         response.raise_for_status()
 
-    # 402 = insufficient credits. Retrying can't fix it and every subsequent
-    # puzzle would fail the same way — abort the run with the API's own
-    # explanation (it includes the exact affordable token count).
-    if response.status_code == 402:
-        try:
-            detail = response.json().get("error", {}).get("message", "")
-        except Exception:
-            detail = ""
-        limiter.release(openrouter_model)
-        raise InsufficientCreditsError(
-            f"OpenRouter credits exhausted (402): {detail or 'Payment Required'} — "
-            f"top up at https://openrouter.ai/settings/credits"
-        )
-
-    # Check for OpenRouter-specific errors before raising
-    if not response.ok:
-        try:
-            error_data = response.json()
-            error_msg = error_data.get("error", {}).get("message", "")
-
-            # Check for data policy configuration error
-            if "data policy" in error_msg.lower() and response.status_code == 404:
-                logger.error(f"[OpenRouter] Data policy configuration required for model: {openrouter_model}")
-                logger.error(f"[OpenRouter] Error details: {error_msg}")
-                detailed_msg = (
-                    f"OpenRouter data policy error for model '{openrouter_model}': {error_msg}\n"
-                    f"Configure your data policy settings at: https://openrouter.ai/settings/privacy"
-                )
-                error = requests.HTTPError(detailed_msg)
-                error.response = response
-                limiter.release(openrouter_model)
-                raise error
-        except requests.HTTPError:
-            limiter.release(openrouter_model)
-            raise
-        except (ValueError, KeyError):
-            # If we can't parse the error JSON, fall through to default handling
-            pass
-
-    try:
-        response.raise_for_status()
-    except BaseException:
-        limiter.release(openrouter_model)
-        raise
-
-    try:
         response_data = response.json()
-    except BaseException:
+
+        # OpenRouter occasionally returns HTTP 200 with an error body (no `choices`)
+        # when an upstream provider is throttled or misbehaving. Raise as a
+        # RequestException so retry_with_backoff gets another attempt instead of
+        # letting a KeyError('choices') escape upstream.
+        if not response_data.get("choices"):
+            err = response_data.get("error") or response_data
+            # Treat upstream-throttled 200s the same as 429 for the AIMD loop —
+            # the symptom (provider can't serve us right now) is identical.
+            limiter.on_429(openrouter_model, retry_after=None)
+            raise requests.RequestException(f"OpenRouter 200 OK but no 'choices' in body: {err}")
+
+        choice = response_data["choices"][0]
+        message = choice.get("message", {})
+        content = message.get("content", "") or ""
+        raw_usage = response_data.get("usage")
+
+        # OpenRouter occasionally returns HTTP 200 with `choices` present, a real
+        # (but partial, cut off mid-sentence with no closing tag) or empty
+        # `content`, finish_reason "stop", and a `usage` block whose token counts
+        # are all zero. That's a transient upstream fault (re-running the same
+        # request usually succeeds), not a real model answer — not a rate signal
+        # either, so this doesn't touch the AIMD limiter beyond releasing the
+        # in-flight slot. completion_tokens > 0 (including a genuine max_tokens
+        # truncation with finish_reason "length") is never retried here.
+        if raw_usage is not None and (raw_usage.get("completion_tokens") or 0) == 0:
+            finish_reason = choice.get("finish_reason")
+            native_finish_reason = choice.get("native_finish_reason")
+            response_provider = response_data.get("provider")
+            tail = content[-120:] if content else ""
+            raise PartialResponseError(
+                "OpenRouter returned zero completion_tokens with finish_reason="
+                f"{finish_reason!r}, native_finish_reason={native_finish_reason!r}, "
+                f"provider={response_provider!r}, content_length={len(content)}, "
+                f"content_tail={tail!r}"
+            )
+
+        limiter.on_success(openrouter_model)
+
+        # DEBUG: Log if content is missing but tokens were used
+        usage = raw_usage or {}
+        completion_tokens = usage.get("completion_tokens", 0)
+
+        if (not content or content.strip() == "") and completion_tokens > 0:
+            logger.warning(f"[OpenRouter] Model generated {completion_tokens} tokens but content is empty!")
+            logger.warning(f"[OpenRouter] finish_reason: {choice.get('finish_reason')}")
+            logger.warning(f"[OpenRouter] Message keys: {list(message.keys())}")
+
+        response_data["_backoff_sec"] = get_last_backoff_sec()
+        return response_data
+    finally:
         limiter.release(openrouter_model)
-        raise
-
-    # OpenRouter occasionally returns HTTP 200 with an error body (no `choices`)
-    # when an upstream provider is throttled or misbehaving. Raise as a
-    # RequestException so retry_with_backoff gets another attempt instead of
-    # letting a KeyError('choices') escape upstream.
-    if not response_data.get("choices"):
-        err = response_data.get("error") or response_data
-        # Treat upstream-throttled 200s the same as 429 for the AIMD loop —
-        # the symptom (provider can't serve us right now) is identical.
-        limiter.on_429(openrouter_model, retry_after=None)
-        limiter.release(openrouter_model)
-        raise requests.RequestException(f"OpenRouter 200 OK but no 'choices' in body: {err}")
-
-    choice = response_data["choices"][0]
-    message = choice.get("message", {})
-    content = message.get("content", "") or ""
-    raw_usage = response_data.get("usage")
-
-    # OpenRouter occasionally returns HTTP 200 with `choices` present, a real
-    # (but partial, cut off mid-sentence with no closing tag) or empty
-    # `content`, finish_reason "stop", and a `usage` block whose token counts
-    # are all zero. That's a transient upstream fault (re-running the same
-    # request usually succeeds), not a real model answer — not a rate signal
-    # either, so this doesn't touch the AIMD limiter beyond releasing the
-    # in-flight slot. completion_tokens > 0 (including a genuine max_tokens
-    # truncation with finish_reason "length") is never retried here.
-    if raw_usage is not None and (raw_usage.get("completion_tokens") or 0) == 0:
-        limiter.release(openrouter_model)
-        finish_reason = choice.get("finish_reason")
-        native_finish_reason = choice.get("native_finish_reason")
-        response_provider = response_data.get("provider")
-        tail = content[-120:] if content else ""
-        raise PartialResponseError(
-            "OpenRouter returned zero completion_tokens with finish_reason="
-            f"{finish_reason!r}, native_finish_reason={native_finish_reason!r}, "
-            f"provider={response_provider!r}, content_length={len(content)}, "
-            f"content_tail={tail!r}"
-        )
-
-    limiter.on_success(openrouter_model)
-    limiter.release(openrouter_model)
-
-    # DEBUG: Log if content is missing but tokens were used
-    usage = raw_usage or {}
-    completion_tokens = usage.get("completion_tokens", 0)
-
-    if (not content or content.strip() == "") and completion_tokens > 0:
-        logger.warning(f"[OpenRouter] Model generated {completion_tokens} tokens but content is empty!")
-        logger.warning(f"[OpenRouter] finish_reason: {choice.get('finish_reason')}")
-        logger.warning(f"[OpenRouter] Message keys: {list(message.keys())}")
-
-    response_data["_backoff_sec"] = get_last_backoff_sec()
-    return response_data
-
 
 
 def _get_api_key() -> str:
@@ -401,6 +363,3 @@ def _get_api_key() -> str:
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
     return api_key
-
-
-
