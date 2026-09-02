@@ -781,16 +781,16 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.003"
     },
     {
-      "model": "<a href=\"logs/2026-07-22T22-58-03_granite-4.1-8b.html\">ibm-granite/granite-4.1-8b</a>",
-      "date": "2026-07-22",
-      "pts": 5,
-      "pts_pct": 0.05,
-      "w": "1",
-      "grp": "6/80",
-      "trap": "0",
-      "inv": "10",
+      "model": "<a href=\"logs/2026-09-02T01-46-47_granite-4.1-8b.html\">ibm-granite/granite-4.1-8b</a>",
+      "date": "2026-09-02",
+      "pts": 13,
+      "pts_pct": 0.13,
+      "w": "0",
+      "grp": "9/80",
+      "trap": "4",
+      "inv": "1",
       "avg_time": "8s",
-      "tok_per_game": "1.4k",
+      "tok_per_game": "1.7k",
       "cost": 0.0,
       "cost_per_game": "$0.000"
     }
