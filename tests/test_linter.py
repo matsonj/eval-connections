@@ -69,6 +69,13 @@ class TestRules:
 
 
 class TestFeedback:
+    def test_missing_answer_tells_model_to_finish_the_whole_response(self):
+        text = feedback_message(lint_oneshot("<thinking>still reasoning</thinking>", WORDS))
+        assert "no final <answer>...</answer> block" in text
+        assert "done enough thinking" in text
+        assert "<traps>...</traps>" in text and "<confidence>...</confidence>" in text
+        assert "no analysis or commentary" in text
+
     def test_xml_wording_collapses_repeated_rule(self):
         text = feedback_message(lint_oneshot(answer(GOOD.replace(",", "")), WORDS))
         assert text.startswith("Response failed linting rule answer.words_per_line:")
@@ -103,6 +110,11 @@ class TestSplice:
     def test_bare_lines_are_wrapped(self):
         merged = splice_segment(answer("A B C D"), GOOD, "answer")
         assert lint_oneshot(merged, WORDS).ok
+
+    def test_opening_tag_without_close_is_completed_locally(self):
+        merged = splice_segment(answer("A B C D"), f"<answer>\n{GOOD}", "answer")
+        assert lint_oneshot(merged, WORDS).ok
+        assert merged.count("<answer>") == 1 and merged.count("</answer>") == 1
 
     def test_missing_block_is_appended(self):
         merged = splice_segment("<thinking>none</thinking>", GOOD, "answer")

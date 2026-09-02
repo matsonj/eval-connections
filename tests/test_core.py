@@ -1919,6 +1919,7 @@ class TestOneshotLintRepairLoop:
     )
     _ANSWER_ONLY = ("<answer>\n" + "\n".join(
         ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>")
+    _ANSWER_OPEN_ONLY = _ANSWER_ONLY.removesuffix("</answer>")
 
     def _run(self, tmp_path, side_effect, **kwargs):
         return self._shared._run(tmp_path, "oneshot", side_effect, **kwargs)
@@ -1952,16 +1953,47 @@ class TestOneshotLintRepairLoop:
         assert followup.startswith("Response failed linting rule answer.words_per_line: ")
         assert "re-submit only the failed segment answer" in followup
 
+    def test_unclosed_answer_repair_is_completed_and_scored(self, tmp_path):
+        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
+                                   self._response(self._ANSWER_OPEN_ONLY)])
+
+        assert cap.chat.call_count == 2
+        assert cap.summary["puzzles_solved"] == 1
+        assert cap.summary["total_score"] == 5
+        assert cap.summary["lint_retries"] == 1
+
+    def test_repair_prompt_omits_long_thinking_context(self, tmp_path):
+        initial = "<thinking>" + ("reasoning " * 5000) + "</thinking>\n" + self._BROKEN_ANSWER
+        cap = self._run(tmp_path, [self._response(initial), self._response(self._ANSWER_ONLY)])
+
+        transcript = cap.chat.call_args_list[-1].args[0]
+        assistant_context = transcript[2]["content"]
+        assert "reasoning reasoning" not in assistant_context
+        assert len(assistant_context) <= ConnectionsGame.REPAIR_CONTEXT_MAX_CHARS + 120
+
+    def test_missing_answer_gets_full_context_and_finish_instruction(self, tmp_path):
+        initial = "<thinking>" + ("reasoning " * 5000)
+        cap = self._run(tmp_path, [self._response(initial), self._response(self._ANSWER_ONLY)])
+
+        transcript = cap.chat.call_args_list[-1].args[0]
+        assert transcript[2]["role"] == "assistant"
+        assert transcript[2]["content"] == initial.strip()
+        followup = transcript[3]["content"]
+        assert "done enough thinking" in followup
+        assert "<traps>...</traps>" in followup
+        assert "<confidence>...</confidence>" in followup
+        assert cap.summary["total_score"] == 3
+
     def test_retries_are_capped_and_end_in_oneshot_invalid(self, tmp_path):
         """Three broken responses: two repairs, then the third is scored as-is."""
         cap = self._run(tmp_path, [self._response("no answer here")] * 3)
 
         assert cap.chat.call_count == 3
-        # The second turn's tagless reply is wrapped in <answer> tags before
-        # splicing, so the rule it trips changes — the cap does not.
+        # The missing-answer continuation stays in full-response mode through
+        # the retry cap.
         assert [e["result"] for e in cap.exchanges] == [
             "LINT_RETRY_answer.missing_tag",
-            "LINT_RETRY_answer.line_count",
+            "LINT_RETRY_answer.missing_tag",
             "ONESHOT_INVALID_MAX_5",
         ]
         assert cap.summary["invalid_responses"] == 1

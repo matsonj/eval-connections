@@ -45,6 +45,33 @@ def _block(text: str, segment: str):
     return matches[-1] if matches else None
 
 
+def _repair_body(text: str, segment: str) -> Optional[str]:
+    """Return a safe repair body, allowing the requested opening tag alone.
+
+    Models commonly follow the repair instruction by emitting ``<answer>`` and
+    the four lines, then stopping before ``</answer>``. That is still
+    unambiguous because the retry names the segment being repaired. Strip only
+    that optional delimiter; any other markup remains unusable rather than
+    being silently nested into the merged response.
+    """
+    body = strip_thinking(text).strip()
+    tag = re.escape(segment)
+    opening = re.compile(rf'^\s*<{tag}>\s*', re.IGNORECASE)
+    closing = re.compile(rf'\s*</{tag}>\s*$', re.IGNORECASE)
+
+    if opening.match(body):
+        body = opening.sub('', body, count=1).strip()
+        body = closing.sub('', body, count=1).strip()
+    elif closing.search(body):
+        # A closing delimiter without the requested opening is not a safe
+        # segment-only response, so leave the previous content untouched.
+        return None
+
+    if not body or _ANY_TAG.search(body):
+        return None
+    return body
+
+
 def _items(line: str) -> List[str]:
     return [i.strip().upper() for i in line.split(',') if i.strip()]
 
@@ -148,6 +175,23 @@ def feedback_message(result: LintResult, protocol: str = "xml") -> str:
     if result.ok:
         return ""
     first, rest = result.failures[0], result.failures[1:]
+
+    # No answer is not a segment repair. In practice this is often a long
+    # reasoning completion that never reached its requested output. Tell the
+    # model to stop thinking and finish the whole response in the next turn.
+    if first.rule == "answer.missing_tag":
+        if protocol == "json":
+            return (
+                f"Response failed linting rule {first.rule}: the response is incomplete and contains no final "
+                '"answer" value. You have done enough thinking; stop reasoning now and output the complete '
+                'JSON object now: output a valid JSON object with the "answer" value corrected, plus "traps" '
+                'and "confidence", immediately. Output only the object, with no analysis or commentary.'
+            )
+        return (f"Response failed linting rule {first.rule}: the response is incomplete and contains no final "
+                "<answer>...</answer> block. You have done enough thinking; stop reasoning now and output the "
+                "complete response immediately with <answer>...</answer>, <traps>...</traps>, and "
+                "<confidence>...</confidence>. Output only those blocks, with no analysis or commentary.")
+
     same = sum(1 for f in rest if f.rule == first.rule)
     other = [f for f in rest if f.rule != first.rule]
     if protocol == "json":
@@ -171,14 +215,15 @@ def feedback_message(result: LintResult, protocol: str = "xml") -> str:
 def splice_segment(previous: str, resubmission: str, segment: str) -> str:
     """Merge a re-submitted block into the previous full response so the
     original <thinking> and a clean <traps> survive the repair. A tagless
-    resubmission is wrapped in the segment's tags; anything unusable (empty,
-    other markup) leaves `previous` unchanged so the same failure repeats."""
+    resubmission is wrapped in the segment's tags; the requested opening tag
+    may be present without its closing tag. Anything unusable (empty, other
+    markup) leaves `previous` unchanged."""
     new = _block(resubmission, segment)
     if new:
         block = new.group(0)
     else:
-        body = strip_thinking(resubmission).strip()
-        if not body or _ANY_TAG.search(body):
+        body = _repair_body(resubmission, segment)
+        if body is None:
             return previous
         block = f"<{segment}>\n{body}\n</{segment}>"
     old = _block(previous, segment)

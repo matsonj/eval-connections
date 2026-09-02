@@ -14,7 +14,7 @@ from .utils.tokens import count_tokens, extract_token_usage, extract_cost_info, 
 from .utils.logging import log_exchange, log_summary, setup_logger
 from .utils.retry import get_last_backoff_sec
 from .structured import build_response_format, render_json_content, json_prompt_template
-from .linter import feedback_message, lint_oneshot, splice_segment
+from .linter import feedback_message, lint_oneshot, splice_segment, strip_thinking
 import controllog as cl
 from .adapters import openrouter_adapter
 
@@ -241,6 +241,9 @@ class ConnectionsGame:
     # scored as-is (and so counted ONESHOT_INVALID). Classic mode keeps using
     # MAX_INVALID — there, an invalid turn is already a counted, costed event.
     MAX_LINT_RETRIES = 2
+    # A repair needs the puzzle and the failed rule, not the entire previous
+    # generation. Keep only a small candidate excerpt in the next turn.
+    REPAIR_CONTEXT_MAX_CHARS = 2000
 
     def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None, verbose: bool = False,
                  mode: str = "classic", reasoning_effort: Optional[str] = None,
@@ -644,6 +647,20 @@ class ConnectionsGame:
         before structured output existed (no `response_format` kwarg at all).
         """
         return {"response_format": self.response_format} if self.response_format else {}
+
+    def _compact_repair_context(self, content: str) -> str:
+        """Keep only useful candidate text when asking for a structural repair.
+
+        Thinking is not needed to repair delimiters or commas. Removing it also
+        handles the common truncated ``<thinking>`` response by returning a
+        short marker instead of replaying thousands of tokens into the prompt.
+        """
+        candidate = strip_thinking(content).strip()
+        if not candidate:
+            return "[The previous response had no usable non-thinking content.]"
+        if len(candidate) > self.REPAIR_CONTEXT_MAX_CHARS:
+            candidate = "[truncated previous candidate]\n" + candidate[-self.REPAIR_CONTEXT_MAX_CHARS:]
+        return "[Previous candidate excerpt for structural repair; do not add reasoning.]\n" + candidate
 
     def _extract_content(self, response: Dict) -> str:
         """Extract the assistant text from a response, with reasoning fallbacks.
@@ -1135,16 +1152,17 @@ class ConnectionsGame:
         plus a 2-point trap bonus.
 
         The only feedback allowed is structural. Before scoring, the response is
-        linted against the RESPONSE FORMAT (see linter.lint_oneshot); a failure
-        buys up to MAX_LINT_RETRIES extra exchanges that name the broken rule and
-        ask for that segment alone. The re-submitted block is spliced back into
-        the original response, so the model's <thinking> and a clean <traps>
-        survive a repair. Only the final, merged content is scored.
+        linted against the RESPONSE FORMAT (see linter.lint_oneshot). A response
+        with no final answer gets a continuation that preserves the full prior
+        completion and tells the model to stop reasoning and emit the complete
+        answer. Other failures ask for only the bad segment and splice it back
+        into the original response. Only the final content is scored.
 
         See _puzzle_context for the `attempt` semantics.
         """
         ctx = self._puzzle_context(puzzle, model_name, attempt)
         messages = self._build_initial_messages(puzzle, rng)
+        base_messages = [message.copy() for message in messages]
         puzzle_max = 5 if puzzle.trap_groups is not None else 3
         outcome = _OneshotOutcome()
 
@@ -1156,18 +1174,26 @@ class ConnectionsGame:
         # i.e. nothing to splice into yet).
         merged = ""
         segment: Optional[str] = None
+        finish_retry = False
         feedback = ""
         lint_retries = 0
         puzzle_words = [w.upper() for w in puzzle.words]
 
         def verdict_fn(content: str, structured: Dict[str, str]) -> _Verdict:
-            nonlocal outcome, merged, segment, feedback
-            merged = content if segment is None else splice_segment(merged, content, segment)
+            nonlocal outcome, merged, segment, finish_retry, feedback
+            if finish_retry:
+                # A missing answer means the prior completion was unfinished,
+                # not that there is a small answer segment to splice. The
+                # continuation gets to replace the incomplete response.
+                merged = content
+            else:
+                merged = content if segment is None else splice_segment(merged, content, segment)
 
             lint = lint_oneshot(merged, puzzle_words)
             if not lint.ok and lint_retries < self.MAX_LINT_RETRIES:
                 failure = lint.failures[0]
-                segment = failure.segment
+                finish_retry = failure.rule == "answer.missing_tag"
+                segment = None if finish_retry else failure.segment
                 feedback = feedback_message(lint, "json" if self.structured_output else "xml")
                 # Deliberately not an ONESHOT*/INVALID* string: aggregation keys
                 # off those prefixes, and this turn is neither a scored
@@ -1200,8 +1226,19 @@ class ConnectionsGame:
             )
             if not exchange.ok or not exchange.verdict.result.startswith("LINT_RETRY_"):
                 break
-            messages.append({"role": "assistant", "content": exchange.content})
-            messages.append({"role": "user", "content": feedback})
+            if finish_retry:
+                # This is a genuine continuation. Keep the entire assistant
+                # completion so a reasoning model can finish its own analysis,
+                # and so cacheable conversation prefixes remain intact.
+                messages.append({"role": "assistant", "content": exchange.content})
+                messages.append({"role": "user", "content": feedback})
+            else:
+                # Segment repairs do not need the generation that led to an
+                # already-present answer. Avoid replaying that reasoning.
+                messages = base_messages + [
+                    {"role": "assistant", "content": self._compact_repair_context(exchange.content)},
+                    {"role": "user", "content": feedback},
+                ]
             lint_retries += 1
 
         if not exchange.ok:
