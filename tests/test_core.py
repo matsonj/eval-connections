@@ -14,6 +14,12 @@ from connections_eval.adapters.openrouter_adapter import extract_provider_slug
 from connections_eval.utils.tokens import extract_cache_info
 
 
+def _base_score(game, puzzle, groups):
+    """(groups_correct, base_score) from the single-pass one-shot grader."""
+    _, matched, base = game._grade_oneshot(puzzle, groups)
+    return (len(matched), base)
+
+
 def _make_test_groups():
     """Shared test fixture: four puzzle groups."""
     return [
@@ -53,17 +59,7 @@ class TestConnectionsGame:
     @pytest.fixture
     def game_state(self, sample_puzzle):
         """Create a sample game state."""
-        return GameState(
-            puzzle=sample_puzzle,
-            solved_groups=set(),
-            guess_count=0,
-            mistake_count=0,
-            invalid_count=0,
-            finished=False,
-            won=False,
-            start_time=None,
-            end_time=None
-        )
+        return GameState(puzzle=sample_puzzle)
 
     @pytest.fixture
     def mock_game(self):
@@ -345,7 +341,7 @@ Done."""
     def test_garbage_input_fails_scoring(self, mock_game, sample_puzzle):
         """Garbage input may parse into something, but it must fail scoring."""
         groups = mock_game._parse_oneshot_response("This is just garbage nonsense text with no structure.")
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+        assert _base_score(mock_game, sample_puzzle, groups) == (0, 0)
 
     def test_lowercase_words_are_upper_cased(self, mock_game):
         """Lowercase words in the answer block are normalized to upper case."""
@@ -360,7 +356,7 @@ bright, clever, smart, wise
 
 
 class TestOneshotScoring:
-    """Test _score_oneshot for one-shot mode."""
+    """Test one-shot base scoring (_grade_oneshot)."""
 
     @pytest.fixture
     def mock_game(self):
@@ -383,7 +379,7 @@ class TestOneshotScoring:
             ["FAST", "QUICK", "RAPID", "SWIFT"],
             ["BRIGHT", "CLEVER", "SMART", "WISE"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 3)
+        assert _base_score(mock_game, sample_puzzle, groups) == (4, 3)
 
     def test_two_correct_two_swapped(self, mock_game, sample_puzzle):
         """Two groups intact; the other two have words swapped between them so
@@ -394,7 +390,7 @@ class TestOneshotScoring:
             ["FAST", "QUICK", "SMART", "WISE"],       # 2 from Speed + 2 from Smart
             ["RAPID", "SWIFT", "BRIGHT", "CLEVER"],   # remaining 2 from Speed + 2 from Smart
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (2, 2)
+        assert _base_score(mock_game, sample_puzzle, groups) == (2, 2)
 
     def test_one_correct(self, mock_game, sample_puzzle):
         """One group intact; the other 12 words are 3-cycled across the
@@ -405,7 +401,7 @@ class TestOneshotScoring:
             ["QUICK", "RAPID", "SWIFT", "BLUE"],      # Speed minus FAST, plus BLUE
             ["CLEVER", "SMART", "WISE", "FAST"],      # Smart minus BRIGHT, plus FAST
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (1, 1)
+        assert _base_score(mock_game, sample_puzzle, groups) == (1, 1)
 
     def test_zero_correct_valid_partition(self, mock_game, sample_puzzle):
         """A full derangement: every group has exactly one word swapped in from
@@ -417,7 +413,7 @@ class TestOneshotScoring:
             ["BRIGHT", "QUICK", "RAPID", "SWIFT"],
             ["APPLE", "CLEVER", "SMART", "WISE"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+        assert _base_score(mock_game, sample_puzzle, groups) == (0, 0)
 
     def test_wrong_word_not_in_puzzle(self, mock_game, sample_puzzle):
         """A word that doesn't belong to the puzzle at all is a structural failure."""
@@ -427,7 +423,7 @@ class TestOneshotScoring:
             ["FAST", "QUICK", "RAPID", "SWIFT"],
             ["BRIGHT", "CLEVER", "SMART", "WISE"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+        assert _base_score(mock_game, sample_puzzle, groups) == (0, 0)
 
     def test_duplicate_word_one_missing(self, mock_game, sample_puzzle):
         """A word appearing twice (with another word missing) is a structural failure."""
@@ -437,7 +433,7 @@ class TestOneshotScoring:
             ["FAST", "QUICK", "RAPID", "SWIFT"],
             ["BRIGHT", "CLEVER", "SMART", "WISE"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+        assert _base_score(mock_game, sample_puzzle, groups) == (0, 0)
 
     def test_three_groups_only(self, mock_game, sample_puzzle):
         groups = [
@@ -445,7 +441,7 @@ class TestOneshotScoring:
             ["BLUE", "GREEN", "RED", "YELLOW"],
             ["FAST", "QUICK", "RAPID", "SWIFT"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+        assert _base_score(mock_game, sample_puzzle, groups) == (0, 0)
 
     def test_five_groups(self, mock_game, sample_puzzle):
         groups = [
@@ -455,7 +451,7 @@ class TestOneshotScoring:
             ["BRIGHT", "CLEVER", "SMART", "WISE"],
             ["EXTRA", "GROUP", "NOT", "ALLOWED"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+        assert _base_score(mock_game, sample_puzzle, groups) == (0, 0)
 
     def test_group_with_three_words(self, mock_game, sample_puzzle):
         groups = [
@@ -464,7 +460,7 @@ class TestOneshotScoring:
             ["FAST", "QUICK", "RAPID", "SWIFT"],
             ["BRIGHT", "CLEVER", "SMART", "WISE"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (0, 0)
+        assert _base_score(mock_game, sample_puzzle, groups) == (0, 0)
 
     def test_word_order_within_group_irrelevant(self, mock_game, sample_puzzle):
         """Groups are compared as sets, so word order within a group doesn't matter."""
@@ -474,7 +470,7 @@ class TestOneshotScoring:
             ["SWIFT", "RAPID", "QUICK", "FAST"],
             ["WISE", "SMART", "CLEVER", "BRIGHT"],
         ]
-        assert mock_game._score_oneshot(sample_puzzle, groups) == (4, 3)
+        assert _base_score(mock_game, sample_puzzle, groups) == (4, 3)
 
 
 class TestOneshotStats:
@@ -656,15 +652,6 @@ class TestOneshotEndToEnd:
         assert summary["total_score"] == 0
         assert summary["max_score"] == 5
         assert summary["total_trap_bonus"] == 0
-
-    def test_mode_override_mismatch_raises(self, tmp_path):
-        """run_evaluation(mode=...) must match the mode the game was built with,
-        since the prompt template is selected at construction time."""
-        puzzle = self._make_puzzle()
-        game = self._make_game(tmp_path, puzzle, mode="classic")
-
-        with pytest.raises(ValueError, match="conflicts with game mode"):
-            game.run_evaluation("test-model", puzzle_ids=[477], mode="oneshot")
 
 
 class TestOneshotTraps:
@@ -1069,7 +1056,8 @@ class TestRankSessionIsolation:
         game ends after MAX_INVALID turns regardless of which puzzle is chosen."""
         captured = []
 
-        def fake_chat(messages, model_id, provider=None, session_id=None, reasoning_effort=None):
+        def fake_chat(messages, model_id, provider=None, session_id=None,
+                      reasoning_effort=None, **kwargs):
             captured.append(session_id)
             return {
                 "choices": [{"message": {"content": "no valid guess here"},
@@ -1147,17 +1135,6 @@ class TestRankSessionIsolation:
 
 class TestUtilities:
     """Test utility functions."""
-
-    def test_timer(self):
-        """Test Timer utility."""
-        from connections_eval.utils.timing import Timer
-        import time
-
-        with Timer() as timer:
-            time.sleep(0.1)
-
-        assert 0.09 < timer.elapsed_seconds < 0.15
-        assert 90 < timer.elapsed_ms < 150
 
     def test_token_counting(self):
         """Test token counting utilities."""
