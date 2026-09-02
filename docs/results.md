@@ -739,6 +739,20 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.000"
     },
     {
+      "model": "<a href=\"logs/2026-09-01T21-19-31_nemotron-3.5-lightning.html\">nvidia/nemotron-3.5-lightning</a>",
+      "date": "2026-09-01",
+      "pts": 20,
+      "pts_pct": 0.2,
+      "w": "2",
+      "grp": "16/80",
+      "trap": "6",
+      "inv": "11",
+      "avg_time": "7m51s",
+      "tok_per_game": "60.6k",
+      "cost": 0.18,
+      "cost_per_game": "$0.009"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T23-07-43_laguna-xs.2.html\">poolside/laguna-xs-2.1</a>",
       "date": "2026-07-22",
       "pts": 17,
@@ -765,20 +779,6 @@ Latest one-shot runs for 51 models (20 games each, one submission per game, max 
       "tok_per_game": "41.9k",
       "cost": 0.05,
       "cost_per_game": "$0.003"
-    },
-    {
-      "model": "<a href=\"logs/2026-08-12T16-05-55_nemotron-3.5-lightning.html\">nvidia/nemotron-3.5-lightning</a>",
-      "date": "2026-08-12",
-      "pts": 6,
-      "pts_pct": 0.06,
-      "w": "0",
-      "grp": "4/80",
-      "trap": "2",
-      "inv": "18",
-      "avg_time": "3m31s",
-      "tok_per_game": "25.5k",
-      "cost": 0.13,
-      "cost_per_game": "$0.006"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-58-03_granite-4.1-8b.html\">ibm-granite/granite-4.1-8b</a>",
