@@ -49,6 +49,10 @@ class PartialResponseError(requests.RequestException):
 # Cache the thinking models set
 _THINKING_MODELS = _load_thinking_models()
 
+# Default to the maximum reasoning level supported by the CLI. Callers may
+# still pass a lower effort explicitly for controlled experiments.
+DEFAULT_REASONING_EFFORT = "xhigh"
+
 # Cache of OpenRouter's live model catalog (fetched once per process)
 _MODEL_CATALOG: Optional[Set[str]] = None
 
@@ -159,8 +163,8 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
             first call, before any cache hit. This is the only caching lever for
             cloaked/third-party-hosted models that have no pinnable provider slug.
         reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
-            'low', 'medium', 'high'). Defaults to 'minimal' when unset — cheapest
-            solves score best. Ignored for non-thinking models.
+            'low', 'medium', 'high', 'xhigh'). Defaults to 'xhigh' when unset.
+            Ignored for non-thinking models.
         response_format: Optional OpenRouter/OpenAI `response_format` block (e.g.
             a `{"type": "json_schema", ...}` from connections_eval.structured).
             Sent verbatim so the provider constrains the model's output. Omitted
@@ -258,7 +262,7 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
     if is_thinking_model:
         if timeout < 600:
             timeout = 600
-        payload["reasoning"] = {"effort": reasoning_effort or "minimal"}
+        payload["reasoning"] = {"effort": reasoning_effort or DEFAULT_REASONING_EFFORT}
     else:
         # Standard models
         payload.update({
@@ -401,6 +405,5 @@ def _get_api_key() -> str:
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
     return api_key
-
 
 

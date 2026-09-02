@@ -228,7 +228,7 @@ class ConnectionsGame:
     """Main game engine for Connections puzzles."""
 
     # Version for tracking evaluation framework changes
-    VERSION = "4.0.0"  # One-shot mode becomes the primary eval (single submission, base 0/1/2/3 + 2-pt trap bonus)
+    VERSION = "4.1.0"  # One-shot eval with maximum default reasoning effort
 
     # Model configuration loaded from YAML file
     MODEL_CONFIG = {}
@@ -258,7 +258,7 @@ class ConnectionsGame:
             verbose: Whether to print logs to console
             mode: Evaluation mode, "classic" (multi-turn) or "oneshot" (single submission)
             reasoning_effort: Reasoning effort for thinking models (e.g. 'minimal',
-                'low', 'medium', 'high'); adapter defaults to 'minimal' when unset.
+                'low', 'medium', 'high', 'xhigh'); defaults to 'xhigh' when unset.
                 Ignored for non-thinking models.
             structured_output: Opt-in JSON mode. Loads the `_json` prompt template
                 variant and sends a `response_format` JSON schema so the provider
@@ -271,7 +271,7 @@ class ConnectionsGame:
         self.seed = seed or int(time.time())
         self.verbose = verbose
         self.mode = mode
-        self.reasoning_effort = reasoning_effort
+        self.reasoning_effort = reasoning_effort or openrouter_adapter.DEFAULT_REASONING_EFFORT
         self.structured_output = structured_output
         # Built once per game: the schema depends only on the mode.
         self.response_format = build_response_format(mode) if structured_output else None

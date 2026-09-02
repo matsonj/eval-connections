@@ -7,7 +7,7 @@
 - **Run specific puzzles**: `uv run connections_eval run --model MODEL_NAME --puzzle-ids 246,283,477`
 - **Run canonical set**: `uv run connections_eval run --model MODEL_NAME --canonical`
 - **Run one-shot mode**: `uv run connections_eval run --model MODEL_NAME --mode oneshot --canonical` (single submission of all 4 groups per puzzle, base 0/1/2/3 + 2-pt trap bonus)
-- **Set reasoning effort**: `uv run connections_eval run --model MODEL_NAME --reasoning-effort high` (thinking models only; default: minimal)
+- **Set reasoning effort**: `uv run connections_eval run --model MODEL_NAME --reasoning-effort high` (thinking models only; default: xhigh)
 - **Backfill one-shot runs**: `uv run python scripts/backfill_oneshot.py --dry-run` (preview), then without the flag to run (models first seen <90d ago OR ≥75% classic solve rate)
 - **List models**: `uv run connections_eval list-models`
 - **List puzzles**: `uv run connections_eval list-puzzles` (add `--difficulty` for ratings)

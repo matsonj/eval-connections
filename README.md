@@ -23,6 +23,10 @@ This project provides a comprehensive evaluation framework for testing linguisti
 
 ## Changelog
 
+### 4.1.0 (unreleased)
+- Thinking models now default to the maximum reasoning effort (`xhigh`); the `--reasoning-effort` flag remains available for explicit overrides.
+- Evaluation prompts ask models to minimize token use while maximizing score.
+
 ### 4.0.0 (2026-07-21)
 - **One-shot mode** (`--mode oneshot`) — model submits all 4 groups in a single response instead of guessing one group at a time; one API call per puzzle, no feedback loop
 - **One-shot scoring** — 1 point per correctly matched group, 3 points for a perfect solve (exactly-3 is impossible), giving base scores of 0/1/2/3 per puzzle
@@ -32,7 +36,7 @@ This project provides a comprehensive evaluation framework for testing linguisti
 - `--mode classic|oneshot` flag on `run` (default `classic`); classic multi-turn behavior is unchanged
 - **One-shot is now the primary eval** — the leaderboard (`docs/index.html`) shows one-shot runs only; the classic multi-turn leaderboard moved to `docs/classic.html`, and the GitHub Action defaults to `mode: oneshot`
 - **Backfill driver** (`scripts/backfill_oneshot.py`) — runs the canonical set in one-shot mode for models first seen in the last 90 days or scoring ≥75% in classic; `--dry-run` to preview
-- `--reasoning-effort minimal|low|medium|high|xhigh` flag on `run` — overrides the reasoning effort for thinking models (previously hardcoded to `minimal`; non-thinking models ignore it)
+- `--reasoning-effort minimal|low|medium|high|xhigh` flag on `run` — defaults to maximum (`xhigh`) for thinking models and remains available as an explicit override; non-thinking models ignore it
 
 ### 3.0.0 (2026-02-23)
 - **Provider pinning** for prompt caching — pins OpenRouter requests to the native provider (Anthropic, OpenAI, Google, xAI) on calls 2+, enabling prompt cache hits across multi-turn puzzle conversations
@@ -316,6 +320,7 @@ uv run connections_eval run [OPTIONS]
 | `--puzzle-ids` | str | None | Comma-separated puzzle IDs to run (e.g. `246,283,477`) |
 | `--canonical` | flag | False | Run only puzzles marked `canonical: true` |
 | `--mode` | str | `classic` | Evaluation mode: `classic` (multi-turn guessing) or `oneshot` (single submission of all 4 groups) |
+| `--reasoning-effort` | str | `xhigh` | Reasoning effort for thinking models; non-thinking models ignore it |
 | `--threads` | int | 8 | Number of parallel threads (forced to 1 for interactive) |
 | `--seed` | int | Random | Random seed for reproducibility |
 | `--verbose` | flag | False | Enable real-time exchange logging |
