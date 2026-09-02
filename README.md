@@ -218,7 +218,7 @@ Example output:
 
 ### JSONL Logs
 
-Detailed logs are saved to `logs/connections_eval_<timestamp>.jsonl`:
+Detailed logs are saved to `logs/connections_eval_<run_id>.jsonl`:
 
 ```json
 {"timestamp": "2025-07-31T17:23:08Z", "run_id": "...", "model": "o3", ...}
