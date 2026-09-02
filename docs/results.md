@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 52 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 54 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -179,6 +179,20 @@ Latest one-shot runs for 52 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.006"
     },
     {
+      "model": "<a href=\"logs/2026-09-02T20-02-38_muse-spark-1.3.html\">meta/muse-spark-1.3</a>",
+      "date": "2026-09-02",
+      "pts": 84,
+      "pts_pct": 0.84,
+      "w": "19",
+      "grp": "77/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "15s",
+      "tok_per_game": "2.6k",
+      "cost": 0.19,
+      "cost_per_game": "$0.009"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T23-13-53_gpt5.6-sol-pro.html\">openai/gpt-5.6-sol-pro</a>",
       "date": "2026-07-22",
       "pts": 84,
@@ -275,6 +289,20 @@ Latest one-shot runs for 52 models (20 games each, one submission per game, max 
       "tok_per_game": "1.7k",
       "cost": 0.1,
       "cost_per_game": "$0.005"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-02T22-49-35_muse-spark-1.3-contributor.html\">meta/muse-spark-1.3-contributor</a>",
+      "date": "2026-09-02",
+      "pts": 80,
+      "pts_pct": 0.8,
+      "w": "17",
+      "grp": "73/80",
+      "trap": "24",
+      "inv": "0",
+      "avg_time": "51s",
+      "tok_per_game": "2.8k",
+      "cost": 0.01,
+      "cost_per_game": "$0.001"
     },
     {
       "model": "<a href=\"logs/2026-08-12T18-20-38_deepseek-v4-pro-0813.html\">deepseek/deepseek-v4-pro-0813</a>",
