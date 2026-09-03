@@ -1,11 +1,9 @@
 """Tests for CLI interface."""
 
-import pytest
 from unittest.mock import patch, MagicMock
-from pathlib import Path
 from typer.testing import CliRunner
 
-from connections_eval.cli import app, _display_summary, _validate_run_args
+from connections_eval.cli import app, _display_summary
 
 
 class TestCLI:

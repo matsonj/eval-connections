@@ -77,14 +77,14 @@ def model_completion(
     if cost_money is not None:
         postings.extend(
             [
-                post("resource.money", f"vendor:openrouter", "$", -float(cost_money), {"model": model}),
+                post("resource.money", "vendor:openrouter", "$", -float(cost_money), {"model": model}),
                 post("resource.money", f"project:{project_id}", "$", +float(cost_money), {"model": model}),
             ]
         )
     if upstream_cost_money is not None:
         postings.extend(
             [
-                post("resource.money", f"vendor:upstream", "$", -float(upstream_cost_money), {"model": model}),
+                post("resource.money", "vendor:upstream", "$", -float(upstream_cost_money), {"model": model}),
                 post("resource.money", f"project:{project_id}", "$", +float(upstream_cost_money), {"model": model}),
             ]
         )

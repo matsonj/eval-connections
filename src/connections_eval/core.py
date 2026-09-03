@@ -1026,7 +1026,7 @@ class ConnectionsGame:
         elif state.mistake_count >= self.MAX_MISTAKES:
             print(f"\nGame over! You made {self.MAX_MISTAKES} mistakes.")
         elif state.invalid_count >= self.MAX_INVALID:
-            print(f"\nGame over! Too many invalid responses.")
+            print("\nGame over! Too many invalid responses.")
 
         # Show solution
         print("\nSolution:")

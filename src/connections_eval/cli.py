@@ -272,7 +272,7 @@ def run(
                 )
 
         # Show run info
-        console.print(f"Starting Connections evaluation", style="bold blue")
+        console.print("Starting Connections evaluation", style="bold blue")
         console.print(f"Mode: {'Interactive' if interactive else f'AI Model ({model})'}")
         console.print(f"Evaluation Mode: {mode}")
         if reasoning_effort:
@@ -471,7 +471,7 @@ def list_puzzles(
     table.add_column("Canonical", style="green")
 
     for puzzle in sorted(game.puzzles, key=lambda p: p.id):
-        row = [str(puzzle.id), puzzle.date]
+        row = [str(puzzle.id), str(puzzle.date)]
         if difficulty:
             row.append(f"{puzzle.difficulty:.1f}")
         row.append("yes" if puzzle.canonical else "")

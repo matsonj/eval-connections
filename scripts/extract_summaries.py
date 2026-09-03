@@ -315,7 +315,7 @@ def main():
     summaries_to_csv(summaries, "results/run_summaries.csv")
     
     # Print some basic stats
-    print(f"\n📊 Summary Statistics:")
+    print("\n📊 Summary Statistics:")
     print(f"   Total runs: {len(summaries)}")
     
     models = set(s.get("model", "unknown") for s in summaries)
@@ -335,7 +335,7 @@ def main():
     print(f"   Total OpenRouter cost: ${total_cost:.6f}")
     print(f"   Total upstream cost: ${total_upstream:.6f}")
     
-    print(f"\n✅ Results saved to results/run_summaries.csv")
+    print("\n✅ Results saved to results/run_summaries.csv")
 
 
 if __name__ == "__main__":

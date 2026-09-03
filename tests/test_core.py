@@ -1353,7 +1353,6 @@ class TestAdapterChoicesFix:
     @patch("connections_eval.adapters.openrouter_adapter.requests.post")
     @patch("connections_eval.adapters.openrouter_adapter._get_api_key", return_value="test-key")
     def test_200_with_no_choices_is_retried(self, mock_key, mock_post, monkeypatch):
-        import requests
         from connections_eval.adapters.openrouter_adapter import chat
         from connections_eval.utils import retry as retry_mod
 
