@@ -134,33 +134,22 @@ def filter_for_mode(df: duckdb.DuckDBPyRelation, mode: str = "oneshot") -> list[
         """
     )
 
-    # Reformat start_timestamp to the plain date string build_table_data
-    # needs, and drop the unused end_timestamp: both are TIMESTAMPTZ, and
-    # fetching those into Python (below) would otherwise require pytz.
+    # Final projection. Every TIMESTAMPTZ column is turned into a string here
+    # because DuckDB needs pytz (not a dependency) to hand those to Python;
+    # start_timestamp becomes the plain date build_table_data renders.
+    headline = "COALESCE(total_score, 0) DESC" if mode == "oneshot" else "solve_rate DESC"
+    replace = ["strftime(start_timestamp, '%Y-%m-%d') AS start_timestamp"]
     if mode == "oneshot":
-        # Headline metric is total score (max 5 per puzzle = 100 on canonical).
-        ordered = _CON.sql(
-            """
-            SELECT * EXCLUDE (end_timestamp)
-                   REPLACE (
-                       COALESCE(total_score, 0) AS total_score,
-                       strftime(start_timestamp, '%Y-%m-%d') AS start_timestamp
-                   )
-            FROM latest_runs
-            ORDER BY COALESCE(total_score, 0) DESC, _sort_time ASC,
-                     eval_cost_per_game ASC, _orig_order ASC
-            """
-        )
-    else:
-        ordered = _CON.sql(
-            """
-            SELECT * EXCLUDE (end_timestamp)
-                   REPLACE (strftime(start_timestamp, '%Y-%m-%d') AS start_timestamp)
-            FROM latest_runs
-            ORDER BY solve_rate DESC, _sort_time ASC,
-                     eval_cost_per_game ASC, _orig_order ASC
-            """
-        )
+        replace.append("COALESCE(total_score, 0) AS total_score")
+    replace += [f"{c}::VARCHAR AS {c}" for c, t in zip(latest_runs.columns, latest_runs.types)
+                if "TIME ZONE" in str(t) and c not in ("start_timestamp", "end_timestamp")]
+    ordered = _CON.sql(
+        f"""
+        SELECT * EXCLUDE (end_timestamp) REPLACE ({", ".join(replace)})
+        FROM latest_runs
+        ORDER BY {headline}, _sort_time ASC, eval_cost_per_game ASC, _orig_order ASC
+        """
+    )
 
     cols = ordered.columns
     return [dict(zip(cols, row)) for row in ordered.fetchall()]
