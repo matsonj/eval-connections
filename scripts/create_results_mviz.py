@@ -84,7 +84,7 @@ def filter_for_mode(df: duckdb.DuckDBPyRelation, mode: str = "oneshot") -> list[
         # trap-scored runs.
         trap_clause = "AND COALESCE(trap_scored, 0) = 1"
 
-    filtered = _CON.sql(
+    filtered = _CON.sql(  # noqa: F841 — referenced by name in later SQL (DuckDB replacement scan)
         f"""
         SELECT *
         FROM df
@@ -108,7 +108,7 @@ def filter_for_mode(df: duckdb.DuckDBPyRelation, mode: str = "oneshot") -> list[
     # Combined eval cost. Latest run per model, tie-broken by original CSV
     # row order (mirrors groupby(...).idxmax() picking the first occurrence
     # of the max timestamp within a group).
-    with_eval_cost = _CON.sql(
+    with_eval_cost = _CON.sql(  # noqa: F841 — referenced by name in later SQL (DuckDB replacement scan)
         """
         SELECT *,
                total_cost + COALESCE(total_upstream_cost, 0) AS eval_cost,
@@ -120,7 +120,7 @@ def filter_for_mode(df: duckdb.DuckDBPyRelation, mode: str = "oneshot") -> list[
         """
     )
 
-    latest_runs = _CON.sql(
+    latest_runs = _CON.sql(  # noqa: F841 — referenced by name in later SQL (DuckDB replacement scan)
         """
         SELECT *,
                eval_cost / puzzles_attempted AS eval_cost_per_game,
