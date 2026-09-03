@@ -8,10 +8,12 @@ from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 from connections_eval import core as core_mod
-from connections_eval.core import ConnectionsGame, GameState, Puzzle, PuzzleGroup, PuzzleResult, EvalStats
+from connections_eval.core import ConnectionsGame, GameState, PuzzleResult, EvalStats
 from connections_eval.adapters import openrouter_adapter
 from connections_eval.adapters.openrouter_adapter import extract_provider_slug
 from connections_eval.utils.tokens import extract_cache_info
+
+from tests.conftest import INPUTS, make_test_groups, make_puzzle, make_response
 
 
 def _base_score(game, puzzle, groups):
@@ -20,72 +22,37 @@ def _base_score(game, puzzle, groups):
     return (len(matched), base)
 
 
-def _make_test_groups():
-    """Shared test fixture: four puzzle groups."""
-    return [
-        PuzzleGroup("Fruits", "green", ["APPLE", "BANANA", "CHERRY", "GRAPE"]),
-        PuzzleGroup("Colors", "yellow", ["BLUE", "GREEN", "RED", "YELLOW"]),
-        PuzzleGroup("Speed", "blue", ["FAST", "QUICK", "RAPID", "SWIFT"]),
-        PuzzleGroup("Smart", "purple", ["BRIGHT", "CLEVER", "SMART", "WISE"]),
-    ]
-
-
-_TEST_WORDS = [
-    "APPLE", "BANANA", "CHERRY", "GRAPE", "BLUE", "GREEN", "RED", "YELLOW",
-    "FAST", "QUICK", "RAPID", "SWIFT", "BRIGHT", "CLEVER", "SMART", "WISE",
-]
+def _ok_response(content, **response_kwargs):
+    """A MagicMock like requests.post()'s return value for a 200 OK chat
+    completion, wrapping make_response for the JSON body."""
+    mock_response = MagicMock()
+    mock_response.ok = True
+    mock_response.json.return_value = make_response(content, **response_kwargs)
+    mock_response.raise_for_status.return_value = None
+    return mock_response
 
 
 class TestConnectionsGame:
     """Test ConnectionsGame class."""
 
     @pytest.fixture
-    def sample_puzzle(self):
-        """Create a sample puzzle for testing."""
-        return Puzzle(
-            id=477, date="2024-09-30", difficulty=3.8,
-            words=list(_TEST_WORDS), groups=_make_test_groups(),
-        )
-
-    @pytest.fixture
-    def canonical_puzzle(self):
-        """Create a sample canonical puzzle for testing."""
-        return Puzzle(
-            id=999, date="2024-12-01", difficulty=2.0,
-            words=list(_TEST_WORDS), groups=_make_test_groups(),
-            canonical=True,
-        )
-
-    @pytest.fixture
     def game_state(self, sample_puzzle):
         """Create a sample game state."""
         return GameState(puzzle=sample_puzzle)
 
-    @pytest.fixture
-    def mock_game(self):
-        """Create a mock game with proper initialization."""
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
-             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
-             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
-            return ConnectionsGame(Path("."), Path("."), verbose=False)
-
-    def test_parse_response(self, mock_game):
+    @pytest.mark.parametrize("response, expected", [
+        pytest.param("APPLE, BANANA, CHERRY, GRAPE",
+                     ["APPLE", "BANANA", "CHERRY", "GRAPE"], id="normal"),
+        pytest.param("apple, Banana, CHERRY, grape",
+                     ["APPLE", "BANANA", "CHERRY", "GRAPE"], id="mixed_case"),
+        pytest.param(" APPLE , BANANA,  CHERRY , GRAPE ",
+                     ["APPLE", "BANANA", "CHERRY", "GRAPE"], id="extra_whitespace"),
+        pytest.param("APPLE, BANANA, CHERRY",
+                     ["APPLE", "BANANA", "CHERRY"], id="wrong_number_of_words"),
+    ])
+    def test_parse_response(self, mock_game, response, expected):
         """Test response parsing."""
-        # Normal case
-        words = mock_game._parse_response("APPLE, BANANA, CHERRY, GRAPE")
-        assert words == ["APPLE", "BANANA", "CHERRY", "GRAPE"]
-
-        # Mixed case
-        words = mock_game._parse_response("apple, Banana, CHERRY, grape")
-        assert words == ["APPLE", "BANANA", "CHERRY", "GRAPE"]
-
-        # Extra whitespace
-        words = mock_game._parse_response(" APPLE , BANANA,  CHERRY , GRAPE ")
-        assert words == ["APPLE", "BANANA", "CHERRY", "GRAPE"]
-
-        # Wrong number of words
-        words = mock_game._parse_response("APPLE, BANANA, CHERRY")
-        assert words == ["APPLE", "BANANA", "CHERRY"]
+        assert mock_game._parse_response(response) == expected
 
     def test_validate_guess_correct(self, mock_game, game_state):
         """Test validation of correct guess."""
@@ -263,21 +230,6 @@ class TestConnectionsGame:
 class TestOneshotParsing:
     """Test _parse_oneshot_response for one-shot mode."""
 
-    @pytest.fixture
-    def mock_game(self):
-        """Create a mock game with proper initialization."""
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
-             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
-             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
-            return ConnectionsGame(Path("."), Path("."), verbose=False)
-
-    @pytest.fixture
-    def sample_puzzle(self):
-        return Puzzle(
-            id=477, date="2024-09-30", difficulty=3.8,
-            words=list(_TEST_WORDS), groups=_make_test_groups(),
-        )
-
     _WELL_FORMED_ANSWER = """<answer>
 APPLE, BANANA, CHERRY, GRAPE
 BLUE, GREEN, RED, YELLOW
@@ -357,20 +309,6 @@ bright, clever, smart, wise
 
 class TestOneshotScoring:
     """Test one-shot base scoring (_grade_oneshot)."""
-
-    @pytest.fixture
-    def mock_game(self):
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
-             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
-             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
-            return ConnectionsGame(Path("."), Path("."), verbose=False)
-
-    @pytest.fixture
-    def sample_puzzle(self):
-        return Puzzle(
-            id=477, date="2024-09-30", difficulty=3.8,
-            words=list(_TEST_WORDS), groups=_make_test_groups(),
-        )
 
     def test_all_four_correct(self, mock_game, sample_puzzle):
         groups = [
@@ -501,16 +439,14 @@ class TestOneshotStats:
 class TestConnectionsGameMode:
     """ConnectionsGame(mode=...) selects the correct prompt template."""
 
-    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
-
     def test_oneshot_mode_loads_oneshot_template(self):
-        game = ConnectionsGame(self._INPUTS, Path("logs"), mode="oneshot")
+        game = ConnectionsGame(INPUTS, Path("logs"), mode="oneshot")
         assert game.mode == "oneshot"
         assert "<answer>" in game.prompt_template
         assert "<guess>" not in game.prompt_template
 
     def test_default_mode_loads_classic_template(self):
-        game = ConnectionsGame(self._INPUTS, Path("logs"))
+        game = ConnectionsGame(INPUTS, Path("logs"))
         assert game.mode == "classic"
         assert "<guess>" in game.prompt_template
         assert "<answer>" not in game.prompt_template
@@ -519,38 +455,15 @@ class TestConnectionsGameMode:
 class TestOneshotEndToEnd:
     """run_evaluation drives the one-shot path end to end (mocked adapter)."""
 
-    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
-
-    def _make_game(self, tmp_path, puzzle, mode="oneshot"):
-        """Game with a single synthetic puzzle; real prompt template from inputs/."""
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
-             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
-            return ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode=mode)
-
-    @staticmethod
-    def _make_puzzle():
-        return Puzzle(
-            id=477, date="2024-09-30", difficulty=3.8,
-            words=list(_TEST_WORDS), groups=_make_test_groups(),
-        )
-
-    @staticmethod
-    def _mock_response(content):
-        return {
-            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 50},
-        }
-
-    def test_perfect_submission_summary(self, tmp_path):
+    def test_perfect_submission_summary(self, tmp_path, make_game, patch_chat):
         """A perfect one-shot answer yields score 5 and a solved puzzle."""
-        puzzle = self._make_puzzle()
-        game = self._make_game(tmp_path, puzzle)
+        puzzle = make_puzzle()
+        game = make_game(tmp_path, puzzle, mode="oneshot")
         answer = "<answer>\n" + "\n".join(
             ", ".join(g.words) for g in puzzle.groups
         ) + "\n</answer>"
 
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=self._mock_response(answer)):
+        with patch_chat(make_response(answer)):
             summary = game.run_evaluation("test-model", puzzle_ids=[477])
 
         assert summary["mode"] == "oneshot"
@@ -566,13 +479,12 @@ class TestOneshotEndToEnd:
         assert summary["incorrect_guesses"] == 0
         assert summary["invalid_responses"] == 0
 
-    def test_invalid_submission_summary(self, tmp_path):
+    def test_invalid_submission_summary(self, tmp_path, make_game, patch_chat):
         """An unparseable response scores 0 and counts as invalid."""
-        puzzle = self._make_puzzle()
-        game = self._make_game(tmp_path, puzzle)
+        puzzle = make_puzzle()
+        game = make_game(tmp_path, puzzle, mode="oneshot")
 
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=self._mock_response("I refuse to answer in the requested format.")):
+        with patch_chat(make_response("I refuse to answer in the requested format.")):
             summary = game.run_evaluation("test-model", puzzle_ids=[477])
 
         assert summary["mode"] == "oneshot"
@@ -583,18 +495,17 @@ class TestOneshotEndToEnd:
         assert summary["invalid_responses"] == 1
         assert summary["incorrect_guesses"] == 0
 
-    def test_trap_bonus_end_to_end(self, tmp_path):
+    def test_trap_bonus_end_to_end(self, tmp_path, make_game, patch_chat):
         """Perfect answer + correct trap claim on an annotated puzzle scores 5/5."""
-        puzzle = self._make_puzzle()
+        puzzle = make_puzzle()
         # Cross-cutting 4-set: 2 Speed + 2 Smart words
         puzzle.trap_groups = [["FAST", "QUICK", "BRIGHT", "CLEVER"]]
-        game = self._make_game(tmp_path, puzzle)
+        game = make_game(tmp_path, puzzle, mode="oneshot")
         answer = "<answer>\n" + "\n".join(
             ", ".join(g.words) for g in puzzle.groups
         ) + "\n</answer>\n<traps>\nFAST, QUICK, BRIGHT, CLEVER\n</traps>"
 
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=self._mock_response(answer)):
+        with patch_chat(make_response(answer)):
             summary = game.run_evaluation("test-model", puzzle_ids=[477])
 
         assert summary["total_score"] == 5
@@ -602,49 +513,46 @@ class TestOneshotEndToEnd:
         assert summary["total_trap_bonus"] == 2
         assert summary["puzzles_solved"] == 1
 
-    def test_false_trap_claim_voids_bonus(self, tmp_path):
+    def test_false_trap_claim_voids_bonus(self, tmp_path, make_game, patch_chat):
         """A false first trap claim scores base only (only the first is judged)."""
-        puzzle = self._make_puzzle()
+        puzzle = make_puzzle()
         puzzle.trap_groups = [["FAST", "QUICK", "BRIGHT", "CLEVER"]]
-        game = self._make_game(tmp_path, puzzle)
+        game = make_game(tmp_path, puzzle, mode="oneshot")
         answer = "<answer>\n" + "\n".join(
             ", ".join(g.words) for g in puzzle.groups
         ) + "\n</answer>\n<traps>\nAPPLE, BLUE, FAST, WISE\nFAST, QUICK, BRIGHT, CLEVER\n</traps>"
 
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=self._mock_response(answer)):
+        with patch_chat(make_response(answer)):
             summary = game.run_evaluation("test-model", puzzle_ids=[477])
 
         assert summary["total_score"] == 3
         assert summary["max_score"] == 5
         assert summary["total_trap_bonus"] == 0
 
-    def test_na_on_trapless_puzzle_earns_bonus(self, tmp_path):
+    def test_na_on_trapless_puzzle_earns_bonus(self, tmp_path, make_game, patch_chat):
         """Explicit N/A on a reviewed trap-free puzzle earns the +2."""
-        puzzle = self._make_puzzle()
+        puzzle = make_puzzle()
         puzzle.trap_groups = []  # reviewed, no traps
-        game = self._make_game(tmp_path, puzzle)
+        game = make_game(tmp_path, puzzle, mode="oneshot")
         answer = "<answer>\n" + "\n".join(
             ", ".join(g.words) for g in puzzle.groups
         ) + "\n</answer>\n<traps>\nN/A\n</traps>"
 
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   return_value=self._mock_response(answer)):
+        with patch_chat(make_response(answer)):
             summary = game.run_evaluation("test-model", puzzle_ids=[477])
 
         assert summary["total_score"] == 5
         assert summary["max_score"] == 5
         assert summary["total_trap_bonus"] == 2
 
-    def test_api_error_still_counts_max_score(self, tmp_path):
+    def test_api_error_still_counts_max_score(self, tmp_path, make_game, patch_chat):
         """An API-error puzzle contributes its per-puzzle max (annotated -> 5)
         so a partially-failed run's max_score stays honest."""
-        puzzle = self._make_puzzle()
+        puzzle = make_puzzle()
         puzzle.trap_groups = [["FAST", "QUICK", "RAPID", "SMART"]]
-        game = self._make_game(tmp_path, puzzle)
+        game = make_game(tmp_path, puzzle, mode="oneshot")
 
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   side_effect=RuntimeError("boom")):
+        with patch_chat(RuntimeError("boom")):
             summary = game.run_evaluation("test-model", puzzle_ids=[477])
 
         assert summary["mode"] == "oneshot"
@@ -658,24 +566,13 @@ class TestOneshotTraps:
     """Trap claim parsing and scoring rules."""
 
     @pytest.fixture
-    def mock_game(self):
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
-             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
-             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
-            return ConnectionsGame(Path("."), Path("."), verbose=False)
-
-    @pytest.fixture
     def trap_puzzle(self):
         """Puzzle with one 4-set trap and one 5-word superset trap, both
         cross-cutting (never 3+ words from one real group)."""
-        return Puzzle(
-            id=477, date="2024-09-30", difficulty=3.8,
-            words=list(_TEST_WORDS), groups=_make_test_groups(),
-            trap_groups=[
-                ["FAST", "QUICK", "BRIGHT", "CLEVER"],           # 2 Speed + 2 Smart
-                ["RED", "YELLOW", "APPLE", "BANANA", "WISE"],    # 2/2/1 superset
-            ],
-        )
+        return make_puzzle(trap_groups=[
+            ["FAST", "QUICK", "BRIGHT", "CLEVER"],           # 2 Speed + 2 Smart
+            ["RED", "YELLOW", "APPLE", "BANANA", "WISE"],    # 2/2/1 superset
+        ])
 
     # --- parsing ---
 
@@ -699,69 +596,52 @@ class TestOneshotTraps:
 
     # --- scoring ---
 
-    def test_correct_4set_claim(self, mock_game, trap_puzzle):
-        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "BRIGHT", "CLEVER"]]) == 2
-
-    def test_subset_of_superset_claim(self, mock_game, trap_puzzle):
-        # Any 4-subset of the 5-word superset that isn't the real group scores
-        assert mock_game._score_trap_claims(trap_puzzle, [["RED", "YELLOW", "APPLE", "WISE"]]) == 2
-
-    def test_exact_real_group_claim_rejected(self, mock_game, trap_puzzle):
-        """A real group is never a trap, even when it shares a word with an
-        annotation (WISE is in the superset). Rejected twice over: it is a real
-        group, and it takes 4 words from one group.
-
-        Note a real group can never be *inside* an annotated superset — that
-        would need 3+ words from one group, which the scorer's <=2 rule bars
-        (see test_three_from_one_group_never_scores_even_if_annotated).
-        """
-        assert mock_game._score_trap_claims(trap_puzzle, [["BRIGHT", "CLEVER", "SMART", "WISE"]]) == 0
-
-    def test_only_first_claim_judged_bogus_second_ignored(self, mock_game, trap_puzzle):
-        # Single-claim rule: a junk extra line no longer voids a correct first claim
-        claims = [["FAST", "QUICK", "BRIGHT", "CLEVER"], ["APPLE", "BLUE", "FAST", "WISE"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 2
-
-    def test_only_first_claim_judged_correct_second_ignored(self, mock_game, trap_puzzle):
-        # ...and a correct second claim can't rescue a wrong first one
-        claims = [["APPLE", "BLUE", "FAST", "WISE"], ["FAST", "QUICK", "BRIGHT", "CLEVER"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
+    @pytest.mark.parametrize("claims, expected", [
+        pytest.param([["FAST", "QUICK", "BRIGHT", "CLEVER"]], 2,
+                     id="correct_4set_claim"),
+        pytest.param([["RED", "YELLOW", "APPLE", "WISE"]], 2,
+                     # Any 4-subset of the 5-word superset that isn't the real group scores
+                     id="subset_of_superset_claim"),
+        pytest.param([["BRIGHT", "CLEVER", "SMART", "WISE"]], 0,
+                     # A real group is never a trap, even when it shares a word with an
+                     # annotation (WISE is in the superset). Rejected twice over: it is
+                     # a real group, and it takes 4 words from one group. Note a real
+                     # group can never be *inside* an annotated superset — that would
+                     # need 3+ words from one group, which the scorer's <=2 rule bars
+                     # (see test_three_from_one_group_never_scores_even_if_annotated).
+                     id="exact_real_group_claim_rejected"),
+        pytest.param([["FAST", "QUICK", "BRIGHT", "CLEVER"], ["APPLE", "BLUE", "FAST", "WISE"]], 2,
+                     # Single-claim rule: a junk extra line no longer voids a correct first claim
+                     id="only_first_claim_judged_bogus_second_ignored"),
+        pytest.param([["APPLE", "BLUE", "FAST", "WISE"], ["FAST", "QUICK", "BRIGHT", "CLEVER"]], 0,
+                     # ...and a correct second claim can't rescue a wrong first one
+                     id="only_first_claim_judged_correct_second_ignored"),
+        pytest.param([], 0, id="na_wrong_when_traps_exist"),
+        pytest.param(None, 0, id="no_claim_no_bonus"),
+        pytest.param([["FAST", "QUICK", "RAPID"]], 0, id="wrong_size_claim_voids"),
+        pytest.param([["RED", "YELLOW", "APPLE", "BANANA", "WISE"]], 0,
+                     # Claims must be EXACTLY 4 words — a full 5-word superset claim scores 0.
+                     id="five_word_claim_rejected"),
+        pytest.param([["FAST", "QUICK", "BRIGHT", "CLEVER", "CLEVER"]], 0,
+                     # A 5-token claim with a duplicate collapses to a 4-set but must not
+                     # pass the exactly-4-words gate.
+                     id="duplicate_word_padding_rejected"),
+    ])
+    def test_score_trap_claims(self, mock_game, trap_puzzle, claims, expected):
+        assert mock_game._score_trap_claims(trap_puzzle, claims) == expected
 
     def test_na_correct_on_trapless(self, mock_game):
-        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
-                   groups=_make_test_groups(), trap_groups=[])
+        p = make_puzzle(id=1, date="", difficulty=1.0, trap_groups=[])
         assert mock_game._score_trap_claims(p, []) == 2
 
-    def test_na_wrong_when_traps_exist(self, mock_game, trap_puzzle):
-        assert mock_game._score_trap_claims(trap_puzzle, []) == 0
-
-    def test_no_claim_no_bonus(self, mock_game, trap_puzzle):
-        assert mock_game._score_trap_claims(trap_puzzle, None) == 0
-
     def test_unreviewed_puzzle_inactive(self, mock_game):
-        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
-                   groups=_make_test_groups())  # trap_groups=None
+        p = make_puzzle(id=1, date="", difficulty=1.0)  # trap_groups=None (default)
         assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "BRIGHT", "CLEVER"]]) == 0
-
-    def test_wrong_size_claim_voids(self, mock_game, trap_puzzle):
-        assert mock_game._score_trap_claims(trap_puzzle, [["FAST", "QUICK", "RAPID"]]) == 0
-
-    def test_five_word_claim_rejected(self, mock_game, trap_puzzle):
-        """Claims must be EXACTLY 4 words — a full 5-word superset claim scores 0."""
-        claims = [["RED", "YELLOW", "APPLE", "BANANA", "WISE"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
-
-    def test_duplicate_word_padding_rejected(self, mock_game, trap_puzzle):
-        """A 5-token claim with a duplicate collapses to a 4-set but must not
-        pass the exactly-4-words gate."""
-        claims = [["FAST", "QUICK", "BRIGHT", "CLEVER", "CLEVER"]]
-        assert mock_game._score_trap_claims(trap_puzzle, claims) == 0
 
     def test_na_first_line_wins_despite_trailing_lines(self, mock_game):
         """N/A on the first line is the judged claim even with extra lines after
         (consistent with first-claim-only judging)."""
-        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
-                   groups=_make_test_groups(), trap_groups=[])
+        p = make_puzzle(id=1, date="", difficulty=1.0, trap_groups=[])
         claims = mock_game._parse_oneshot_traps(
             "<traps>\nN/A\nFAST, QUICK, RAPID, SMART\n</traps>")
         assert claims == []
@@ -770,8 +650,7 @@ class TestOneshotTraps:
     def test_real_yaml_246_traps(self):
         """Against the real YAML: 246's cross-cutting imitate trap scores;
         the removed 12-Monkeys overload (3 words from the movie group) doesn't."""
-        inputs = Path(__file__).resolve().parent.parent / "inputs"
-        game = ConnectionsGame(inputs, Path("logs"))
+        game = ConnectionsGame(INPUTS, Path("logs"))
         p246 = {p.id: p for p in game.puzzles}[246]
         assert game._score_trap_claims(
             p246, [["ECHO", "MIME", "MONKEY", "PARROT"]]) == 2
@@ -781,9 +660,8 @@ class TestOneshotTraps:
     def test_three_from_one_group_never_scores_even_if_annotated(self, mock_game):
         """The no-3-from-one-category rule is enforced in the scorer, so a bad
         annotation (real group + one swap) still can't score."""
-        p = Puzzle(id=1, date="", difficulty=1.0, words=list(_TEST_WORDS),
-                   groups=_make_test_groups(),
-                   trap_groups=[["FAST", "QUICK", "RAPID", "SMART"]])  # 3 Speed words
+        p = make_puzzle(id=1, date="", difficulty=1.0,
+                        trap_groups=[["FAST", "QUICK", "RAPID", "SMART"]])  # 3 Speed words
         assert mock_game._score_trap_claims(p, [["FAST", "QUICK", "RAPID", "SMART"]]) == 0
 
     def test_all_yaml_annotations_satisfy_no3_rule(self):
@@ -791,8 +669,7 @@ class TestOneshotTraps:
         that isn't a real group and takes <=2 words from any single group.
         4-set annotations must comply directly."""
         from itertools import combinations
-        inputs = Path(__file__).resolve().parent.parent / "inputs"
-        game = ConnectionsGame(inputs, Path("logs"))
+        game = ConnectionsGame(INPUTS, Path("logs"))
         for p in game.puzzles:
             if not p.trap_groups:
                 continue
@@ -810,16 +687,14 @@ class TestOneshotTraps:
                         f"puzzle {p.id} 4-set trap {sorted(ws)} violates the no-3 rule"
 
     def test_real_yaml_839_corn_trap(self):
-        inputs = Path(__file__).resolve().parent.parent / "inputs"
-        game = ConnectionsGame(inputs, Path("logs"))
+        game = ConnectionsGame(INPUTS, Path("logs"))
         p839 = {p.id: p for p in game.puzzles}[839]
         assert game._score_trap_claims(
             p839, [["SWEET", "KETTLE", "FRITTER", "POPPER"]]) == 2
 
     def test_canonical_yaml_traps_load(self):
         """The real YAML annotations load into Puzzle.trap_groups."""
-        inputs = Path(__file__).resolve().parent.parent / "inputs"
-        game = ConnectionsGame(inputs, Path("logs"))
+        game = ConnectionsGame(INPUTS, Path("logs"))
         by_id = {p.id: p for p in game.puzzles}
         assert by_id[246].trap_groups is not None and len(by_id[246].trap_groups) == 2
         assert by_id[837].trap_groups == []  # reviewed, trap-free
@@ -832,13 +707,6 @@ class TestOneshotTraps:
 
 class TestOneshotFallbackPunctuation:
     """Tagless fallback parsing keeps hyphenated/apostrophe words intact."""
-
-    @pytest.fixture
-    def mock_game(self):
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[]), \
-             patch.object(ConnectionsGame, '_load_prompt_template', return_value=""), \
-             patch.object(ConnectionsGame, '_load_model_mappings', return_value={"test-model": "test/model"}):
-            return ConnectionsGame(Path("."), Path("."), verbose=False)
 
     def test_tagless_answer_with_traps_block(self, mock_game):
         """A tagless 4-line answer followed by a <traps> block must parse as
@@ -886,74 +754,58 @@ class TestOneshotFallbackPunctuation:
 class TestProviderPinning:
     """Test provider slug extraction."""
 
-    def test_anthropic_provider(self):
-        assert extract_provider_slug("anthropic/claude-sonnet-4") == "anthropic"
-
-    def test_openai_provider(self):
-        assert extract_provider_slug("openai/o3") == "openai"
-
-    def test_google_provider(self):
-        assert extract_provider_slug("google/gemini-2.5-pro") == "google-ai-studio"
-
-    def test_xai_provider(self):
-        assert extract_provider_slug("x-ai/grok-3") == "xai"
-
-    def test_sonnet_5_overridden_to_bedrock(self):
-        """TEMPORARY: claude-sonnet-5 400s on the Anthropic route (deprecated
-        top_p injected via reasoning.effort), so it's pinned to Bedrock instead.
-        Remove the override — and this test — once OpenRouter fixes that route."""
-        assert extract_provider_slug("anthropic/claude-sonnet-5") == "amazon-bedrock"
-
-    def test_other_anthropic_models_not_overridden(self):
-        """The sonnet-5 override must not leak to sibling Anthropic models."""
-        assert extract_provider_slug("anthropic/claude-sonnet-4.6") == "anthropic"
-        assert extract_provider_slug("anthropic/claude-opus-4.8") == "anthropic"
-
-    def test_deepseek_skipped(self):
-        """DeepSeek models are hosted by third parties; pinning is skipped."""
-        assert extract_provider_slug("deepseek/deepseek-r1-0528") is None
-
-    def test_meta_llama_skipped(self):
-        """Meta-Llama models are hosted by third parties; pinning is skipped."""
-        assert extract_provider_slug("meta-llama/llama-3.3-70b-instruct") is None
-
-    def test_qwen_skipped(self):
-        """Qwen models are hosted by third parties; pinning is skipped."""
-        assert extract_provider_slug("qwen/qwen3-30b-a3b-instruct-2507") is None
-
-    def test_unknown_provider_returns_none(self):
-        assert extract_provider_slug("unknown/some-model") is None
-
-    def test_empty_string_returns_none(self):
-        assert extract_provider_slug("") is None
+    @pytest.mark.parametrize("model_id, expected", [
+        pytest.param("anthropic/claude-sonnet-4", "anthropic", id="anthropic"),
+        pytest.param("openai/o3", "openai", id="openai"),
+        pytest.param("google/gemini-2.5-pro", "google-ai-studio", id="google"),
+        pytest.param("x-ai/grok-3", "xai", id="xai"),
+        pytest.param(
+            "anthropic/claude-sonnet-5", "amazon-bedrock",
+            # TEMPORARY: claude-sonnet-5 400s on the Anthropic route (deprecated
+            # top_p injected via reasoning.effort), so it's pinned to Bedrock
+            # instead. Remove the override — and this case — once OpenRouter
+            # fixes that route.
+            id="sonnet_5_overridden_to_bedrock"),
+        pytest.param(
+            "anthropic/claude-sonnet-4.6", "anthropic",
+            # The sonnet-5 override must not leak to sibling Anthropic models.
+            id="sibling_anthropic_model_not_overridden_sonnet"),
+        pytest.param(
+            "anthropic/claude-opus-4.8", "anthropic",
+            id="sibling_anthropic_model_not_overridden_opus"),
+        pytest.param("deepseek/deepseek-r1-0528", None,
+                     # DeepSeek models are hosted by third parties; pinning is skipped.
+                     id="deepseek_skipped"),
+        pytest.param("meta-llama/llama-3.3-70b-instruct", None,
+                     # Meta-Llama models are hosted by third parties; pinning is skipped.
+                     id="meta_llama_skipped"),
+        pytest.param("qwen/qwen3-30b-a3b-instruct-2507", None,
+                     # Qwen models are hosted by third parties; pinning is skipped.
+                     id="qwen_skipped"),
+        pytest.param("unknown/some-model", None, id="unknown_provider_returns_none"),
+        pytest.param("", None, id="empty_string_returns_none"),
+    ])
+    def test_extract_provider_slug(self, model_id, expected):
+        assert extract_provider_slug(model_id) == expected
 
 
 class TestCacheInfo:
     """Test cache info extraction."""
 
-    def test_extract_cache_info_present(self):
-        response = {
-            "usage": {
-                "prompt_tokens_details": {
-                    "cached_tokens": 500,
-                },
-                "cache_discount": 0.5,
-            }
-        }
+    @pytest.mark.parametrize("response, cached_tokens, cache_discount", [
+        pytest.param(
+            {"usage": {"prompt_tokens_details": {"cached_tokens": 500},
+                       "cache_discount": 0.5}},
+            500, 0.5, id="present"),
+        pytest.param(
+            {"usage": {"prompt_tokens": 100, "completion_tokens": 50}},
+            None, None, id="absent"),
+        pytest.param({}, None, None, id="empty"),
+    ])
+    def test_extract_cache_info(self, response, cached_tokens, cache_discount):
         info = extract_cache_info(response)
-        assert info["cached_tokens"] == 500
-        assert info["cache_discount"] == 0.5
-
-    def test_extract_cache_info_absent(self):
-        response = {"usage": {"prompt_tokens": 100, "completion_tokens": 50}}
-        info = extract_cache_info(response)
-        assert info["cached_tokens"] is None
-        assert info["cache_discount"] is None
-
-    def test_extract_cache_info_empty(self):
-        info = extract_cache_info({})
-        assert info["cached_tokens"] is None
-        assert info["cache_discount"] is None
+        assert info["cached_tokens"] == cached_tokens
+        assert info["cache_discount"] == cache_discount
 
 
 class TestChatProviderParam:
@@ -965,13 +817,7 @@ class TestChatProviderParam:
         """Provider key should not appear when provider is None."""
         from connections_eval.adapters.openrouter_adapter import chat
 
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        mock_post.return_value = mock_response
+        mock_post.return_value = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
 
@@ -984,13 +830,7 @@ class TestChatProviderParam:
         """Provider key should be set when provider is given."""
         from connections_eval.adapters.openrouter_adapter import chat
 
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        mock_post.return_value = mock_response
+        mock_post.return_value = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         chat([{"role": "user", "content": "test"}], "openai/o3", provider="openai")
 
@@ -1003,13 +843,7 @@ class TestChatProviderParam:
         """session_id key should not appear when session_id is None."""
         from connections_eval.adapters.openrouter_adapter import chat
 
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        mock_post.return_value = mock_response
+        mock_post.return_value = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         chat([{"role": "user", "content": "test"}], "openrouter/fusion")
 
@@ -1022,13 +856,7 @@ class TestChatProviderParam:
         """session_id should be set top-level for sticky routing on cloaked models."""
         from connections_eval.adapters.openrouter_adapter import chat
 
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        mock_post.return_value = mock_response
+        mock_post.return_value = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         chat([{"role": "user", "content": "test"}], "openrouter/fusion", session_id="T314:run1")
 
@@ -1042,10 +870,8 @@ class TestRankSessionIsolation:
     """session_id passed to the adapter must be unique per ranking attempt so
     repeated trials of one puzzle don't share a sticky-routing session."""
 
-    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
-
     def _build_game(self):
-        game = ConnectionsGame(self._INPUTS, Path("logs"))
+        game = ConnectionsGame(INPUTS, Path("logs"))
         game.run_id = "rank_test-model"
         game.logger = MagicMock()
         return game
@@ -1120,7 +946,7 @@ class TestRankSessionIsolation:
             )
 
         # Fresh game: logger is None so the rank entrypoint assigns run_id.
-        game = ConnectionsGame(self._INPUTS, Path("logs"))
+        game = ConnectionsGame(INPUTS, Path("logs"))
         puzzle_id = game.puzzles[0].id
         model_name = next(iter(game.MODEL_CONFIG))
         with patch("connections_eval.core.setup_logger", return_value=MagicMock()), \
@@ -1133,35 +959,32 @@ class TestRankSessionIsolation:
         )
 
 
-class TestUtilities:
-    """Test utility functions."""
+def test_token_counting():
+    """Test token counting utilities."""
+    from connections_eval.utils.tokens import count_tokens, extract_token_usage
 
-    def test_token_counting(self):
-        """Test token counting utilities."""
-        from connections_eval.utils.tokens import count_tokens, extract_token_usage
+    # Basic token counting
+    count = count_tokens("Hello world")
+    assert count > 0
 
-        # Basic token counting
-        count = count_tokens("Hello world")
-        assert count > 0
-
-        # Token usage extraction with API data
-        response_data = {
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 5
-            }
+    # Token usage extraction with API data
+    response_data = {
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5
         }
-        prompt_tokens, completion_tokens, method = extract_token_usage(response_data)
-        assert prompt_tokens == 10
-        assert completion_tokens == 5
-        assert method == "API"
+    }
+    prompt_tokens, completion_tokens, method = extract_token_usage(response_data)
+    assert prompt_tokens == 10
+    assert completion_tokens == 5
+    assert method == "API"
 
-        # Token usage extraction without API data
-        response_data = {}
-        prompt_tokens, completion_tokens, method = extract_token_usage(response_data)
-        assert prompt_tokens is None
-        assert completion_tokens is None
-        assert method == "APPROXIMATE"
+    # Token usage extraction without API data
+    response_data = {}
+    prompt_tokens, completion_tokens, method = extract_token_usage(response_data)
+    assert prompt_tokens is None
+    assert completion_tokens is None
+    assert method == "APPROXIMATE"
 
 
 class TestBackoffAccumulator:
@@ -1245,21 +1068,13 @@ class TestInsufficientCreditsAbort:
             chat([{"role": "user", "content": "x"}], "openai/o3")
         assert mock_post.call_count == 1  # no retry loop
 
-    def test_run_evaluation_aborts_without_summary(self, tmp_path):
+    def test_run_evaluation_aborts_without_summary(self, tmp_path, make_game, patch_chat):
         """A credit wall mid-run raises out of run_evaluation (no summary,
         so nothing partial lands on the leaderboard)."""
         from connections_eval.adapters.openrouter_adapter import InsufficientCreditsError
-        puzzle = Puzzle(id=477, date="2024-09-30", difficulty=3.8,
-                        words=list(_TEST_WORDS), groups=_make_test_groups(),
-                        trap_groups=[])
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
-             patch.object(ConnectionsGame, '_load_model_mappings',
-                          return_value={"test-model": "test/model"}):
-            game = ConnectionsGame(
-                Path(__file__).resolve().parent.parent / "inputs",
-                tmp_path, seed=42, mode="oneshot")
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   side_effect=InsufficientCreditsError("no credits")):
+        puzzle = make_puzzle(trap_groups=[])
+        game = make_game(tmp_path, puzzle, mode="oneshot")
+        with patch_chat(InsufficientCreditsError("no credits")):
             with pytest.raises(InsufficientCreditsError):
                 game.run_evaluation("test-model", puzzle_ids=[477])
 
@@ -1321,13 +1136,7 @@ class TestReasoningEffort:
     def _call_chat(self, mock_key, mock_post, model, **kwargs):
         from connections_eval.adapters.openrouter_adapter import chat
 
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        mock_post.return_value = mock_response
+        mock_post.return_value = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         chat([{"role": "user", "content": "test"}], model, **kwargs)
         return mock_post.call_args.kwargs["json"]
@@ -1364,13 +1173,7 @@ class TestAdapterChoicesFix:
         bad_response.json.return_value = {"error": {"message": "upstream throttled"}}
         bad_response.raise_for_status.return_value = None
 
-        good_response = MagicMock()
-        good_response.ok = True
-        good_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        good_response.raise_for_status.return_value = None
+        good_response = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         mock_post.side_effect = [bad_response, good_response]
 
@@ -1387,13 +1190,7 @@ class TestAdapterChoicesFix:
     def test_successful_first_call_stashes_zero_backoff(self, mock_key, mock_post):
         from connections_eval.adapters.openrouter_adapter import chat
 
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        mock_post.return_value = mock_response
+        mock_post.return_value = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
 
@@ -1416,26 +1213,12 @@ class TestAdapterPartialResponse:
         monkeypatch.setattr(retry_mod.time, "sleep", lambda s: None)
         monkeypatch.setattr(retry_mod.random, "uniform", lambda a, b: 0.0)
 
-        partial_response = MagicMock()
-        partial_response.ok = True
-        partial_response.json.return_value = {
-            "choices": [{
-                "message": {"content": "<answer>\nAPPLE, BANANA, CHERRY, GR"},
-                "finish_reason": "stop",
-                "native_finish_reason": "stop",
-            }],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            "provider": "SomeProvider",
-        }
-        partial_response.raise_for_status.return_value = None
+        partial_response = _ok_response(
+            "<answer>\nAPPLE, BANANA, CHERRY, GR",
+            prompt_tokens=0, completion_tokens=0,
+            native_finish_reason="stop", provider="SomeProvider")
 
-        good_response = MagicMock()
-        good_response.ok = True
-        good_response.json.return_value = {
-            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        good_response.raise_for_status.return_value = None
+        good_response = _ok_response("hi", prompt_tokens=10, completion_tokens=5)
 
         mock_post.side_effect = [partial_response, good_response]
 
@@ -1452,17 +1235,9 @@ class TestAdapterPartialResponse:
         returned as-is, not treated as a transient partial-response fault."""
         from connections_eval.adapters.openrouter_adapter import chat
 
-        truncated_response = MagicMock()
-        truncated_response.ok = True
-        truncated_response.json.return_value = {
-            "choices": [{
-                "message": {"content": "<answer>\nAPPLE, BANANA, CHERRY, GR"},
-                "finish_reason": "length",
-            }],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 25000, "total_tokens": 25100},
-        }
-        truncated_response.raise_for_status.return_value = None
-        mock_post.return_value = truncated_response
+        mock_post.return_value = _ok_response(
+            "<answer>\nAPPLE, BANANA, CHERRY, GR",
+            prompt_tokens=100, completion_tokens=25000, finish_reason="length")
 
         result = chat([{"role": "user", "content": "test"}], "openai/o3", provider=None)
 
@@ -1470,73 +1245,45 @@ class TestAdapterPartialResponse:
         assert result["choices"][0]["message"]["content"].startswith("<answer>")
 
 
-class TestSharedExchangeScaffolding:
-    """Both runners share _run_exchange for transport, accounting and telemetry.
-    These lock in the compatibility contract that MotherDuck aggregation
-    (scripts/extract_summaries.py, scripts/generate_logs_view.py) parses, plus the
-    mode-specific pieces that must stay distinct."""
+# --- shared oneshot/classic exchange scaffolding, used by both
+# TestSharedExchangeScaffolding and TestOneshotLintRepairLoop below: they
+# exercise the same _run_exchange plumbing in core.py. ----------------------
 
-    _INPUTS = Path(__file__).resolve().parent.parent / "inputs"
-    # One annotated trap set: one word from each real group, so it satisfies the
-    # cross-cutting rule in _score_trap_claims.
-    _TRAP = ["APPLE", "BLUE", "FAST", "BRIGHT"]
-    _TRAP_GROUPS = [_TRAP]
-    # Distinguishes "caller didn't say" from trap_groups=None (unreviewed puzzle)
-    # and trap_groups=[] (reviewed, trap-free), which score differently.
-    _DEFAULT_TRAPS = object()
+# One annotated trap set: one word from each real group, so it satisfies the
+# cross-cutting rule in _score_trap_claims.
+_TRAP = ["APPLE", "BLUE", "FAST", "BRIGHT"]
+_TRAP_GROUPS = [_TRAP]
+# Distinguishes "caller didn't say" from trap_groups=None (unreviewed puzzle)
+# and trap_groups=[] (reviewed, trap-free), which score differently.
+_DEFAULT_TRAPS = object()
 
-    def _make_game(self, tmp_path, puzzle, mode):
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=[puzzle]), \
-             patch.object(ConnectionsGame, '_load_model_mappings',
-                          return_value={"test-model": "openai/o3"}):
-            return ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode=mode,
-                                   reasoning_effort="high")
 
-    @staticmethod
-    def _puzzle(trap_groups=None):
-        p = Puzzle(id=477, date="2024-09-30", difficulty=3.8,
-                   words=list(_TEST_WORDS), groups=_make_test_groups())
-        p.trap_groups = trap_groups
-        return p
+def _oneshot_answer(traps=None):
+    answer = "<answer>\n" + "\n".join(
+        ", ".join(g.words) for g in make_test_groups()) + "\n</answer>"
+    return answer if traps is None else f"{answer}\n<traps>\n{traps}\n</traps>"
 
-    @staticmethod
-    def _response(content, cost=None, cached=None):
-        usage = {"prompt_tokens": 100, "completion_tokens": 50}
-        if cost is not None:
-            usage["cost"] = cost
-            # upstream_inference_cost is only additive (and only recorded) for BYOK
-            usage["cost_details"] = {"upstream_inference_cost": cost * 2}
-            usage["is_byok"] = True
-        if cached is not None:
-            usage["prompt_tokens_details"] = {"cached_tokens": cached}
-        return {
-            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
-            "usage": usage,
-        }
 
-    @staticmethod
-    def _answer(traps=None):
-        answer = "<answer>\n" + "\n".join(
-            ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>"
-        return answer if traps is None else f"{answer}\n<traps>\n{traps}\n</traps>"
+def _classic_guesses(**response_kwargs):
+    return [make_response(f"<guess>{', '.join(g.words)}</guess>", **response_kwargs)
+            for g in make_test_groups()]
 
-    @staticmethod
-    def _guesses(**response_kwargs):
-        return [TestSharedExchangeScaffolding._response(
-            f"<guess>{', '.join(g.words)}</guess>", **response_kwargs)
-            for g in _make_test_groups()]
 
-    def _run(self, tmp_path, mode, side_effect, trap_groups=_DEFAULT_TRAPS, game=None):
-        """Run one puzzle, capturing every logged/emitted side effect."""
-        if trap_groups is self._DEFAULT_TRAPS:
-            trap_groups = self._TRAP_GROUPS
-        puzzle = self._puzzle(trap_groups=trap_groups)
-        game = game or self._make_game(tmp_path, puzzle, mode)
+@pytest.fixture
+def run_exchange(make_game, patch_chat, tmp_path):
+    """Run one oneshot/classic puzzle exchange end to end (mocked adapter,
+    mocked controllog), capturing every logged/emitted side effect."""
+    def _run(mode, side_effect, trap_groups=_DEFAULT_TRAPS, game=None):
+        if trap_groups is _DEFAULT_TRAPS:
+            trap_groups = _TRAP_GROUPS
+        puzzle = make_puzzle(trap_groups=trap_groups)
+        game = game or make_game(tmp_path, puzzle, mode=mode,
+                                 mappings={"test-model": "openai/o3"},
+                                 reasoning_effort="high")
 
         cap = SimpleNamespace(exchanges=[], events=[], moves=[], prompts=[],
                               completions=[], summary=None, chat=None)
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   side_effect=side_effect) as chat_mock, \
+        with patch_chat(side_effect) as chat_mock, \
              patch("connections_eval.core.log_exchange",
                    side_effect=lambda logger, data: cap.exchanges.append(data)), \
              patch.object(core_mod.cl, "event",
@@ -1550,18 +1297,26 @@ class TestSharedExchangeScaffolding:
             cap.summary = game.run_evaluation("test-model", puzzle_ids=[477])
         cap.chat = chat_mock
         return cap
+    return _run
+
+
+class TestSharedExchangeScaffolding:
+    """Both runners share _run_exchange for transport, accounting and telemetry.
+    These lock in the compatibility contract that MotherDuck aggregation
+    (scripts/extract_summaries.py, scripts/generate_logs_view.py) parses, plus the
+    mode-specific pieces that must stay distinct."""
 
     # --- shared plumbing -------------------------------------------------
 
-    def test_reasoning_effort_reaches_adapter_in_both_modes(self, tmp_path):
-        for mode, content in (("oneshot", self._answer()),
+    def test_reasoning_effort_reaches_adapter_in_both_modes(self, run_exchange):
+        for mode, content in (("oneshot", _oneshot_answer()),
                               ("classic", "<guess>APPLE, BANANA, CHERRY, GRAPE</guess>")):
-            cap = self._run(tmp_path, mode, [self._response(content)] * 6)
+            cap = run_exchange(mode, [make_response(content)] * 6)
             assert cap.chat.call_args.kwargs["reasoning_effort"] == "high"
 
-    def test_totals_accumulate_across_classic_turns(self, tmp_path):
+    def test_totals_accumulate_across_classic_turns(self, run_exchange):
         """Four turns of 100/50 tokens, $0.01 and 40 cached tokens each."""
-        cap = self._run(tmp_path, "classic", self._guesses(cost=0.01, cached=40))
+        cap = run_exchange("classic", _classic_guesses(cost=0.01, cached=40))
 
         assert cap.summary["total_prompt_tokens"] == 400
         assert cap.summary["total_completion_tokens"] == 200
@@ -1571,9 +1326,9 @@ class TestSharedExchangeScaffolding:
         assert cap.summary["total_upstream_cost"] == pytest.approx(0.08)
         assert cap.summary["token_count_method"] == "API"
 
-    def test_oneshot_totals_come_from_single_call(self, tmp_path):
-        cap = self._run(tmp_path, "oneshot",
-                        [self._response(self._answer(), cost=0.01, cached=40)])
+    def test_oneshot_totals_come_from_single_call(self, run_exchange):
+        cap = run_exchange("oneshot",
+                           [make_response(_oneshot_answer(), cost=0.01, cached=40)])
 
         assert cap.summary["total_prompt_tokens"] == 100
         assert cap.summary["total_completion_tokens"] == 50
@@ -1593,33 +1348,33 @@ class TestSharedExchangeScaffolding:
         "finish_reason", "native_finish_reason", "provider", "usage",
     ]
 
-    def test_classic_exchange_log_field_order(self, tmp_path):
-        cap = self._run(tmp_path, "classic", self._guesses(cost=0.01, cached=40))
+    def test_classic_exchange_log_field_order(self, run_exchange):
+        cap = run_exchange("classic", _classic_guesses(cost=0.01, cached=40))
 
         assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
             "cost", "upstream_cost", "cached_tokens"] + self._RESPONSE_META_FIELDS
         # Classic exchanges carry no one-shot score fields
         assert all("score" not in e for e in cap.exchanges)
 
-    def test_oneshot_exchange_log_field_order(self, tmp_path):
-        cap = self._run(tmp_path, "oneshot",
-                        [self._response(self._answer(), cost=0.01, cached=40)])
+    def test_oneshot_exchange_log_field_order(self, run_exchange):
+        cap = run_exchange("oneshot",
+                           [make_response(_oneshot_answer(), cost=0.01, cached=40)])
 
         assert list(cap.exchanges[0].keys()) == self._BASE_LOG_FIELDS + [
             "score", "groups_correct", "trap_bonus", "trap_claims", "lint_retries",
             "cost", "upstream_cost", "cached_tokens"] + self._RESPONSE_META_FIELDS
 
-    def test_classic_exchange_log_records_post_guess_index(self, tmp_path):
+    def test_classic_exchange_log_records_post_guess_index(self, run_exchange):
         """Classic logs the guess index *after* the guess is counted, so a run of
         correct guesses logs 1..4 rather than 0..3."""
-        cap = self._run(tmp_path, "classic", self._guesses())
+        cap = run_exchange("classic", _classic_guesses())
 
         assert [e["guess_index"] for e in cap.exchanges] == [1, 2, 3, 4]
         assert [c["payload"]["guess_index"] for c in cap.completions] == [1, 2, 3, 4]
 
-    def test_oneshot_exchange_log_carries_score_fields(self, tmp_path):
-        cap = self._run(tmp_path, "oneshot",
-                        [self._response(self._answer(traps=", ".join(self._TRAP)))])
+    def test_oneshot_exchange_log_carries_score_fields(self, run_exchange):
+        cap = run_exchange("oneshot",
+                           [make_response(_oneshot_answer(traps=", ".join(_TRAP)))])
 
         logged = cap.exchanges[0]
         assert logged["guess_index"] == 0
@@ -1631,15 +1386,14 @@ class TestSharedExchangeScaffolding:
         # 'guess' is the <answer> block, not the classic <guess> tag
         assert "APPLE, BANANA, CHERRY, GRAPE" in logged["guess"]
 
-    def test_exchange_log_carries_response_metadata(self, tmp_path):
+    def test_exchange_log_carries_response_metadata(self, run_exchange):
         """finish_reason/native_finish_reason/provider/usage
         must reach the JSONL exchange log so a transient provider fault (see
         PartialResponseError) can be told apart from a bad model answer."""
-        response = self._response(self._answer())
-        response["choices"][0]["native_finish_reason"] = "STOP"
-        response["provider"] = "Mercury"
+        response = make_response(_oneshot_answer(),
+                                 native_finish_reason="STOP", provider="Mercury")
 
-        cap = self._run(tmp_path, "oneshot", [response])
+        cap = run_exchange("oneshot", [response])
 
         logged = cap.exchanges[0]
         assert logged["finish_reason"] == "stop"
@@ -1649,8 +1403,8 @@ class TestSharedExchangeScaffolding:
 
     # --- controllog telemetry (parsed by extract_summaries) --------------
 
-    def test_classic_telemetry_payloads(self, tmp_path):
-        cap = self._run(tmp_path, "classic", self._guesses())
+    def test_classic_telemetry_payloads(self, run_exchange):
+        cap = run_exchange("classic", _classic_guesses())
 
         assert [p["payload"] for p in cap.prompts] == [
             {"puzzle_id": 477, "guess_index": i} for i in (1, 2, 3, 4)]
@@ -1662,9 +1416,9 @@ class TestSharedExchangeScaffolding:
             {"puzzle_id": 477, "guess_index": 4, "result": "CORRECT"},
         ]
 
-    def test_oneshot_telemetry_payload_carries_score_fields(self, tmp_path):
-        cap = self._run(tmp_path, "oneshot",
-                        [self._response(self._answer(traps=", ".join(self._TRAP)))])
+    def test_oneshot_telemetry_payload_carries_score_fields(self, run_exchange):
+        cap = run_exchange("oneshot",
+                           [make_response(_oneshot_answer(traps=", ".join(_TRAP)))])
 
         assert cap.prompts[0]["payload"] == {"puzzle_id": 477, "guess_index": 0}
         assert cap.completions[0]["payload"] == {
@@ -1679,43 +1433,44 @@ class TestSharedExchangeScaffolding:
     def _transitions(cap):
         return [(m["from_"], m["to"]) for m in cap.moves]
 
-    def test_solved_puzzle_moves_new_wip_done(self, tmp_path):
-        for mode, side_effect in (("classic", self._guesses()),
-                                  ("oneshot", [self._response(self._answer())])):
-            cap = self._run(tmp_path, mode, side_effect)
+    def test_solved_puzzle_moves_new_wip_done(self, run_exchange):
+        for mode, side_effect in (("classic", _classic_guesses()),
+                                  ("oneshot", [make_response(_oneshot_answer())])):
+            cap = run_exchange(mode, side_effect)
             assert self._transitions(cap) == [("NEW", "WIP"), ("WIP", "DONE")]
 
-    def test_api_error_moves_wip_failed_exactly_once(self, tmp_path):
+    def test_api_error_moves_wip_failed_exactly_once(self, run_exchange):
         for mode in ("classic", "oneshot"):
-            cap = self._run(tmp_path, mode, RuntimeError("boom"))
+            cap = run_exchange(mode, RuntimeError("boom"))
             assert self._transitions(cap) == [("NEW", "WIP"), ("WIP", "FAILED")]
             assert cap.moves[-1]["payload"] == {"puzzle_id": 477, "reason": "api_error"}
 
-    def test_prompt_build_failure_leaves_no_wip_task(self, tmp_path):
+    def test_prompt_build_failure_leaves_no_wip_task(self, make_game, run_exchange, tmp_path):
         """WIP is only claimed once the prompt exists, so a prompt-build failure
         can't strand a task in WIP with no terminal transition."""
         for mode in ("classic", "oneshot"):
-            game = self._make_game(tmp_path, self._puzzle(self._TRAP_GROUPS), mode)
+            game = make_game(tmp_path, make_puzzle(trap_groups=_TRAP_GROUPS), mode=mode,
+                             mappings={"test-model": "openai/o3"}, reasoning_effort="high")
             with patch.object(game, "_build_initial_messages",
                               side_effect=RuntimeError("bad template")):
-                cap = self._run(tmp_path, mode, [self._response("")], game=game)
+                cap = run_exchange(mode, [make_response("")], game=game)
             assert cap.moves == []
             assert cap.summary["puzzles_attempted"] == 0
 
     # --- error paths -----------------------------------------------------
 
-    def test_classic_api_error_event_has_no_oneshot_marker(self, tmp_path):
+    def test_classic_api_error_event_has_no_oneshot_marker(self, run_exchange):
         """The ONESHOT_API_ERROR_MAX_n mode marker must not leak into classic
         runs — MotherDuck uses it to classify a fully-failed run's mode."""
-        cap = self._run(tmp_path, "classic", RuntimeError("boom"))
+        cap = run_exchange("classic", RuntimeError("boom"))
 
         assert [e["result"] for e in cap.exchanges] == ["API_ERROR"]
         errors = [e for e in cap.events if e["kind"] == "model_response_error"]
         assert len(errors) == 1
         assert "result" not in errors[0]["payload"]
 
-    def test_oneshot_api_error_event_carries_max_marker(self, tmp_path):
-        cap = self._run(tmp_path, "oneshot", RuntimeError("boom"))
+    def test_oneshot_api_error_event_carries_max_marker(self, run_exchange):
+        cap = run_exchange("oneshot", RuntimeError("boom"))
 
         assert [e["result"] for e in cap.exchanges] == ["API_ERROR"]
         errors = [e for e in cap.events if e["kind"] == "model_response_error"]
@@ -1725,67 +1480,66 @@ class TestSharedExchangeScaffolding:
         assert cap.summary["total_cost"] == 0.0
         assert cap.summary["max_score"] == 5
 
-    def test_insufficient_credits_aborts_both_modes(self, tmp_path):
+    def test_insufficient_credits_aborts_both_modes(self, run_exchange):
         """402 must abort the run with no summary, in both modes."""
         for mode in ("classic", "oneshot"):
             with pytest.raises(openrouter_adapter.InsufficientCreditsError):
-                self._run(tmp_path, mode,
-                          openrouter_adapter.InsufficientCreditsError("no credits"))
+                run_exchange(mode, openrouter_adapter.InsufficientCreditsError("no credits"))
 
-    def test_insufficient_credits_aborts_parallel_run(self, tmp_path):
-        puzzle = self._puzzle(self._TRAP_GROUPS)
-        game = self._make_game(tmp_path, puzzle, "oneshot")
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   side_effect=openrouter_adapter.InsufficientCreditsError("no credits")), \
+    def test_insufficient_credits_aborts_parallel_run(self, make_game, patch_chat, tmp_path):
+        puzzle = make_puzzle(trap_groups=_TRAP_GROUPS)
+        game = make_game(tmp_path, puzzle, mode="oneshot",
+                         mappings={"test-model": "openai/o3"}, reasoning_effort="high")
+        with patch_chat(openrouter_adapter.InsufficientCreditsError("no credits")), \
              pytest.raises(openrouter_adapter.InsufficientCreditsError):
             game.run_evaluation("test-model", puzzle_ids=[477], threads=4)
 
     # --- per-puzzle MAX ceiling (parsed out of the result strings) --------
 
-    def test_unreviewed_puzzle_caps_at_max_3(self, tmp_path):
+    def test_unreviewed_puzzle_caps_at_max_3(self, run_exchange):
         """trap_groups=None means traps were never reviewed: no bonus is possible
         even for a correct-looking claim, and every marker carries MAX_3."""
-        cap = self._run(tmp_path, "oneshot",
-                        [self._response(self._answer(traps=", ".join(self._TRAP)))],
-                        trap_groups=None)
+        cap = run_exchange("oneshot",
+                           [make_response(_oneshot_answer(traps=", ".join(_TRAP)))],
+                           trap_groups=None)
 
         assert cap.exchanges[0]["result"] == "ONESHOT_SCORE_3_GROUPS_4_TRAP_0_MAX_3"
         assert cap.exchanges[0]["trap_bonus"] == 0
         assert cap.summary["total_score"] == 3
         assert cap.summary["max_score"] == 3
 
-    def test_reviewed_trapless_puzzle_scores_na_claim(self, tmp_path):
+    def test_reviewed_trapless_puzzle_scores_na_claim(self, run_exchange):
         """trap_groups=[] means reviewed and trap-free, so N/A earns the +2."""
-        cap = self._run(tmp_path, "oneshot",
-                        [self._response(self._answer(traps="N/A"))], trap_groups=[])
+        cap = run_exchange("oneshot",
+                           [make_response(_oneshot_answer(traps="N/A"))], trap_groups=[])
 
         assert cap.exchanges[0]["result"] == "ONESHOT_SCORE_5_GROUPS_4_TRAP_2_MAX_5"
         assert cap.exchanges[0]["trap_claims"] == ["N/A"]
         assert cap.summary["max_score"] == 5
 
-    def test_invalid_and_error_markers_carry_unreviewed_ceiling(self, tmp_path):
+    def test_invalid_and_error_markers_carry_unreviewed_ceiling(self, run_exchange):
         # A response with no <answer> block now buys MAX_LINT_RETRIES repair
         # turns first; only the last exchange carries the scoring verdict.
-        invalid = self._run(tmp_path, "oneshot",
-                            [self._response("no answer here")] * 3, trap_groups=None)
+        invalid = run_exchange("oneshot",
+                               [make_response("no answer here")] * 3, trap_groups=None)
         assert invalid.exchanges[-1]["result"] == "ONESHOT_INVALID_MAX_3"
         assert invalid.exchanges[-1]["trap_claims"] == []
         assert invalid.summary["invalid_responses"] == 1
 
-        errored = self._run(tmp_path, "oneshot", RuntimeError("boom"), trap_groups=None)
+        errored = run_exchange("oneshot", RuntimeError("boom"), trap_groups=None)
         errors = [e for e in errored.events if e["kind"] == "model_response_error"]
         assert errors[0]["payload"]["result"] == "ONESHOT_API_ERROR_MAX_3"
         assert errored.summary["max_score"] == 3
 
     # --- backoff accounting ----------------------------------------------
 
-    def test_backoff_is_split_out_of_inference_time(self, tmp_path):
+    def test_backoff_is_split_out_of_inference_time(self, run_exchange):
         """Retry sleep is attributed as backoff, kept out of inference_ms, and
         posted as its own model_backoff event."""
         # Each call burns 60ms of wall time and reports 10ms of it as backoff, so
         # inference_ms lands strictly between 0 and latency_ms — the subtraction
         # is only observable when latency exceeds the backoff.
-        responses = self._guesses()
+        responses = _classic_guesses()
         for r in responses:
             r["_backoff_sec"] = 0.01
 
@@ -1793,7 +1547,7 @@ class TestSharedExchangeScaffolding:
             time.sleep(0.06)
             return responses.pop(0)
 
-        cap = self._run(tmp_path, "classic", slow_chat)
+        cap = run_exchange("classic", slow_chat)
 
         assert cap.summary["total_backoff_sec"] == pytest.approx(0.04)
         assert all(e["backoff_ms"] == 10 for e in cap.exchanges)
@@ -1808,34 +1562,33 @@ class TestSharedExchangeScaffolding:
         assert len(backoffs) == 4
         assert backoffs[0]["payload"]["backoff_ms"] == 10
 
-    def test_error_path_attributes_last_backoff(self, tmp_path):
+    def test_error_path_attributes_last_backoff(self, run_exchange):
         """Backoff burned before a call finally failed is still accounted for."""
         for mode in ("classic", "oneshot"):
             with patch.object(core_mod, "get_last_backoff_sec", return_value=2.0):
-                cap = self._run(tmp_path, mode, RuntimeError("boom"))
+                cap = run_exchange(mode, RuntimeError("boom"))
             assert cap.summary["total_backoff_sec"] == pytest.approx(2.0)
 
     # --- thread isolation -------------------------------------------------
 
-    def test_parallel_puzzles_get_isolated_contexts_and_summed_totals(self, tmp_path):
+    def test_parallel_puzzles_get_isolated_contexts_and_summed_totals(
+            self, make_game, patch_chat, tmp_path):
         """Two puzzles across two threads: each gets its own task/session id and
         its own accounting, and the run totals are the sum."""
         # Puzzle 246 swaps GRAPE -> MELON so the two prompts are distinguishable
         # and each thread's request can be tied back to its own puzzle.
-        puzzles = [self._puzzle(self._TRAP_GROUPS), self._puzzle(self._TRAP_GROUPS)]
+        puzzles = [make_puzzle(trap_groups=_TRAP_GROUPS), make_puzzle(trap_groups=_TRAP_GROUPS)]
         puzzles[1].id = 246
         puzzles[1].words = ["MELON" if w == "GRAPE" else w for w in puzzles[1].words]
-        puzzles[1].groups = _make_test_groups()
+        puzzles[1].groups = make_test_groups()
         puzzles[1].groups[0].words = ["APPLE", "BANANA", "CHERRY", "MELON"]
         answers = {
-            477: self._answer(),
+            477: _oneshot_answer(),
             246: "<answer>\n" + "\n".join(
                 ", ".join(g.words) for g in puzzles[1].groups) + "\n</answer>",
         }
-        with patch.object(ConnectionsGame, '_load_puzzles', return_value=puzzles), \
-             patch.object(ConnectionsGame, '_load_model_mappings',
-                          return_value={"test-model": "openai/o3"}):
-            game = ConnectionsGame(self._INPUTS, tmp_path, seed=42, mode="oneshot")
+        game = make_game(tmp_path, puzzles=puzzles, mode="oneshot",
+                         mappings={"test-model": "openai/o3"})
 
         # Correlating each request's session_id with the puzzle its prompt is for
         # catches a context swap between threads — which asserting on id sets
@@ -1846,11 +1599,10 @@ class TestSharedExchangeScaffolding:
             rendered = " ".join(m["content"] for m in messages)
             pid = 246 if "MELON" in rendered else 477
             sessions[pid] = session_id
-            return self._response(answers[pid])
+            return make_response(answers[pid])
 
         prompts, completions, exchanges = [], [], []
-        with patch("connections_eval.core.openrouter_adapter.chat",
-                   side_effect=capture_chat), \
+        with patch_chat(capture_chat), \
              patch("connections_eval.core.log_exchange",
                    side_effect=lambda logger, data: exchanges.append(data)), \
              patch.object(core_mod.cl, "model_prompt",
@@ -1877,10 +1629,10 @@ class TestSharedExchangeScaffolding:
 class TestOneshotLintRepairLoop:
     """A structurally broken one-shot response buys up to MAX_LINT_RETRIES repair
     turns before it is scored. The repair turns must stay invisible to the
-    MotherDuck aggregation, which keys off the ONESHOT / INVALID prefixes."""
+    MotherDuck aggregation, which keys off the ONESHOT / INVALID prefixes.
 
-    # Reuse the shared runner: it captures exchanges, telemetry and the summary.
-    _shared = TestSharedExchangeScaffolding()
+    Reuses the run_exchange fixture: it exercises the same _run_exchange
+    plumbing as TestSharedExchangeScaffolding above."""
 
     # Real granite-4.2-8b failure shape: one line space-separated, rest fine.
     _BROKEN_ANSWER = (
@@ -1892,21 +1644,17 @@ class TestOneshotLintRepairLoop:
         "</answer>\n"
         "<traps>\nAPPLE, BLUE, FAST, BRIGHT\n</traps>"
     )
-    _ANSWER_ONLY = ("<answer>\n" + "\n".join(
-        ", ".join(g.words) for g in _make_test_groups()) + "\n</answer>")
+    _ANSWER_ONLY = _oneshot_answer()
     _ANSWER_OPEN_ONLY = _ANSWER_ONLY.removesuffix("</answer>")
 
-    def _run(self, tmp_path, side_effect, **kwargs):
-        return self._shared._run(tmp_path, "oneshot", side_effect, **kwargs)
+    def _run(self, run_exchange, side_effect, **kwargs):
+        return run_exchange("oneshot", side_effect, **kwargs)
 
-    def _response(self, content):
-        return self._shared._response(content)
-
-    def test_answer_resubmission_is_merged_and_scored(self, tmp_path):
+    def test_answer_resubmission_is_merged_and_scored(self, run_exchange):
         """The model re-sends only the <answer> block; it is spliced back into the
         original response, so the untouched <traps> claim still earns its bonus."""
-        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
-                                   self._response(self._ANSWER_ONLY)])
+        cap = self._run(run_exchange, [make_response(self._BROKEN_ANSWER),
+                                       make_response(self._ANSWER_ONLY)])
 
         assert [e["result"] for e in cap.exchanges] == [
             "LINT_RETRY_answer.words_per_line",
@@ -1916,9 +1664,9 @@ class TestOneshotLintRepairLoop:
         assert cap.summary["total_score"] == 5
         assert cap.summary["invalid_responses"] == 0
 
-    def test_repair_request_names_the_rule_and_the_segment(self, tmp_path):
-        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
-                                   self._response(self._ANSWER_ONLY)])
+    def test_repair_request_names_the_rule_and_the_segment(self, run_exchange):
+        cap = self._run(run_exchange, [make_response(self._BROKEN_ANSWER),
+                                       make_response(self._ANSWER_ONLY)])
 
         # The adapter is handed the same list object every turn, so read the
         # final transcript rather than a per-call snapshot.
@@ -1928,27 +1676,27 @@ class TestOneshotLintRepairLoop:
         assert followup.startswith("Response failed linting rule answer.words_per_line: ")
         assert "re-submit only the failed segment answer" in followup
 
-    def test_unclosed_answer_repair_is_completed_and_scored(self, tmp_path):
-        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
-                                   self._response(self._ANSWER_OPEN_ONLY)])
+    def test_unclosed_answer_repair_is_completed_and_scored(self, run_exchange):
+        cap = self._run(run_exchange, [make_response(self._BROKEN_ANSWER),
+                                       make_response(self._ANSWER_OPEN_ONLY)])
 
         assert cap.chat.call_count == 2
         assert cap.summary["puzzles_solved"] == 1
         assert cap.summary["total_score"] == 5
         assert cap.summary["lint_retries"] == 1
 
-    def test_repair_prompt_omits_long_thinking_context(self, tmp_path):
+    def test_repair_prompt_omits_long_thinking_context(self, run_exchange):
         initial = "<thinking>" + ("reasoning " * 5000) + "</thinking>\n" + self._BROKEN_ANSWER
-        cap = self._run(tmp_path, [self._response(initial), self._response(self._ANSWER_ONLY)])
+        cap = self._run(run_exchange, [make_response(initial), make_response(self._ANSWER_ONLY)])
 
         transcript = cap.chat.call_args_list[-1].args[0]
         assistant_context = transcript[2]["content"]
         assert "reasoning reasoning" not in assistant_context
         assert len(assistant_context) <= ConnectionsGame.REPAIR_CONTEXT_MAX_CHARS + 120
 
-    def test_missing_answer_gets_full_context_and_finish_instruction(self, tmp_path):
+    def test_missing_answer_gets_full_context_and_finish_instruction(self, run_exchange):
         initial = "<thinking>" + ("reasoning " * 5000)
-        cap = self._run(tmp_path, [self._response(initial), self._response(self._ANSWER_ONLY)])
+        cap = self._run(run_exchange, [make_response(initial), make_response(self._ANSWER_ONLY)])
 
         transcript = cap.chat.call_args_list[-1].args[0]
         assert transcript[2]["role"] == "assistant"
@@ -1959,9 +1707,9 @@ class TestOneshotLintRepairLoop:
         assert "<confidence>...</confidence>" in followup
         assert cap.summary["total_score"] == 3
 
-    def test_retries_are_capped_and_end_in_oneshot_invalid(self, tmp_path):
+    def test_retries_are_capped_and_end_in_oneshot_invalid(self, run_exchange):
         """Three broken responses: two repairs, then the third is scored as-is."""
-        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
+        cap = self._run(run_exchange, [make_response("no answer here")] * 3)
 
         assert cap.chat.call_count == 3
         # The missing-answer continuation stays in full-response mode through
@@ -1974,9 +1722,9 @@ class TestOneshotLintRepairLoop:
         assert cap.summary["invalid_responses"] == 1
         assert cap.summary["lint_retries"] == 2
 
-    def test_lint_retries_reach_the_summary_and_the_scoring_exchange(self, tmp_path):
-        cap = self._run(tmp_path, [self._response(self._BROKEN_ANSWER),
-                                   self._response(self._ANSWER_ONLY)])
+    def test_lint_retries_reach_the_summary_and_the_scoring_exchange(self, run_exchange):
+        cap = self._run(run_exchange, [make_response(self._BROKEN_ANSWER),
+                                       make_response(self._ANSWER_ONLY)])
 
         assert cap.summary["lint_retries"] == 1
         # Only the scoring exchange carries the count; the repair turn names its rule
@@ -1985,10 +1733,10 @@ class TestOneshotLintRepairLoop:
         assert cap.exchanges[0]["lint_segment"] == "answer"
         assert "lint_retries" not in cap.exchanges[0]
 
-    def test_repair_result_strings_avoid_the_aggregation_prefixes(self, tmp_path):
+    def test_repair_result_strings_avoid_the_aggregation_prefixes(self, run_exchange):
         """extract_summaries.py keys off ONESHOT% / INVALID% — a repair turn must
         match neither, or it would inflate max_score and invalid_responses."""
-        cap = self._run(tmp_path, [self._response("no answer here")] * 3)
+        cap = self._run(run_exchange, [make_response("no answer here")] * 3)
 
         for result in [e["result"] for e in cap.exchanges[:-1]]:
             assert result.startswith("LINT_RETRY_")
