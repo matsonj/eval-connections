@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from string import Template
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from connections_eval.linter import strip_thinking
@@ -56,6 +57,14 @@ def _as_dict(struct_value: Any) -> Dict[str, Any]:
     return struct_value if isinstance(struct_value, dict) else {}
 
 
+def _int0(value: Any) -> int:
+    """int(value), with anything unparseable counting as 0."""
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _parse_dt(value: Any) -> datetime:
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
@@ -89,18 +98,14 @@ def load_events_and_postings(run_ids: List[str], db: Optional[str] = None) -> Di
             [run_ids],
         ).fetchall()
 
-        for event_id, event_time, kind, actor_task_id, run_id, payload_json in rows:
-            if not event_id:
+        for eid, etime, kind, task_id, run, payload in rows:
+            if not eid:
                 continue
-            event_by_id[str(event_id)] = Event(
-                event_id=str(event_id),
-                event_time=str(event_time),
-                dt=_parse_dt(event_time),
-                kind=str(kind or ""),
-                run_id=str(run_id) if run_id else "",
-                actor_task_id=str(actor_task_id) if actor_task_id else None,
-                payload=_as_dict(payload_json),
-            )
+            event_by_id[str(eid)] = Event(
+                event_id=str(eid), event_time=str(etime), dt=_parse_dt(etime),
+                kind=str(kind or ""), run_id=str(run) if run else "",
+                actor_task_id=str(task_id) if task_id else None,
+                payload=_as_dict(payload))
         print(f"  Loaded {len(event_by_id)} events")
 
         print("  Loading postings...")
@@ -117,18 +122,12 @@ def load_events_and_postings(run_ids: List[str], db: Optional[str] = None) -> Di
         ).fetchall()
 
         posting_count = 0
-        for event_id, account_type, unit, delta, dims_json in posting_rows:
-            ev = event_by_id.get(str(event_id))
+        for eid, account_type, unit, delta, dims in posting_rows:
+            ev = event_by_id.get(str(eid))
             if not ev:
                 continue
-            ev.postings.append(
-                Posting(
-                    account_type=str(account_type or ""),
-                    unit=str(unit or ""),
-                    delta=float(delta or 0),
-                    dims=_as_dict(dims_json),
-                )
-            )
+            ev.postings.append(Posting(str(account_type or ""), str(unit or ""),
+                                       float(delta or 0), _as_dict(dims)))
             posting_count += 1
         print(f"  Loaded {posting_count} postings")
     finally:
@@ -149,25 +148,19 @@ def group_by_run(event_by_id: Dict[str, Event]) -> Dict[str, List[Event]]:
 
 
 def summarize_tokens_and_cost(postings: List[Posting]) -> Dict[str, Any]:
-    prompt_tokens = 0
-    completion_tokens = 0
+    # Tokens: only count the project: side (positive delta); the provider: side is
+    # a negative mirror. Cost: the vendor: side is negative (money leaving), so abs.
+    phases = {"prompt": 0, "completion": 0}
     money = 0.0
     for p in postings:
         if p.account_type == "resource.tokens" and p.unit == "+tokens" and p.delta > 0:
-            # Only count project: side (positive delta); provider: side is negative mirror
             phase = str(p.dims.get("phase", "")).lower()
-            if phase == "prompt":
-                prompt_tokens += int(p.delta)
-            elif phase == "completion":
-                completion_tokens += int(p.delta)
-        if p.account_type == "resource.money" and p.unit == "$" and p.delta < 0:
-            # Cost postings: vendor: side is negative (money leaving); take abs
+            if phase in phases:
+                phases[phase] += int(p.delta)
+        elif p.account_type == "resource.money" and p.unit == "$" and p.delta < 0:
             money += abs(float(p.delta))
-    return {
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "cost": money if money > 0 else None,
-    }
+    return {"prompt_tokens": phases["prompt"], "completion_tokens": phases["completion"],
+            "cost": money if money > 0 else None}
 
 
 def escape_html(text: Optional[Any]) -> str:
@@ -191,27 +184,22 @@ def extract_state_transition(ev: Event) -> Optional[Tuple[str, str, Optional[str
 
     puzzle_id_str is best-effort parsed from task id or payload.
     """
-    pid_str: Optional[str] = None
     # Prefer payload puzzle id if present (e.g., state_move)
-    if "puzzle_id" in (ev.payload or {}):
-        pid_str = str(ev.payload.get("puzzle_id"))
-    acc = ev.actor_task_id or ""
+    pid_str: Optional[str] = (str(ev.payload.get("puzzle_id"))
+                              if "puzzle_id" in (ev.payload or {}) else None)
     from_val: Optional[str] = None
     to_val: Optional[str] = None
     for p in ev.postings:
         if p.account_type != "truth.state":
             continue
-        if p.dims.get("from") is not None:
-            from_val = str(p.dims.get("from"))
-        if p.dims.get("to") is not None:
-            to_val = str(p.dims.get("to"))
-    if from_val or to_val:
-        if not pid_str and acc:
-            after_t = acc.split(":", 1)[0]
-            if after_t.startswith("T"):
-                pid_str = after_t[1:]
-        return (from_val or "WIP", to_val or "", pid_str)
-    return None
+        from_val = str(p.dims["from"]) if p.dims.get("from") is not None else from_val
+        to_val = str(p.dims["to"]) if p.dims.get("to") is not None else to_val
+    if not (from_val or to_val):
+        return None
+    acc = ev.actor_task_id or ""
+    if not pid_str and acc.startswith("T"):
+        pid_str = acc.split(":", 1)[0][1:]
+    return (from_val or "WIP", to_val or "", pid_str)
 
 
 _STRAY_TAIL_RE = re.compile(r"\s*</(?:response|speak|output|answer)>\s*$", re.IGNORECASE)
@@ -244,6 +232,10 @@ def split_thinking_blocks(text: str) -> Tuple[str, str]:
     return "", _STRAY_TAIL_RE.sub("", text.strip())
 
 
+# --------------------------------------------------------------------------
+# Presentation
+# --------------------------------------------------------------------------
+
 # Shared by the run pages and the index.
 BASE_CSS = (
     "body{font-family:ui-monospace,Menlo,Consolas,Monaco,\"Courier New\",monospace;margin:0;padding:0;"
@@ -258,6 +250,8 @@ BASE_CSS = (
     "a{color:#0b63ce;text-decoration:none;}a:hover{text-decoration:underline;}"
 )
 
+# Run pages and the index both style `.row`, but as a flex column and as a grid
+# respectively, so the two extensions must stay in separate <style> blocks.
 RUN_CSS = BASE_CSS + (
     ".row{display:flex;flex-direction:column;margin:8px 0;}"
     ".bubble{max-width:76%;padding:0;border:2px solid #2b3035;background:#fff;}"
@@ -301,54 +295,72 @@ INDEX_CSS = BASE_CSS + (
     ".footer{margin:16px 0 0 0;}"
 )
 
+BACK_LINK = "<a href=\"../index.html\" style=\"color:#b6c7da\">Back</a>"
+TH_STYLE = "border:2px solid #2b3035;border-bottom:none;background:#f2f5f8;"
 
-def _new_puzzle_stats() -> Dict[str, Any]:
-    return {"prompt": 0, "completion": 0, "cost": 0.0, "guesses": 0,
-            "correct": 0, "start_dt": None}
-
-
-def _accumulate(ps: Dict[str, Any], tokens: Dict[str, Any], ev: Event,
-                result: Optional[str] = None) -> None:
-    """Fold one event's tokens/cost (and, for graded turns, its verdict) into
-    the puzzle's running stats."""
-    ps["prompt"] += int(tokens.get("prompt_tokens") or 0)
-    ps["completion"] += int(tokens.get("completion_tokens") or 0)
-    ps["cost"] += float(tokens.get("cost") or 0.0)
-    if ps["start_dt"] is None:
-        ps["start_dt"] = ev.dt
-
-    if result is None:
-        return
-    res_u = str(result).upper()
-    # One graded attempt by the harness per completion. INVALID_RESPONSE (a
-    # parse failure) isn't a guess; every real verdict is, even when the
-    # renderer can't re-extract guess words from quirky model output.
-    if res_u and "INVALID_RESPONSE" not in res_u:
-        ps["guesses"] += 1
-    oneshot = parse_oneshot_result(res_u)
-    if oneshot is not None:
-        ps["correct"] += oneshot.groups
-    elif "CORRECT" in res_u and "INCORRECT" not in res_u:
-        ps["correct"] += 1
+# Both pages are the same chrome around a $content block.
+PAGE = Template(
+    "<html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+    "<title>$title</title><style>$css</style></head><body>"
+    "<div class=\"container\"><div class=\"panel\"><div class=\"topbar\">"
+    "<div class=\"title\">$heading</div><div class=\"meta\">$meta</div></div>"
+    "<div class=\"content\">$content"
+    "<div class=\"footer\">Generated by generate_logs_view.py</div>"
+    "</div></div></div></body></html>"
+)
 
 
-def _puzzle_summary(ps: Optional[Dict[str, Any]], end_dt: datetime) -> Dict[str, Any]:
-    if not ps:
-        return {}
-    start_dt = ps.get("start_dt")
-    if start_dt and end_dt:
-        seconds = int((end_dt - start_dt).total_seconds())
-        time_str = f"{seconds // 60:02d}:{seconds % 60:02d}"
-    else:
-        time_str = "--:--"
-    return {
-        "prompt_tokens": int(ps.get("prompt", 0)),
-        "completion_tokens": int(ps.get("completion", 0)),
-        "guesses": int(ps.get("guesses", 0)),
-        "correct": int(ps.get("correct", 0)),
-        "time": time_str,
-        "cost": float(ps.get("cost", 0.0)),
-    }
+@dataclass
+class PuzzleStats:
+    """Running tokens/cost/verdict totals for one puzzle."""
+
+    prompt: int = 0
+    completion: int = 0
+    cost: float = 0.0
+    guesses: int = 0
+    correct: int = 0
+    start_dt: Optional[datetime] = None
+
+    def add(self, tokens: Dict[str, Any], dt: datetime, result: Optional[str] = None) -> None:
+        """Fold one event's tokens/cost (and, for graded turns, its verdict) in."""
+        self.prompt += _int0(tokens.get("prompt_tokens"))
+        self.completion += _int0(tokens.get("completion_tokens"))
+        self.cost += float(tokens.get("cost") or 0.0)
+        if self.start_dt is None:
+            self.start_dt = dt
+
+        if result is None:
+            return
+        res_u = str(result).upper()
+        # One graded attempt by the harness per completion. INVALID_RESPONSE (a
+        # parse failure) isn't a guess; every real verdict is, even when the
+        # renderer can't re-extract guess words from quirky model output.
+        if res_u and "INVALID_RESPONSE" not in res_u:
+            self.guesses += 1
+        oneshot = parse_oneshot_result(res_u)
+        if oneshot is not None:
+            self.correct += oneshot.groups
+        elif "CORRECT" in res_u and "INCORRECT" not in res_u:
+            self.correct += 1
+
+    @property
+    def audit_key(self) -> Tuple[float, float]:
+        """Sort key: lowest correct rate first, tie-break by highest cost first."""
+        rate = self.correct / self.guesses if self.guesses else 0.0
+        return (rate, -self.cost)
+
+    def summary_line(self, end_dt: Optional[datetime]) -> str:
+        if self.start_dt and end_dt:
+            seconds = int((end_dt - self.start_dt).total_seconds())
+            elapsed = f"{seconds // 60:02d}:{seconds % 60:02d}"
+        else:
+            elapsed = "--:--"
+        return (f"prompt: {self.prompt:,} · completion: {self.completion:,}"
+                f" · guesses: {self.guesses} · correct: {self.correct}"
+                f" · time: {elapsed} · cost: ${self.cost:0.4f}")
+
+
+NO_STATS = PuzzleStats()  # stand-in for puzzles that never accumulated anything
 
 
 def oneshot_score_breakdown(p_steps: List[Dict[str, Any]]) -> Optional[str]:
@@ -374,306 +386,6 @@ def oneshot_score_breakdown(p_steps: List[Dict[str, Any]]) -> Optional[str]:
     return " · ".join(bits)
 
 
-def render_run_html(run_id: str, events: List[Event]) -> str:
-    # Determine model/provider from first event with payload
-    model = None
-    provider = None
-    for ev in events:
-        model = model or ev.payload.get("model")
-        provider = provider or ev.payload.get("provider")
-        if model and provider:
-            break
-
-    # Build steps grouped by puzzle_id, then ordered by timestamp within each puzzle.
-    # This keeps each puzzle's conversation as a coherent block even for parallel runs.
-    steps: List[Dict[str, Any]] = []
-    # Track last evaluation per puzzle (to show why a puzzle ended)
-    last_eval_by_puzzle: Dict[str, Dict[str, Any]] = {}
-    puzzle_stats: Dict[str, Dict[str, Any]] = {}
-
-    # Pre-group events by puzzle_id; events without a puzzle_id are dropped.
-    puzzle_events: Dict[Any, List[Event]] = {}
-    for ev in events:
-        pid = ev.payload.get("puzzle_id") if ev.kind in PUZZLE_KINDS else None
-        if pid is not None:
-            puzzle_events.setdefault(pid, []).append(ev)
-
-    def puzzle_sort_key(pid: Any) -> int:
-        try:
-            return int(pid)
-        except (ValueError, TypeError):
-            return 0
-
-    for puzzle_id in sorted(puzzle_events.keys(), key=puzzle_sort_key):
-        p_events = sorted(puzzle_events[puzzle_id], key=lambda e: e.dt)
-        steps.append({"type": "puzzle_header", "puzzle_id": puzzle_id})
-        # Track whether a terminal state transition (WIP→DONE/FAILED/ERROR) was emitted
-        # so we can synthesize one for older runs that only logged model_response_error.
-        has_terminal_state_move = False
-        last_error_event: Optional[Event] = None
-        pid = str(puzzle_id)
-        for ev in p_events:
-            p = ev.payload
-            tokens = summarize_tokens_and_cost(ev.postings)
-            if ev.kind == "model_prompt":
-                steps.append({
-                    "type": "prompt",
-                    "text": p.get("request_text", ""),
-                    "tokens": tokens,
-                    "ts": ev.event_time,
-                })
-                _accumulate(puzzle_stats.setdefault(pid, _new_puzzle_stats()), tokens, ev)
-            elif ev.kind == "model_completion":
-                steps.append({
-                    "type": "response",
-                    "text": p.get("response_text", ""),
-                    "result": p.get("result"),
-                    "wall_ms": p.get("wall_ms"),
-                    "puzzle_id": puzzle_id,
-                    "tokens": tokens,
-                    "ts": ev.event_time,
-                })
-                _accumulate(puzzle_stats.setdefault(pid, _new_puzzle_stats()), tokens, ev,
-                            str(p.get("result", "")))
-            elif ev.kind == "model_response":
-                last_eval_by_puzzle[pid] = {
-                    "guess_index": p.get("guess_index"),
-                    "result": p.get("result"),
-                    "response_text": p.get("response_text"),
-                    "ts": ev.event_time,
-                }
-                _accumulate(puzzle_stats.setdefault(pid, _new_puzzle_stats()), tokens, ev,
-                            str(p.get("result", "")))
-                steps.append({
-                    "type": "response",
-                    "text": p.get("response_text") or p.get("result", ""),
-                    "result": p.get("result"),
-                    "guess_index": p.get("guess_index"),
-                    "puzzle_id": puzzle_id,
-                    "tokens": tokens,
-                    "ts": ev.event_time,
-                })
-            elif ev.kind == "model_response_error":
-                # Diagnostic event: API call failed after exhausting retries.
-                # Render as a response bubble so the failure is visible in the log.
-                err_text = p.get("response_text") or p.get("error") or "(API error — no details captured)"
-                steps.append({
-                    "type": "response",
-                    "text": f"⚠ API error: {err_text}",
-                    "puzzle_id": puzzle_id,
-                    "tokens": tokens,
-                    "ts": ev.event_time,
-                    "is_error": True,
-                })
-                last_error_event = ev
-            elif ev.kind == "state_move":
-                st = extract_state_transition(ev)
-                if st:
-                    frm, to, pid_str = st
-                    puzzle_label = pid_str or pid
-                    if str(frm).upper() == "WIP" and str(to).upper() in ("DONE", "FAILED", "ERROR"):
-                        has_terminal_state_move = True
-                    reason = "SOLVED" if str(to).upper() == "DONE" else ("FAILED" if str(to).upper() == "ERROR" else str(to).upper())
-                    steps.append({
-                        "type": "task_end",
-                        "text": f"{puzzle_label} → {reason}",
-                        "from": frm,
-                        "to": to,
-                        "final_eval": last_eval_by_puzzle.get(str(puzzle_label)) or {},
-                        "summary": _puzzle_summary(puzzle_stats.get(str(puzzle_label)), ev.dt),
-                        "ts": ev.event_time,
-                    })
-
-        # Backfill: older runs logged WIP→FAILED via postings on model_response_error
-        # without a separate state_move event, leaving puzzles visually stuck in WIP.
-        # Synthesize a terminal task_end so the renderer reflects the actual outcome.
-        if not has_terminal_state_move and last_error_event is not None:
-            steps.append({
-                "type": "task_end",
-                "text": f"{puzzle_id} → FAILED",
-                "from": "WIP",
-                "to": "FAILED",
-                "final_eval": last_eval_by_puzzle.get(pid) or {},
-                "summary": _puzzle_summary(puzzle_stats.get(pid), last_error_event.dt),
-                "ts": last_error_event.event_time,
-            })
-
-    # Render HTML
-    parts: List[str] = []
-    parts.append("<html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
-    parts.append(f"<title>Run {escape_html(run_id)} · Logs</title>")
-    parts.append(f"<style>{RUN_CSS}</style></head><body>")
-    parts.append("<div class=\"container\">")
-    parts.append("<div class=\"panel\">")
-    parts.append("<div class=\"topbar\">")
-    parts.append(f"<div class=\"title\">Run {escape_html(run_id)}</div>")
-    parts.append(f"<div class=\"meta\">{escape_html(provider or '')} · {escape_html(model or '')} · <a href=\"../index.html\" style=\"color:#b6c7da\">Back</a></div>")
-    parts.append("</div>")
-    parts.append("<div class=\"content\">")
-
-    # Group steps by puzzle for collapsible rendering
-    puzzle_step_groups: List[Tuple[Optional[Any], List[Dict[str, Any]]]] = []
-    current_group_pid: Optional[Any] = None
-    current_group_steps: List[Dict[str, Any]] = []
-    for step in steps:
-        if step.get("type") == "puzzle_header":
-            if current_group_steps:
-                puzzle_step_groups.append((current_group_pid, current_group_steps))
-            current_group_pid = step.get("puzzle_id")
-            current_group_steps = []
-        else:
-            current_group_steps.append(step)
-    if current_group_steps:
-        puzzle_step_groups.append((current_group_pid, current_group_steps))
-
-    # Sort puzzles: lowest correct rate first, tie-break by highest cost first
-    def puzzle_audit_sort_key(item: Tuple[Optional[Any], List[Dict[str, Any]]]) -> Tuple[float, float]:
-        pid = item[0]
-        ps = puzzle_stats.get(str(pid), {}) if pid is not None else {}
-        guesses = int(ps.get("guesses", 0))
-        rate = int(ps.get("correct", 0)) / guesses if guesses > 0 else 0.0
-        return (rate, -float(ps.get("cost", 0.0)))  # ascending rate, descending cost
-
-    puzzle_step_groups.sort(key=puzzle_audit_sort_key)
-
-    for puzzle_pid, p_steps in puzzle_step_groups:
-        # Build summary stats for the collapsed header
-        ps = puzzle_stats.get(str(puzzle_pid), {}) if puzzle_pid is not None else {}
-        correct = int(ps.get("correct", 0))
-        guesses = int(ps.get("guesses", 0))
-        pct = f"{correct / guesses * 100:.0f}%" if guesses > 0 else "—"
-        cost = float(ps.get("cost", 0.0))
-        # Pick header style from the actual terminal outcome (last task_end step), not
-        # from "any wrong guesses ever" — a solved puzzle that took mistakes en route
-        # should still read as solved.
-        terminal_to: Optional[str] = None
-        for s in reversed(p_steps):
-            if s.get("type") == "task_end":
-                terminal_to = str(s.get("to", "")).upper()
-                break
-        if terminal_to == "DONE":
-            outcome_class = " puzzle-solved"
-        elif terminal_to in ("FAILED", "ERROR"):
-            outcome_class = " puzzle-failed"
-        else:
-            outcome_class = ""
-
-        # One-shot puzzles show the scoring breakdown in the header; classic
-        # puzzles keep the correct/guesses ratio (which is meaningless for
-        # one-shot: groups-matched over a single completion reads as "4/1").
-        breakdown = oneshot_score_breakdown(p_steps)
-        if breakdown:
-            # One-shot inference time comes from the completion's wall_ms —
-            # state-move timestamps all land post-response and read as 0s.
-            wall_ms = 0
-            for s in p_steps:
-                try:
-                    wall_ms += int(s.get("wall_ms") or 0)
-                except (TypeError, ValueError):
-                    pass
-            stats_inline = f"{breakdown} · Cost: ${cost:0.4f}"
-            if wall_ms:
-                stats_inline += f" · Time: {wall_ms / 1000:.1f}s"
-        else:
-            stats_inline = f"{correct}/{guesses} correct ({pct}) · ${cost:0.4f}"
-
-        parts.append(f"<details class=\"puzzle-block{outcome_class}\">")
-        parts.append(
-            f"<summary class=\"puzzle-summary\">"
-            f"<span class=\"pill\">Puzzle {escape_html(puzzle_pid)}</span>"
-            f"<span class=\"puzzle-stats-inline\">"
-            f"{escape_html(stats_inline)}"
-            f"</span>"
-            f"</summary>"
-        )
-
-        for step in p_steps:
-            st = step.get("type")
-            if st == "state":
-                parts.append(f"<div class=\"state\">{escape_html(step.get('text'))}</div>")
-                continue
-            if st == "task_end":
-                to_state = str(step.get("to", "")).upper()
-                pill_class = "endpill failed" if to_state in ("FAILED", "ERROR") else "endpill"
-                parts.append(f"<div class=\"{pill_class}\">{escape_html(step.get('text'))} <span class=\"meta\">({escape_html(step.get('from',''))} → {escape_html(step.get('to',''))})</span></div>")
-                fe = step.get("final_eval", {})
-                if fe:
-                    gi = fe.get("guess_index")
-                    res = fe.get("result")
-                    rtxt = fe.get("response_text")
-                    details_bits = []
-                    if res:
-                        details_bits.append(f"Result: {escape_html(res)}")
-                    if gi is not None:
-                        details_bits.append(f"Guess #: {escape_html(gi)}")
-                    if rtxt:
-                        th, rr = split_thinking_blocks(rtxt)
-                        inner = []
-                        if th:
-                            inner.append(f"<details><summary>Show final thinking</summary><div class=\"thinking\">{simple_markdown_to_html(th)}</div></details>")
-                        body = rr if (rr or th) else rtxt
-                        if body:
-                            inner.append(f"<div>{simple_markdown_to_html(body)}</div>")
-                        details_bits.append(" ".join(inner))
-                    parts.append(f"<div class=\"stats\">{' · '.join(details_bits)}</div>")
-                summ = step.get("summary", {})
-                if summ:
-                    parts.append(
-                        "<div class=\"stats\">"
-                        f"prompt: {summ.get('prompt_tokens', 0):,} · completion: {summ.get('completion_tokens', 0):,}"
-                        f" · guesses: {summ.get('guesses', 0)} · correct: {summ.get('correct', 0)}"
-                        f" · time: {summ.get('time', '--:--')} · cost: ${summ.get('cost', 0.0):0.4f}"
-                        "</div>"
-                    )
-                continue
-            if st == "prompt":
-                parts.append("<div class=\"row\">")
-                parts.append("<div class=\"bubble left\">")
-                parts.append(f"<div class=\"metahead\"><span>PROMPT</span><span>{escape_html(step.get('ts',''))}</span></div>")
-                parts.append(f"<div class=\"body\">{escape_html(step.get('text', ''))}</div>")
-                parts.append("</div>")
-                parts.append(_stats_line(step.get("tokens", {})))
-                parts.append("</div>")
-                continue
-            if st == "response":
-                raw_text = step.get("text", "")
-                thinking, rest = split_thinking_blocks(raw_text)
-                parts.append("<div class=\"row\">")
-                bubble_inner: List[str] = []
-                if thinking:
-                    bubble_inner.append(
-                        f"<details><summary>Show thinking</summary><div class=\"thinking\">{simple_markdown_to_html(thinking)}</div></details>"
-                    )
-                # Only fall back to the raw text when nothing was split out of it;
-                # a response that was entirely thinking renders as the block above.
-                body = rest if (rest or thinking) else raw_text
-                if body:
-                    bubble_inner.append(f"<div>{simple_markdown_to_html(body)}</div>")
-                bubble_class = "bubble right error" if step.get("is_error") else "bubble right"
-                parts.append(f"<div class=\"{bubble_class}\">")
-                gh = []
-                if step.get("guess_index") is not None:
-                    gh.append(f"Guess {escape_html(step['guess_index'])}")
-                if step.get("result"):
-                    gh.append(escape_html(step.get("result")))
-                if step.get("is_error"):
-                    meta_right = "API ERROR"
-                else:
-                    meta_right = " · ".join(gh) if gh else "RESPONSE"
-                parts.append(f"<div class=\"metahead\"><span>{meta_right}</span><span>{escape_html(step.get('ts',''))}</span></div>")
-                parts.append(f"<div class=\"body\">{''.join(bubble_inner)}</div>")
-                parts.append("</div>")
-                parts.append(_stats_line(step.get("tokens", {}), step.get("result")))
-                parts.append("</div>")
-                continue
-
-        parts.append("</details>")
-
-    parts.append("<div class=\"footer\">Generated by generate_logs_view.py</div>")
-    parts.append("</div></div></div></body></html>")
-    return "".join(parts)
-
-
 def _stats_line(tok: Dict[str, Any], result: Optional[str] = None) -> str:
     stats = []
     if tok.get("prompt_tokens"):
@@ -687,47 +399,234 @@ def _stats_line(tok: Dict[str, Any], result: Optional[str] = None) -> str:
     return f"<div class=\"stats\">{' · '.join(stats)}</div>" if stats else ""
 
 
-def write_run_page(run_id: str, html_text: str) -> Path:
-    DOCS_LOG_DIR.mkdir(parents=True, exist_ok=True)
-    out = DOCS_LOG_DIR / f"{run_id}.html"
-    out.write_text(html_text, encoding="utf-8")
-    return out
+def _thinking_html(raw: str, label: str, sep: str = "") -> str:
+    """A collapsed thinking block (when there is one) plus the remaining body."""
+    thinking, rest = split_thinking_blocks(raw)
+    out: List[str] = []
+    if thinking:
+        out.append(f"<details><summary>{label}</summary>"
+                   f"<div class=\"thinking\">{simple_markdown_to_html(thinking)}</div></details>")
+    # Only fall back to the raw text when nothing was split out of it; a response
+    # that was entirely thinking renders as the block above.
+    body = rest if (rest or thinking) else raw
+    if body:
+        out.append(f"<div>{simple_markdown_to_html(body)}</div>")
+    return sep.join(out)
+
+
+def _bubble(css_class: str, meta_left: str, step: Dict[str, Any], body: str,
+            result: Optional[str] = None) -> str:
+    """One chat bubble plus its trailing token/cost line."""
+    return (
+        f"<div class=\"row\"><div class=\"{css_class}\">"
+        f"<div class=\"metahead\"><span>{meta_left}</span>"
+        f"<span>{escape_html(step.get('ts', ''))}</span></div>"
+        f"<div class=\"body\">{body}</div></div>"
+        f"{_stats_line(step.get('tokens', {}), result)}</div>"
+    )
+
+
+def _render_task_end(step: Dict[str, Any]) -> str:
+    to_state = str(step.get("to", "")).upper()
+    pill_class = "endpill failed" if to_state in ("FAILED", "ERROR") else "endpill"
+    out = [f"<div class=\"{pill_class}\">{escape_html(step.get('text'))} "
+           f"<span class=\"meta\">({escape_html(step.get('from', ''))} → "
+           f"{escape_html(step.get('to', ''))})</span></div>"]
+    fe = step.get("final_eval", {})
+    if fe:
+        bits = []
+        if fe.get("result"):
+            bits.append(f"Result: {escape_html(fe['result'])}")
+        if fe.get("guess_index") is not None:
+            bits.append(f"Guess #: {escape_html(fe['guess_index'])}")
+        if fe.get("response_text"):
+            bits.append(_thinking_html(fe["response_text"], "Show final thinking", " "))
+        out.append(f"<div class=\"stats\">{' · '.join(bits)}</div>")
+    if step.get("summary"):
+        out.append(f"<div class=\"stats\">{step['summary']}</div>")
+    return "".join(out)
+
+
+def _render_response(step: Dict[str, Any]) -> str:
+    if step.get("is_error"):
+        meta_left = "API ERROR"
+    else:
+        head = []
+        if step.get("guess_index") is not None:
+            head.append(f"Guess {escape_html(step['guess_index'])}")
+        if step.get("result"):
+            head.append(escape_html(step.get("result")))
+        meta_left = " · ".join(head) if head else "RESPONSE"
+    css_class = "bubble right error" if step.get("is_error") else "bubble right"
+    body = _thinking_html(step.get("text", ""), "Show thinking")
+    return _bubble(css_class, meta_left, step, body, step.get("result"))
+
+
+def _puzzle_steps(p_events: List[Event], pid: str,
+                  stats_by_puzzle: Dict[str, PuzzleStats],
+                  eval_by_puzzle: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Turn one puzzle's events into render steps, accumulating its stats."""
+    steps: List[Dict[str, Any]] = []
+    # Track whether a terminal state transition (WIP→DONE/FAILED/ERROR) was emitted
+    # so we can synthesize one for older runs that only logged model_response_error.
+    has_terminal_state_move = False
+    last_error_event: Optional[Event] = None
+
+    def account(tokens: Dict[str, Any], ev: Event, result: Optional[str] = None) -> None:
+        stats_by_puzzle.setdefault(pid, PuzzleStats()).add(tokens, ev.dt, result)
+
+    for ev in p_events:
+        p = ev.payload
+        tokens = summarize_tokens_and_cost(ev.postings)
+        common = {"puzzle_id": ev.payload.get("puzzle_id"), "tokens": tokens,
+                  "ts": ev.event_time}
+        if ev.kind == "model_prompt":
+            steps.append({"type": "prompt", "text": p.get("request_text", ""),
+                          "tokens": tokens, "ts": ev.event_time})
+            account(tokens, ev)
+        elif ev.kind == "model_completion":
+            steps.append({"type": "response", "text": p.get("response_text", ""),
+                          "result": p.get("result"), "wall_ms": p.get("wall_ms"), **common})
+            account(tokens, ev, str(p.get("result", "")))
+        elif ev.kind == "model_response":
+            eval_by_puzzle[pid] = {"guess_index": p.get("guess_index"), "result": p.get("result"),
+                                   "response_text": p.get("response_text"), "ts": ev.event_time}
+            account(tokens, ev, str(p.get("result", "")))
+            steps.append({"type": "response", "text": p.get("response_text") or p.get("result", ""),
+                          "result": p.get("result"), "guess_index": p.get("guess_index"), **common})
+        elif ev.kind == "model_response_error":
+            # Diagnostic event: API call failed after exhausting retries.
+            # Render as a response bubble so the failure is visible in the log.
+            err = p.get("response_text") or p.get("error") or "(API error — no details captured)"
+            steps.append({"type": "response", "text": f"⚠ API error: {err}",
+                          "is_error": True, **common})
+            last_error_event = ev
+        elif ev.kind == "state_move":
+            st = extract_state_transition(ev)
+            if not st:
+                continue
+            frm, to, pid_str = st
+            label = pid_str or pid
+            if str(frm).upper() == "WIP" and str(to).upper() in ("DONE", "FAILED", "ERROR"):
+                has_terminal_state_move = True
+            to_u = str(to).upper()
+            reason = "SOLVED" if to_u == "DONE" else ("FAILED" if to_u == "ERROR" else to_u)
+            steps.append(_task_end(f"{label} → {reason}", frm, to, ev.event_time,
+                                   eval_by_puzzle.get(str(label)) or {},
+                                   stats_by_puzzle.get(str(label)), ev.dt))
+
+    # Backfill: older runs logged WIP→FAILED via postings on model_response_error
+    # without a separate state_move event, leaving puzzles visually stuck in WIP.
+    # Synthesize a terminal task_end so the renderer reflects the actual outcome.
+    if not has_terminal_state_move and last_error_event is not None:
+        steps.append(_task_end(f"{pid} → FAILED", "WIP", "FAILED", last_error_event.event_time,
+                               eval_by_puzzle.get(pid) or {}, stats_by_puzzle.get(pid),
+                               last_error_event.dt))
+    return steps
+
+
+def _task_end(text: str, frm: str, to: str, ts: str, final_eval: Dict[str, Any],
+              stats: Optional[PuzzleStats], end_dt: datetime) -> Dict[str, Any]:
+    return {"type": "task_end", "text": text, "from": frm, "to": to, "ts": ts,
+            "final_eval": final_eval,
+            "summary": stats.summary_line(end_dt) if stats is not None else ""}
+
+
+# Terminal state → puzzle-header modifier class.
+OUTCOME_CLASS = {"DONE": " puzzle-solved", "FAILED": " puzzle-failed",
+                 "ERROR": " puzzle-failed"}
+
+
+def _puzzle_header(pid: Any, p_steps: List[Dict[str, Any]], stats: PuzzleStats) -> str:
+    """The collapsed <summary> line: puzzle pill plus its headline numbers."""
+    terminal = next((str(s.get("to", "")).upper() for s in reversed(p_steps)
+                     if s.get("type") == "task_end"), "")
+    # Pick header style from the actual terminal outcome, not from "any wrong
+    # guesses ever" — a solved puzzle that took mistakes en route still reads solved.
+
+    # One-shot puzzles show the scoring breakdown in the header; classic puzzles
+    # keep the correct/guesses ratio (which is meaningless for one-shot:
+    # groups-matched over a single completion reads as "4/1").
+    breakdown = oneshot_score_breakdown(p_steps)
+    if breakdown:
+        # One-shot inference time comes from the completion's wall_ms —
+        # state-move timestamps all land post-response and read as 0s.
+        wall_ms = sum(_int0(s.get("wall_ms")) for s in p_steps)
+        inline = f"{breakdown} · Cost: ${stats.cost:0.4f}"
+        if wall_ms:
+            inline += f" · Time: {wall_ms / 1000:.1f}s"
+    else:
+        pct = f"{stats.correct / stats.guesses * 100:.0f}%" if stats.guesses else "—"
+        inline = f"{stats.correct}/{stats.guesses} correct ({pct}) · ${stats.cost:0.4f}"
+
+    return (f"<details class=\"puzzle-block{OUTCOME_CLASS.get(terminal, '')}\">"
+            f"<summary class=\"puzzle-summary\">"
+            f"<span class=\"pill\">Puzzle {escape_html(pid)}</span>"
+            f"<span class=\"puzzle-stats-inline\">{escape_html(inline)}</span>"
+            f"</summary>")
+
+
+def render_run_html(run_id: str, events: List[Event]) -> str:
+    # Model/provider come from the first event that names each.
+    model = next((m for ev in events if (m := ev.payload.get("model"))), None)
+    provider = next((p for ev in events if (p := ev.payload.get("provider"))), None)
+
+    # Group events by puzzle_id, then order by timestamp within each puzzle, so
+    # each puzzle's conversation stays a coherent block even for parallel runs.
+    # Events without a puzzle_id are dropped.
+    puzzle_events: Dict[Any, List[Event]] = {}
+    for ev in events:
+        pid = ev.payload.get("puzzle_id") if ev.kind in PUZZLE_KINDS else None
+        if pid is not None:
+            puzzle_events.setdefault(pid, []).append(ev)
+
+    stats_by_puzzle: Dict[str, PuzzleStats] = {}
+    eval_by_puzzle: Dict[str, Dict[str, Any]] = {}  # last graded eval, run-scoped
+    groups: List[Tuple[Any, List[Dict[str, Any]]]] = []
+    for puzzle_id in sorted(puzzle_events, key=_int0):
+        p_events = sorted(puzzle_events[puzzle_id], key=lambda e: e.dt)
+        p_steps = _puzzle_steps(p_events, str(puzzle_id), stats_by_puzzle, eval_by_puzzle)
+        if p_steps:  # a puzzle whose events produced nothing renderable is skipped
+            groups.append((puzzle_id, p_steps))
+
+    # Audit order: lowest correct rate first, highest cost first among ties.
+    groups.sort(key=lambda g: stats_by_puzzle.get(str(g[0]), NO_STATS).audit_key)
+
+    render_step = {"prompt": lambda s: _bubble("bubble left", "PROMPT", s,
+                                               escape_html(s.get("text", ""))),
+                   "response": _render_response,
+                   "task_end": _render_task_end}
+
+    parts: List[str] = []
+    for pid, p_steps in groups:
+        parts.append(_puzzle_header(pid, p_steps, stats_by_puzzle.get(str(pid), NO_STATS)))
+        parts += [render_step[s["type"]](s) for s in p_steps if s["type"] in render_step]
+        parts.append("</details>")
+
+    run = escape_html(run_id)
+    return PAGE.substitute(
+        title=f"Run {run} · Logs", css=RUN_CSS, heading=f"Run {run}",
+        meta=f"{escape_html(provider or '')} · {escape_html(model or '')} · {BACK_LINK}",
+        content="".join(parts),
+    )
 
 
 def build_logs_index(pages: List[Tuple[str, Path]]) -> None:
     # Industrial 1980s-themed index. Run ids are "<timestamp>_<model>".
-    rows_html = []
-    for run, p in sorted(pages):
-        model = run.split("_", 1)[1] if "_" in run else ""
-        rows_html.append(
-            "".join(
-                [
-                    "<div class=\"tr row\">",
-                    f"<div class=\"td\">{escape_html(run)}</div>",
-                    f"<div class=\"td\">{escape_html(model)}</div>",
-                    f"<div class=\"td link\"><a href=\"{escape_html(p.name)}\">Open</a></div>",
-                    "</div>",
-                ]
-            )
-        )
-
-    page = (
-        "<html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-        "<title>Logs</title>" f"<style>{INDEX_CSS}</style></head><body>"
-        "<div class=\"container\"><div class=\"panel\">"
-        "<div class=\"topbar\"><div class=\"title\">Logs</div>"
-        "<div class=\"meta\"><a href=\"../index.html\" style=\"color:#b6c7da\">Back</a></div></div>"
-        "<div class=\"content\">"
-        "<div class=\"thead\"><div class=\"row\">"
-        "<div class=\"td\" style=\"border:2px solid #2b3035;border-bottom:none;background:#f2f5f8;\">Run ID</div>"
-        "<div class=\"td\" style=\"border:2px solid #2b3035;border-bottom:none;background:#f2f5f8;\">Model</div>"
-        "<div class=\"td\" style=\"border:2px solid #2b3035;border-bottom:none;background:#f2f5f8;\">Action</div>"
-        "</div></div>"
-        + "".join(rows_html) +
-        "<div class=\"footer\">Generated by generate_logs_view.py</div>"
-        "</div></div></div></body></html>"
+    head = "".join(f"<div class=\"td\" style=\"{TH_STYLE}\">{h}</div>"
+                   for h in ("Run ID", "Model", "Action"))
+    rows = "".join(
+        "<div class=\"tr row\">"
+        f"<div class=\"td\">{escape_html(run)}</div>"
+        f"<div class=\"td\">{escape_html(run.split('_', 1)[1] if '_' in run else '')}</div>"
+        f"<div class=\"td link\"><a href=\"{escape_html(p.name)}\">Open</a></div>"
+        "</div>"
+        for run, p in sorted(pages)
     )
-
+    page = PAGE.substitute(
+        title="Logs", css=INDEX_CSS, heading="Logs", meta=BACK_LINK,
+        content=f"<div class=\"thead\"><div class=\"row\">{head}</div></div>{rows}",
+    )
     (DOCS_LOG_DIR / "index.html").write_text(page, encoding="utf-8")
 
 
@@ -739,38 +638,32 @@ def read_allowed_run_ids() -> List[str]:
     if not RUN_SUMMARIES_CSV.exists():
         return []
 
-    rows: List[Dict[str, Any]] = []
+    # The one-shot and classic leaderboards each link their own latest run per model.
+    best: Dict[str, Tuple[datetime, Optional[str]]] = {}
     with RUN_SUMMARIES_CSV.open("r", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             try:
-                if int(r.get("puzzles_attempted", "0") or 0) < 11:
-                    continue
                 # One-shot runs have exactly one guess per puzzle (<= 20 on the
                 # canonical set), so the classic >40 guess floor would exclude
                 # every one of them. Only apply it to classic runs.
-                run_mode = (r.get("mode") or "classic").strip() or "classic"
-                if run_mode != "oneshot" and int(r.get("total_guesses", "0") or 0) <= 40:
+                mode = (r.get("mode") or "classic").strip() or "classic"
+                if (int(r.get("puzzles_attempted", "0") or 0) < 11
+                        or (mode != "oneshot"
+                            and int(r.get("total_guesses", "0") or 0) <= 40)
+                        or r.get("total_cost", "") in ("", None)):
                     continue
-                if r.get("total_cost", "") in ("", None):
-                    continue
-                rows.append(r)
             except (TypeError, ValueError):
                 continue
+            # MotherDuck emits some timestamps tz-naive; normalize to UTC so
+            # comparisons don't mix offset-aware and offset-naive datetimes.
+            dt = _parse_dt(r.get("start_timestamp", ""))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            key = f"{r.get('model', '')}|{mode}"
+            if key not in best or dt > best[key][0]:
+                best[key] = (dt, r.get("run_id"))
 
-    # The one-shot and classic leaderboards each link their own latest run per model.
-    best_by_key: Dict[str, Dict[str, Any]] = {}
-    for r in rows:
-        key = f"{r.get('model', '')}|{(r.get('mode') or 'classic').strip() or 'classic'}"
-        # MotherDuck emits some timestamps tz-naive; normalize to UTC so
-        # comparisons don't mix offset-aware and offset-naive datetimes.
-        dt = _parse_dt(r.get("start_timestamp", ""))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        existing = best_by_key.get(key)
-        if existing is None or dt > existing["dt"]:
-            best_by_key[key] = {"row": r, "dt": dt}
-
-    return [v["row"]["run_id"] for v in best_by_key.values() if v["row"].get("run_id")]
+    return [run_id for _, run_id in best.values() if run_id]
 
 
 def prune_orphan_pages(allowed: Iterable[str]) -> int:
@@ -809,11 +702,8 @@ def main():
     print(f"🧭 Rendering {len(to_render)} run page(s)"
           + ("" if args.force else f" ({len(allowed_run_ids) - len(to_render)} already present)"))
 
-    pages: List[Tuple[str, Path]] = [
-        (r, DOCS_LOG_DIR / f"{r}.html")
-        for r in allowed_run_ids
-        if r not in to_render
-    ]
+    pages: List[Tuple[str, Path]] = [(r, DOCS_LOG_DIR / f"{r}.html")
+                                     for r in allowed_run_ids if r not in to_render]
 
     if to_render:
         runs = group_by_run(load_events_and_postings(to_render))
@@ -822,7 +712,9 @@ def main():
             if not evs:
                 print(f"  !! No controllog events for {run_id}; skipping")
                 continue
-            out = write_run_page(run_id, render_run_html(run_id, evs))
+            DOCS_LOG_DIR.mkdir(parents=True, exist_ok=True)
+            out = DOCS_LOG_DIR / f"{run_id}.html"
+            out.write_text(render_run_html(run_id, evs), encoding="utf-8")
             pages.append((run_id, out))
             print(f"  Wrote {out}")
 
