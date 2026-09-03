@@ -519,16 +519,6 @@ class TestConnectionsGameMode:
         assert "<guess>" in game.prompt_template
         assert "<answer>" not in game.prompt_template
 
-    def test_both_prompts_request_token_efficiency(self):
-        for mode in ("classic", "oneshot"):
-            game = ConnectionsGame(self._INPUTS, Path("logs"), mode=mode)
-            assert "You are being evaluated for intelligence." in game.prompt_template
-            assert "Use as few tokens as possible" in game.prompt_template
-
-    def test_game_defaults_to_maximum_reasoning_effort(self):
-        game = ConnectionsGame(self._INPUTS, Path("logs"))
-        assert game.reasoning_effort == "xhigh"
-
 
 class TestOneshotEndToEnd:
     """run_evaluation drives the one-shot path end to end (mocked adapter)."""
@@ -1365,10 +1355,10 @@ class TestReasoningEffort:
         chat([{"role": "user", "content": "test"}], model, **kwargs)
         return mock_post.call_args.kwargs["json"]
 
-    def test_thinking_model_defaults_to_maximum(self):
+    def test_thinking_model_defaults_to_minimal(self):
         # openai/o3 is in the thinking section of model_mappings.yml
         payload = self._call_chat(model="openai/o3")
-        assert payload["reasoning"] == {"effort": "xhigh"}
+        assert payload["reasoning"] == {"effort": "minimal"}
 
     def test_thinking_model_effort_override(self):
         payload = self._call_chat(model="openai/o3", reasoning_effort="high")

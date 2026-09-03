@@ -148,9 +148,9 @@ def run(
         help="Evaluation mode: classic (multi-turn guessing) or oneshot (single submission of all 4 groups)"
     ),
     reasoning_effort: Optional[str] = typer.Option(
-        openrouter_adapter.DEFAULT_REASONING_EFFORT,
+        None,
         "--reasoning-effort",
-        help="Reasoning effort for thinking models: minimal, low, medium, high, xhigh (default: xhigh; ignored for non-thinking models)"
+        help="Reasoning effort for thinking models: minimal, low, medium, high, xhigh (default: minimal; ignored for non-thinking models)"
     ),
     structured_output: bool = typer.Option(
         False,
