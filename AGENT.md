@@ -16,6 +16,7 @@
 - **Install deps**: `uv sync`
 - **Extract data**: `uv run python scripts/extract_summaries.py` (creates results/run_summaries.csv)
 - **Generate leaderboards**: `uv run python scripts/create_results_mviz.py` (docs/index.html = one-shot, docs/classic.html = classic multi-turn)
+- **Generate log pages**: `uv run python scripts/generate_logs_view.py` (docs/logs/*.html; renders only missing pages and prunes pages for runs that left the leaderboards — add `--force` to re-render everything after a template change)
 
 ## Architecture
 - **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics. Both runners (`_run_puzzle_ai` classic, `_run_puzzle_oneshot_ai` one-shot) share `_run_exchange()` for transport + accounting + telemetry (including the API-error path) and supply only a per-mode verdict callback returning a `_Verdict`; keep mode-specific result strings and log fields in those callbacks

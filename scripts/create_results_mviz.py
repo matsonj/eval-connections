@@ -12,10 +12,8 @@ import pandas as pd
 import os
 
 
-def load_and_filter_data(
-    csv_file: str = "results/run_summaries.csv", mode: str = "oneshot"
-) -> pd.DataFrame:
-    """Load CSV data and apply filtering logic for one eval mode."""
+def load_summaries(csv_file: str = "results/run_summaries.csv") -> pd.DataFrame:
+    """Read the run summaries CSV and normalize columns across CSV versions."""
     df = pd.read_csv(csv_file)
 
     # Backfill columns added in later versions so older CSVs still render.
@@ -36,8 +34,11 @@ def load_and_filter_data(
     # Pre-4.0 CSVs have no mode column; every run back then was classic.
     if "mode" not in df.columns:
         df = df.assign(mode="classic")
-    df = df.assign(mode=df["mode"].fillna("classic"))
+    return df.assign(mode=df["mode"].fillna("classic"))
 
+
+def filter_for_mode(df: pd.DataFrame, mode: str = "oneshot") -> pd.DataFrame:
+    """Apply the leaderboard filtering logic for one eval mode."""
     filtered_df = df[
         (df["puzzles_attempted"] == 20)
         & (df["total_cost"].notna())
@@ -92,13 +93,6 @@ def load_and_filter_data(
     ).drop(columns=["_sort_time"])
 
     return latest_runs
-
-
-
-def format_percentage(rate):
-    if rate >= 1.0:
-        return "1.000"
-    return f".{int(rate * 1000):03d}"
 
 
 def format_time(seconds):
@@ -319,56 +313,17 @@ def render_html(
     print(f"HTML rendered to {html_path}")
 
 
-def inject_table_link_into_readme(readme_path: str = "README.md"):
-    """Inject a link to the HTML table into README.md."""
-    with open(readme_path, "r", encoding="utf-8") as f:
-        readme_content = f.read()
-
-    results_section = """## Latest Results
-
-[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/) - Sports-style box score showing latest one-shot model performance ([classic leaderboard](https://matsonj.github.io/eval-connections/classic.html))
-
-*Table includes points scored, costs, token usage, and timing metrics formatted like sports statistics.*
-
-"""
-
-    if "## Latest Results" in readme_content:
-        start_idx = readme_content.find("## Latest Results")
-        end_idx = readme_content.find("## License", start_idx)
-        if end_idx != -1:
-            new_readme = (
-                readme_content[:start_idx] + results_section + readme_content[end_idx:]
-            )
-        else:
-            print("Could not find License section to place results before")
-            return False
-    else:
-        license_idx = readme_content.find("## License")
-        if license_idx != -1:
-            new_readme = (
-                readme_content[:license_idx]
-                + results_section
-                + readme_content[license_idx:]
-            )
-        else:
-            new_readme = readme_content + "\n\n" + results_section
-
-    with open(readme_path, "w", encoding="utf-8") as f:
-        f.write(new_readme)
-
-    print(f"HTML table link injected into {readme_path}")
-    return True
-
-
 def main():
     pages = [
         ("oneshot", "docs/results.md", "docs/index.html"),
         ("classic", "docs/classic.md", "docs/classic.html"),
     ]
 
+    summaries = load_summaries("results/run_summaries.csv")
+
     for mode, md_path, html_path in pages:
         print(f"Creating mviz results table for {mode} mode...")
-        df = load_and_filter_data("results/run_summaries.csv", mode=mode)
+        df = filter_for_mode(summaries, mode=mode)
 
         if df.empty:
             # No runs for this mode yet (e.g. oneshot before the backfill).
@@ -391,8 +346,6 @@ def main():
 
         write_mviz_markdown(df, md_path, mode=mode)
         render_html(md_path, html_path)
-
-    inject_table_link_into_readme("README.md")
 
 
 if __name__ == "__main__":
