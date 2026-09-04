@@ -134,11 +134,10 @@ class TestAdapterPayload:
     @patch("connections_eval.adapters.openrouter_adapter.requests.post")
     def test_response_format_and_cap_only_when_requested(self, mock_post):
         from connections_eval.adapters import openrouter_adapter
-        thinking = next(iter(openrouter_adapter._THINKING_MODELS))
         rf = build_response_format("oneshot")
-        with_rf = self._payload(mock_post, thinking, response_format=rf)
+        with_rf = self._payload(mock_post, "any/thinking-model", thinking=True, response_format=rf)
         assert with_rf["response_format"] == rf
         assert with_rf["max_tokens"] == openrouter_adapter.STRUCTURED_OUTPUT_MAX_TOKENS
-        plain = self._payload(mock_post, thinking)
+        plain = self._payload(mock_post, "any/thinking-model", thinking=True)
         assert "response_format" not in plain and "max_tokens" not in plain
         assert self._payload(mock_post, "test/model", response_format=rf)["max_tokens"] == 25000

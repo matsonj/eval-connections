@@ -29,11 +29,17 @@ def main():
 def _validate_run_args(
     model: Optional[str], interactive: bool, puzzles: Optional[int],
     puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
-    prompt_file: str, mode: str, reasoning_effort: Optional[str] = None,
-    structured_output: bool = False,
-) -> Optional[List[int]]:
+    mode: str, reasoning_effort: Optional[str] = None,
+) -> None:
     """
-    Validate run command arguments and return parsed puzzle IDs.
+    Validate run command arguments that don't need the constructed game:
+    mode, reasoning effort, --model/--interactive mutual exclusion, puzzle
+    selection mutual exclusion, and that inputs_path exists.
+
+    The unknown-model check runs in `run()` right after the (single) game
+    is constructed, and the remaining checks (API key, puzzle/template
+    files, --puzzle-ids parsing) run afterward in `_validate_run_paths` —
+    both need to slot into this exact point in the validation order.
 
     Raises typer.Exit on validation failure.
     """
@@ -70,19 +76,18 @@ def _validate_run_args(
         console.print(f"Inputs path does not exist: {inputs_path}", style="red")
         raise typer.Exit(1)
 
-    if model:
-        try:
-            temp_game = ConnectionsGame(inputs_path, Path("logs"))
-        except FileNotFoundError as e:
-            console.print(f"Error loading model config: {e}", style="red")
-            raise typer.Exit(1)
-        if model not in temp_game.MODEL_CONFIG:
-            console.print(f"Unknown model: {model}", style="red")
-            console.print("Available models:", style="yellow")
-            for model_name in temp_game.MODEL_CONFIG.keys():
-                console.print(f"  - {model_name}")
-            raise typer.Exit(2)
 
+def _validate_run_paths(
+    interactive: bool, inputs_path: Path, prompt_file: str, mode: str,
+    puzzle_ids: Optional[str],
+) -> Optional[List[int]]:
+    """
+    Validate the API key and puzzle/template files, and parse --puzzle-ids.
+
+    Runs after the unknown-model check in `run()` — see `_validate_run_args`.
+
+    Raises typer.Exit on validation failure.
+    """
     if not interactive and not os.getenv("OPENROUTER_API_KEY"):
         console.print("OPENROUTER_API_KEY environment variable not set. Run: source .env", style="red")
         raise typer.Exit(1)
@@ -199,9 +204,8 @@ def run(
     )
 ):
     """Run connections evaluation."""
-    parsed_puzzle_ids = _validate_run_args(
-        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
-        reasoning_effort, structured_output,
+    _validate_run_args(
+        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, mode, reasoning_effort,
     )
 
     # Get model name for interactive mode
@@ -210,12 +214,28 @@ def run(
     else:
         model_name = model
 
-    # Initialize game
+    # Build the game once — used for the unknown-model check right below and
+    # for the run itself (previously a throwaway validation instance was
+    # built here in addition to the "real" one, loading puzzles/template/
+    # mappings twice).
     try:
         game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode,
                                reasoning_effort=reasoning_effort,
                                structured_output=structured_output)
+    except FileNotFoundError as e:
+        console.print(f"Error loading model config: {e}", style="red")
+        raise typer.Exit(1)
 
+    if model and model not in game.MODEL_CONFIG:
+        console.print(f"Unknown model: {model}", style="red")
+        console.print("Available models:", style="yellow")
+        for available_model in game.MODEL_CONFIG.keys():
+            console.print(f"  - {available_model}")
+        raise typer.Exit(2)
+
+    parsed_puzzle_ids = _validate_run_paths(interactive, inputs_path, prompt_file, mode, puzzle_ids)
+
+    try:
         # Fail fast on a bad OpenRouter slug instead of burning the retry
         # budget on every puzzle.
         if not interactive:
@@ -252,7 +272,7 @@ def run(
                 )
 
         # Show run info
-        console.print(f"Starting Connections evaluation", style="bold blue")
+        console.print("Starting Connections evaluation", style="bold blue")
         console.print(f"Mode: {'Interactive' if interactive else f'AI Model ({model})'}")
         console.print(f"Evaluation Mode: {mode}")
         if reasoning_effort:
@@ -313,7 +333,7 @@ def run(
                 # Cleanup local files if not keeping them
                 if not keep_local_files:
                     console.print("Cleaning up local files...", style="dim")
-                    cleanup_local_files(ctrl_log_dir, summary["run_id"], keep_local_files)
+                    cleanup_local_files(ctrl_log_dir, summary["run_id"])
                     console.print("Local files cleaned up", style="green")
                 else:
                     console.print("Keeping local files (--keep-local-files flag set)", style="dim")
@@ -451,7 +471,7 @@ def list_puzzles(
     table.add_column("Canonical", style="green")
 
     for puzzle in sorted(game.puzzles, key=lambda p: p.id):
-        row = [str(puzzle.id), puzzle.date]
+        row = [str(puzzle.id), str(puzzle.date)]
         if difficulty:
             row.append(f"{puzzle.difficulty:.1f}")
         row.append("yes" if puzzle.canonical else "")
