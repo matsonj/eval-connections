@@ -35,23 +35,28 @@ the method, not just the model name.
 3. Ask one 3-level Score question per pair of remaining words: "do these two
    belong to the same group of four?" Instructions are structured objects
    (`{task, word_a, word_b}`), not prose.
-4. Score every candidate set of four by summing its six pair scores.
-5. Apply the feedback constraints:
-   - a set that was already guessed wrong is excluded;
-   - after a plain INCORRECT (no ONE AWAY), any set sharing three or more
-     words with that guess is excluded, because the game would have said
-     ONE AWAY if a real group overlapped that much;
-   - after a ONE AWAY, sets sharing exactly three words with that guess get a
-     bonus;
-   - after two or more ONE AWAYs, only sets that overlap every one of them in
-     exactly three words remain, on the assumption they point at the same
-     group.
-6. Take the top 60 candidate sets by pair score and ask Jev a direct 3-level
-   Score on each: "do these four together form one of the real groups?"
-7. Blend the two signals with equal weight (mean pair score plus direct set
-   score, both on a 0 to 1 scale) and guess the best set.
+4. Score every candidate set of four by summing its six pair scores, giving a
+   value from 0 to 6.
+5. Keep only candidates consistent with the feedback so far. The rules are
+   exact, not heuristic:
+   - a real group overlaps a plain INCORRECT guess in at most 2 words, because
+     the game would have said ONE AWAY at 3 and CORRECT at 4;
+   - a real group overlaps a ONE AWAY guess in 0, 1 or 3 words, never 2 or 4,
+     because one group takes 3 of that guess's words and the fourth word
+     belongs to some other group.
+   Candidates overlapping a ONE AWAY guess in exactly 3 words also get a bonus
+   of 1.0 added to their pair sum.
+6. Take the top 60 candidates by that score and ask Jev a direct 3-level Score
+   on each: "do these four together form one of the real groups?"
+7. Blend: `(pair sum + bonus) / 6 + direct score / 2`. The pair component runs
+   from 0 to 7/6, the set component from 0 to 1. Guess the best set.
 8. Our code judges the guess against the answer key and updates the feedback.
    Jev never sees the feedback text; it only ever answers questions.
+
+Two shortcuts skip the API: when exactly four words remain they are guessed
+directly, and when the feedback leaves a single consistent candidate it is
+guessed without the direct set Score. A puzzle whose requests fail after five
+attempts is recorded as a failure and the rest of the run still completes.
 
 ## Results on the canonical 20 (2026-09-17, `jev-1.13.0`)
 
@@ -62,7 +67,8 @@ the method, not just the model name.
 | Classic, Score-3 pairs, re-queried each turn | 10 to 12 | 54 to 58 | 15 to 16 | 2.3 |
 | Classic, structured Score-3 pairs | 11 to 12 | 57 to 61 | 15 to 16 | 2.2 |
 | Classic, structured pairs plus direct set-Score blend | 13 to 16 | 61 to 67 | 18 | 1.7 |
-| **Above plus the multi-ONE-AWAY deduction (this script)** | **15, 15, 16** | **65, 67, 69** | **16 to 18** | **1.6 to 2.0** |
+| Above plus a same-group ONE AWAY heuristic (superseded, see below) | 15, 15, 16 | 65, 67, 69 | 16 to 18 | 1.6 to 2.0 |
+| **Above with exact feedback rules (this script)** | **15** | **67** | **16** | **2.0** |
 
 Jev is not deterministic. Identical requests return slightly different
 probabilities, and the answers depend on word order. Repeated runs of one
@@ -78,17 +84,17 @@ on both sides; each sits in a band of about one win either way.
 
 | Metric | Haiku 4.5 | Jev solver |
 |---|---|---|
-| Puzzles won | 15 of 20 | 16 of 20 |
-| Groups found | 63 of 80 | 69 of 80 |
-| Total guesses | 93 | 109 |
+| Puzzles won | 15 of 20 | 15 of 20 |
+| Groups found | 63 of 80 | 67 of 80 |
+| Total guesses | 93 | 107 |
 | Incorrect guesses per puzzle | 1.5 | 2.0 |
-| Guess accuracy | 67.7% | 63.3% |
-| Time for all 20 | 600 s | 11.5 s |
+| Guess accuracy | 67.7% | 62.6% |
+| Time for all 20 | 600 s | 6 s |
 | Cost | $0.50 | $0.06 |
 
-They fail on different puzzles. Jev solved 814, 815 and 818, which Haiku did
-not; Haiku solved 817, 832 and 842, and Jev lost 817 and 832 to its known blind
-spots. Both scored 2 on 246 and near zero on 830.
+They fail on different puzzles. Jev solves 814, 815 and 818, which Haiku did
+not; Haiku solved 817, 832 and 842, which Jev loses to its known blind spots
+and traps. Both score 2 on 246 and near zero on 830.
 
 ## How we got here
 
@@ -132,14 +138,18 @@ but a near-miss set with one word swapped beat the truth in 5 of 16 groups. The
 two signals fail in different places, and adding them fixed puzzles 831, 836 and
 837 that pairs alone never solved.
 
-**Why the ONE AWAY deduction.** Puzzle 817 showed the blend fixating: Jev reads
-TANG as a flavour word, so four consecutive guesses were KICK, PUNCH, ZEST, ZING
-with TANG swapped in for a different word each time, each coming back ONE AWAY.
-Two ONE AWAYs that share three words already constrain the answer tightly, so
-the solver now restricts itself to sets consistent with all of them. 817 can
-still be lost: two ONE AWAYs admit two hypotheses, and both TANG (piquancy) and
-STAG (male animal) are genuine traps that Jev prefers, so it can rotate through
-consistent wrong sets until the mistakes run out.
+**Why the exact feedback rules.** Puzzle 817 showed the blend fixating: Jev
+reads TANG as a flavour word, so four consecutive guesses were KICK, PUNCH,
+ZEST, ZING with TANG swapped in for a different word each time, each coming
+back ONE AWAY. The first fix assumed all ONE AWAYs point at the same group and
+kept only sets overlapping each in exactly 3 words. A code review showed that
+assumption is unsound: two ONE AWAYs aimed at different groups can leave only
+wrong sets standing, and the filter went dead for the rest of a game as soon as
+one clue's group was solved. The current rules are the ones that hold for any
+valid puzzle, so they never exclude a real group and they stay useful after
+groups are solved. 817 can still be lost: both TANG (piquancy) and STAG (male
+animal) are genuine traps that Jev prefers, and the rules alone cannot tell the
+trap word from the real fourth member.
 
 ## What did not help
 
