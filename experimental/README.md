@@ -14,7 +14,13 @@ uv run python experimental/jev_classic_solver.py --all --threads 10
 
 Each run prints a per-puzzle transcript and summary and writes a JSON file to
 `experimental/runs/`. A canonical run costs about six cents and takes under ten
-seconds.
+seconds; the 64-puzzle held-out cohort costs about twenty cents.
+
+```bash
+uv run python experimental/jev_classic_solver.py --puzzles experimental/puzzles_heldout64.yml   # held-out 64
+uv run python experimental/jev_classic_solver.py --puzzles experimental/puzzles_dev.yml          # dev 32
+uv run python experimental/jev_classic_solver.py --endgame greedy                                 # fewer mistakes, fewer wins
+```
 
 ## Why this exists
 
@@ -49,16 +55,62 @@ the method, not just the model name.
 6. Take the top 60 candidates by that score and ask Jev a direct 3-level Score
    on each: "do these four together form one of the real groups?"
 7. Blend: `(pair sum + bonus) / 6 + direct score / 2`. The pair component runs
-   from 0 to 7/6, the set component from 0 to 1. Guess the best set.
-8. Our code judges the guess against the answer key and updates the feedback.
-   Jev never sees the feedback text; it only ever answers questions.
+   from 0 to 7/6, the set component from 0 to 1.
+8. Feasibility guard: walk the blended ranking and guess the first set whose
+   leftover words can still be split into feedback-consistent groups, with every
+   outstanding ONE AWAY clue satisfied by some group. A set that cannot be part
+   of any complete solution is never guessed, however good it looks.
+9. At eight words, switch to the endgame. Only 35 splits into two groups exist.
+   Drop the splits inconsistent with feedback, then ask Jev, in one request, a
+   Noul per half ("do these four share a specific, conventional connection?")
+   and two Choice questions over the whole splits (each split written both
+   ways round). A split's weight is the odds of its more recognisable half,
+   cubed, times its Choice probability. An exact decision tree over the
+   remaining mistake budget then picks the guess that maximises the weighted
+   chance of eventually finishing, which can mean an informative guess rather
+   than the likeliest one. `--endgame greedy` instead guesses the heaviest
+   split's stronger half.
+10. Our code judges the guess against the answer key and updates the feedback.
+    Jev never sees the feedback text; it only ever answers questions.
 
 Two shortcuts skip the API: when exactly four words remain they are guessed
-directly, and when the feedback leaves a single consistent candidate it is
-guessed without the direct set Score. A puzzle whose requests fail after five
+directly, and when the feedback leaves a single consistent candidate or split it
+is guessed without further questions. A puzzle whose requests fail after five
 attempts is recorded as a failure and the rest of the run still completes.
 
-## Results on the canonical 20 (2026-09-17, `jev-1.13.0`)
+## Puzzle sets
+
+- `inputs/connections_puzzles.yml`, canonical 20: the leaderboard set shared with
+  the LLM runs. Small, and it flatters this solver: 75 to 80% here against about
+  53% on a broad sample.
+- `experimental/puzzles_heldout64.yml`, 64 puzzles, 16 per year 2023 to 2026:
+  the test set. Taken from Mike Harris's `mharris717/connections` cohort on which
+  he ran our unmodified solver, so his numbers and ours are directly comparable.
+  Frozen; never tune on it.
+- `experimental/puzzles_dev.yml`, 32 puzzles, 8 per year: for choosing
+  parameters. Disjoint from both sets above.
+
+All three come from the public Eyefyre NYT-Connections-Answers archive and may
+have appeared in Jev's training data.
+
+## Results on the held-out 64 (2026-09-17, `jev-1.13.0`)
+
+| Solver | Wins /64 | Groups /256 | Mistakes per puzzle |
+|---|---|---|---|
+| Ours before this change, Mike's run of the exact Python | 33 | | 2.5 |
+| Ours before this change, our two runs | 34, 33 | 176, 174 | 2.5 |
+| Guard + planner with our blended scores as weights | 34 | 175 | 3.2 |
+| **Guard + planner with Harris weights (this script)** | **39, 36** | **187, 179** | 3.2 |
+| Mike's hybrid (his run) | 42 | | 2.8 |
+
+Paired on the first run pair, the new endgame won 7 puzzles the old solver lost
+and lost 2 it had won. Endgame conversion went from 34 of 50 to 39 of 51; with
+all four lives intact it went from 18 of 23 to 22 of 24. The cost is the trade
+Mike documented: mistakes up about a quarter and zero-mistake solves gone,
+because the planner deliberately spends lives on informative guesses. On the
+classic leaderboard the solve rate is the headline, so we take that trade.
+
+## Results on the canonical 20 (2026-09-17, `jev-1.13.0`, before the endgame change)
 
 | Method | Wins /20 | Groups /80 | First guess correct | Mistakes per puzzle |
 |---|---|---|---|---|
@@ -68,7 +120,8 @@ attempts is recorded as a failure and the rest of the run still completes.
 | Classic, structured Score-3 pairs | 11 to 12 | 57 to 61 | 15 to 16 | 2.2 |
 | Classic, structured pairs plus direct set-Score blend | 13 to 16 | 61 to 67 | 18 | 1.7 |
 | Above plus a same-group ONE AWAY heuristic (superseded, see below) | 15, 15, 16 | 65, 67, 69 | 16 to 18 | 1.6 to 2.0 |
-| **Above with exact feedback rules (this script)** | **15** | **67** | **16** | **2.0** |
+| Above with exact feedback rules | 15 | 67 | 16 | 2.0 |
+| **Above plus feasibility guard and endgame planner (this script)** | **15** | **66** | **16** | **3.0** |
 
 Jev is not deterministic. Identical requests return slightly different
 probabilities, and the answers depend on word order. Repeated runs of one
@@ -151,6 +204,21 @@ groups are solved. 817 can still be lost: both TANG (piquancy) and STAG (male
 animal) are genuine traps that Jev prefers, and the rules alone cannot tell the
 trap word from the real fourth member.
 
+**Why the feasibility guard and the endgame planner.** Mike Harris built an
+independent TypeSafe solver, ported our method as a control, and ran our exact
+Python on 128 fresh puzzles. Two additions gave his hybrid 82 wins to our 68:
+guessing only sets that can still be part of a complete feedback-consistent
+solution, and an exact decision tree over the 35 possible splits at eight words.
+Two independent Codex reviews had recommended the same two ideas. Porting them
+taught us that the planner is only as good as its weights. With our blended
+pair-plus-set scores as split weights, and at any sharpening of them, the
+planner doubled endgame mistakes without converting more endgames (34 of 64,
+same as before). With Mike's weights, a Noul coherence question per half cubed
+as odds and a Choice across whole splits, it converts. The Choice over splits
+works here where it failed at 16 words because 35 fully specified options is a
+small, joint comparison, exactly what the primitive is for. The guard itself
+changes few guesses (pre-endgame mistakes were unchanged) but is exact and free.
+
 ## What did not help
 
 Recorded so nobody retries them.
@@ -167,6 +235,11 @@ Recorded so nobody retries them.
   orders: within noise in classic mode, at two to four times the cost.
 - A larger ONE AWAY bonus. Removing the bonus entirely cost a couple of groups.
 - `jev-preview`: indistinguishable from `jev-latest`.
+- The endgame planner weighted by our own blended scores, at sharpness 2, 4 or
+  8: same wins as no planner, twice the endgame mistakes. The weights need a
+  joint comparison across splits, not a per-set score.
+- The same planner with our blended weights and greedy selection: equal to the
+  baseline within noise. The exact split filter alone removes very few guesses.
 
 ## Known limits
 
@@ -177,5 +250,8 @@ Recorded so nobody retries them.
   FLYER, SENATOR, STAR), PAPER ___ (CLIP, TIGER, TOWEL, TRAIL), homophones and
   most fill-in-the-blank groups. No question phrasing we tried moved these.
 - The trap bonus from the one-shot leaderboard is not modelled here.
+- Our port recovers about half of the gain Mike measured for his hybrid (39 and
+  36 versus his 42, over a baseline of 33 to 34). The rest may be his 16- and
+  12-word selection details, request batching, or single-run noise on his side.
 - Rate limits are 1,200 requests per minute. A canonical run makes about 180
   calls, so 20 threads is comfortable.

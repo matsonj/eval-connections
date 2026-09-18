@@ -31,6 +31,8 @@ BACKOFF_MAX_SEC = 30.0
 
 MAX_MISTAKES = 4
 GROUP_SIZE = 4
+ENDGAME_SIZE = 8
+ENDGAME_MODE = "planner"
 CANDIDATE_SETS_FOR_DIRECT_SCORE = 60
 ONE_AWAY_BONUS = 1.0
 PAIR_WEIGHT = 1.0
@@ -56,6 +58,7 @@ class Puzzle:
     words: List[str]
     groups: List[WordSet]
     difficulty: Optional[float]
+    date: Optional[str] = None
 
 
 @dataclass
@@ -106,8 +109,8 @@ class GameResult:
     error: Optional[str] = None
 
 
-def load_puzzles(only_ids: Optional[Sequence[int]], canonical_only: bool) -> List[Puzzle]:
-    data = yaml.safe_load(PUZZLES_FILE.read_text())
+def load_puzzles(path: Path, only_ids: Optional[Sequence[int]], canonical_only: bool) -> List[Puzzle]:
+    data = yaml.safe_load(path.read_text())
     puzzles = []
     for raw in data["puzzles"]:
         if only_ids is not None and raw["id"] not in only_ids:
@@ -119,6 +122,7 @@ def load_puzzles(only_ids: Optional[Sequence[int]], canonical_only: bool) -> Lis
             words=[w.upper() for w in raw["words"]],
             groups=[frozenset(w.upper() for w in g["words"]) for g in raw["groups"]],
             difficulty=raw.get("difficulty"),
+            date=str(raw["date"]) if raw.get("date") else None,
         ))
     return puzzles
 
@@ -230,6 +234,36 @@ def one_away_bonus(candidate: WordSet, feedback: Feedback) -> float:
     return 0.0
 
 
+def outstanding_one_aways(feedback: Feedback, solved: Sequence[WordSet]) -> List[WordSet]:
+    return [near for near in feedback.one_away if not any(len(near & group) == 3 for group in solved)]
+
+
+def can_complete(remaining: Sequence[str], feedback: Feedback, open_clues: Sequence[WordSet]) -> bool:
+    if not remaining:
+        return not open_clues
+    first = remaining[0]
+    for others in itertools.combinations(remaining[1:], GROUP_SIZE - 1):
+        group = frozenset((first, *others))
+        if not consistent_with_feedback(group, feedback):
+            continue
+        rest = [w for w in remaining if w not in group]
+        still_open = [near for near in open_clues if len(near & group) != 3]
+        if can_complete(rest, feedback, still_open):
+            return True
+    return False
+
+
+def first_completable(ranked: Sequence[Words], remaining: Sequence[str], feedback: Feedback,
+                      open_clues: Sequence[WordSet]) -> Words:
+    for words in ranked:
+        group = frozenset(words)
+        rest = [w for w in remaining if w not in group]
+        still_open = [near for near in open_clues if len(near & group) != 3]
+        if can_complete(rest, feedback, still_open):
+            return words
+    return ranked[0]
+
+
 def score_candidate_sets(remaining: Sequence[str], affinity: Dict[FrozenSet[str], float],
                          feedback: Feedback) -> Dict[Words, float]:
     scored = {}
@@ -254,11 +288,9 @@ def blend_with_direct_scores(client: JevClient, remaining: Sequence[str], pair_s
     return blended, usage
 
 
-def choose_guess(client: JevClient, remaining: List[str], feedback: Feedback,
-                 rng: random.Random) -> Tuple[Words, Usage]:
+def choose_midgame_guess(client: JevClient, remaining: List[str], feedback: Feedback,
+                         open_clues: Sequence[WordSet], rng: random.Random) -> Tuple[Words, Usage]:
     usage = Usage()
-    if len(remaining) == GROUP_SIZE:
-        return tuple(remaining), usage
     shuffled = remaining[:]
     rng.shuffle(shuffled)
     affinity, pair_usage = pair_affinities(client, shuffled)
@@ -268,9 +300,114 @@ def choose_guess(client: JevClient, remaining: List[str], feedback: Feedback,
         return next(iter(pair_scores)), usage
     blended, set_usage = blend_with_direct_scores(client, shuffled, pair_scores, rng)
     usage.add(set_usage)
-    if not blended:
-        return max(pair_scores, key=pair_scores.get), usage
-    return max(blended, key=blended.get), usage
+    scores = blended or pair_scores
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    return first_completable(ranked, remaining, feedback, open_clues), usage
+
+
+Split = Tuple[Words, Words]
+
+
+def consistent_splits(remaining: Sequence[str], feedback: Feedback, open_clues: Sequence[WordSet]) -> List[Split]:
+    first = remaining[0]
+    splits = []
+    for others in itertools.combinations(remaining[1:], GROUP_SIZE - 1):
+        half_a = tuple(sorted((first, *others)))
+        half_b = tuple(sorted(w for w in remaining if w not in half_a))
+        halves = (frozenset(half_a), frozenset(half_b))
+        if not all(consistent_with_feedback(h, feedback) for h in halves):
+            continue
+        if all(any(len(near & h) == 3 for h in halves) for near in open_clues):
+            splits.append((half_a, half_b))
+    return splits
+
+
+def split_weights(client: JevClient, remaining: Sequence[str], splits: Sequence[Split],
+                  rng: random.Random) -> Tuple[List[float], Dict[Words, float], Usage]:
+    shuffled = list(remaining)
+    rng.shuffle(shuffled)
+    questions: Dict[str, Dict] = {}
+    for i, split in enumerate(splits):
+        for j, half in enumerate(split):
+            questions[f"coherent_{i}_{j}"] = {
+                "type": "noul",
+                "instructions": f"Do these four words share a specific, conventional connection: {json.dumps(list(half))}? "
+                                "All four must fit equally. The connection may use secondary meanings, phrases or wordplay.",
+            }
+    options = {f"p{i}": json.dumps([list(a), list(b)]) for i, (a, b) in enumerate(splits)}
+    reversed_options = {f"p{i}": json.dumps([list(b), list(a)]) for i, (a, b) in enumerate(splits)}
+    questions["split"] = {"type": "choice", "criteria": options,
+                          "instructions": "Which split makes two groups of four, each with a specific shared connection? "
+                                          "Consider alternate meanings, common phrases and wordplay."}
+    questions["reversed"] = {"type": "choice", "criteria": reversed_options,
+                             "instructions": "Select the correct solution to this eight-word Connections puzzle: two coherent categories of four words."}
+    answers, usage = client.ask({"words": shuffled}, questions)
+    weights, half_scores = [], {}
+    for i, (a, b) in enumerate(splits):
+        coherence = {a: answers[f"coherent_{i}_0"]["noul"], b: answers[f"coherent_{i}_1"]["noul"]}
+        half_scores.update(coherence)
+        best = max(coherence.values())
+        odds = max(0.001, best) / max(0.001, 1 - best)
+        split_probability = (answers["split"]["probabilities"][f"p{i}"] + answers["reversed"]["probabilities"][f"p{i}"]) / 2
+        weights.append(odds ** 3 * (split_probability + 0.01))
+    return weights, half_scores, usage
+
+
+def plan_endgame(splits: Sequence[Split], weights: Sequence[float], lives: int) -> int:
+    overlaps_one_away = []
+    for half_a, _ in splits:
+        mask = 0
+        for j, (other_a, _) in enumerate(splits):
+            if len(set(half_a) & set(other_a)) in (1, 3):
+                mask |= 1 << j
+        overlaps_one_away.append(mask)
+    memo: Dict[Tuple[int, int], Tuple[float, int]] = {}
+
+    def best(alive: int, lives_left: int) -> Tuple[float, int]:
+        if alive == 0 or lives_left == 0:
+            return 0.0, -1
+        key = (alive, lives_left)
+        if key in memo:
+            return memo[key]
+        result = (-1.0, -1)
+        for i in range(len(splits)):
+            if not alive >> i & 1:
+                continue
+            rest = alive & ~(1 << i)
+            one_away = rest & overlaps_one_away[i]
+            wrong = rest & ~overlaps_one_away[i]
+            value = weights[i] + best(one_away, lives_left - 1)[0] + best(wrong, lives_left - 1)[0]
+            if value > result[0]:
+                result = (value, i)
+        memo[key] = result
+        return result
+
+    return best((1 << len(splits)) - 1, lives)[1]
+
+
+def choose_endgame_guess(client: JevClient, remaining: List[str], feedback: Feedback,
+                         open_clues: Sequence[WordSet], lives: int, rng: random.Random) -> Tuple[Words, Usage]:
+    splits = consistent_splits(remaining, feedback, open_clues)
+    if not splits:
+        return tuple(remaining[:GROUP_SIZE]), Usage()
+    if len(splits) == 1:
+        return splits[0][0], Usage()
+    weights, half_scores, usage = split_weights(client, remaining, splits, rng)
+    if ENDGAME_MODE == "greedy":
+        chosen = splits[max(range(len(splits)), key=weights.__getitem__)]
+    else:
+        chosen = splits[plan_endgame(splits, weights, lives)]
+    return max(chosen, key=half_scores.get), usage
+
+
+def choose_guess(client: JevClient, remaining: List[str], feedback: Feedback, solved: Sequence[WordSet],
+                 lives: int, rng: random.Random) -> Tuple[Words, Usage]:
+    if len(remaining) == GROUP_SIZE:
+        return tuple(remaining), Usage()
+    open_clues = outstanding_one_aways(feedback, solved)
+    if len(remaining) == ENDGAME_SIZE:
+        return choose_endgame_guess(client, remaining, feedback, open_clues, lives, rng)
+    return choose_midgame_guess(client, remaining, feedback, open_clues, rng)
 
 
 def judge(guess: Words, puzzle: Puzzle, solved: List[WordSet]) -> str:
@@ -295,7 +432,7 @@ def play(client: JevClient, puzzle: Puzzle, seed: int) -> GameResult:
     started = time.perf_counter()
 
     while mistakes < MAX_MISTAKES and len(solved) < len(puzzle.groups):
-        guess, turn_usage = choose_guess(client, remaining, feedback, rng)
+        guess, turn_usage = choose_guess(client, remaining, feedback, solved, MAX_MISTAKES - mistakes, rng)
         usage.add(turn_usage)
         result = judge(guess, puzzle, solved)
         turns.append(Turn(guess=tuple(sorted(guess)), result=result))
@@ -368,13 +505,14 @@ def print_report(results: List[GameResult], wall_seconds: float, model: str) -> 
     print(f"tokens:               {total.input_tokens:,} in / {total.output_tokens:,} out   cost ${total.cost_usd:.4f}")
 
 
-def save_results(results: List[GameResult], model: str, seed: int) -> Path:
+def save_results(results: List[GameResult], model: str, seed: int, puzzles_file: Path) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%dT%H-%M-%S")
-    path = OUTPUT_DIR / f"{stamp}_{model}.json"
+    path = OUTPUT_DIR / f"{stamp}_{model}_{puzzles_file.stem}.json"
     payload = {
         "model": model,
         "seed": seed,
+        "puzzles_file": str(puzzles_file),
         "results": [
             {
                 "puzzle_id": r.puzzle_id,
@@ -401,15 +539,22 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Solve Connections puzzles in classic mode with TypeSafe Jev.")
     parser.add_argument("--puzzle-ids", type=lambda s: [int(x) for x in s.split(",")], default=None)
     parser.add_argument("--all", action="store_true", help="every puzzle instead of the canonical set")
+    parser.add_argument("--puzzles", type=Path, default=PUZZLES_FILE,
+                        help="puzzle YAML to load; a non-default file plays all of its puzzles")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--threads", type=int, default=20)
+    parser.add_argument("--endgame", choices=["planner", "greedy"], default=ENDGAME_MODE,
+                        help="planner spends mistakes to maximise the chance of finishing; greedy guesses the likeliest split")
     return parser.parse_args()
 
 
 def main() -> None:
+    global ENDGAME_MODE
     args = parse_args()
-    puzzles = load_puzzles(args.puzzle_ids, canonical_only=not args.all)
+    ENDGAME_MODE = args.endgame
+    canonical_only = not args.all and args.puzzles == PUZZLES_FILE
+    puzzles = load_puzzles(args.puzzles, args.puzzle_ids, canonical_only)
     if not puzzles:
         sys.exit("no puzzles selected")
     client = JevClient(load_api_key(), args.model)
@@ -417,7 +562,7 @@ def main() -> None:
     results = play_all(client, puzzles, args.seed, args.threads)
     wall = time.perf_counter() - started
     print_report(results, wall, args.model)
-    print(f"saved:                {save_results(results, args.model, args.seed)}")
+    print(f"saved:                {save_results(results, args.model, args.seed, args.puzzles)}")
 
 
 if __name__ == "__main__":
