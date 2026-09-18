@@ -544,15 +544,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--threads", type=int, default=20)
+    parser.add_argument("--one-away-bonus", type=float, default=ONE_AWAY_BONUS)
     parser.add_argument("--endgame", choices=["planner", "greedy"], default=ENDGAME_MODE,
                         help="planner spends mistakes to maximise the chance of finishing; greedy guesses the likeliest split")
     return parser.parse_args()
 
 
 def main() -> None:
-    global ENDGAME_MODE
+    global ENDGAME_MODE, ONE_AWAY_BONUS
     args = parse_args()
     ENDGAME_MODE = args.endgame
+    ONE_AWAY_BONUS = args.one_away_bonus
     canonical_only = not args.all and args.puzzles == PUZZLES_FILE
     puzzles = load_puzzles(args.puzzles, args.puzzle_ids, canonical_only)
     if not puzzles:
