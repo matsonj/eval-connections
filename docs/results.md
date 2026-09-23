@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 57 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 58 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -681,6 +681,20 @@ Latest one-shot runs for 57 models (20 games each, one submission per game, max 
       "tok_per_game": "14.3k",
       "cost": 0.32,
       "cost_per_game": "$0.016"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T22-09-42_gpt6-luna.html\">openai/gpt-6-luna</a>",
+      "date": "2026-09-23",
+      "pts": 61,
+      "pts_pct": 0.61,
+      "w": "14",
+      "grp": "65/80",
+      "trap": "10",
+      "inv": "0",
+      "avg_time": "14s",
+      "tok_per_game": "1.6k",
+      "cost": 0.01,
+      "cost_per_game": "$0.001"
     },
     {
       "model": "<a href=\"logs/2026-08-12T16-33-14_muse-glimmer-30b.html\">meta/muse-glimmer-30b</a>",
