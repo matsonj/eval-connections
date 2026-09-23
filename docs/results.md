@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 56 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 57 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -177,6 +177,20 @@ Latest one-shot runs for 56 models (20 games each, one submission per game, max 
       "tok_per_game": "1.7k",
       "cost": 1.08,
       "cost_per_game": "$0.054"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T21-43-32_grok-4.7.html\">x-ai/grok-4.7</a>",
+      "date": "2026-09-23",
+      "pts": 85,
+      "pts_pct": 0.85,
+      "w": "19",
+      "grp": "78/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "2m42s",
+      "tok_per_game": "12.2k",
+      "cost": 1.03,
+      "cost_per_game": "$0.052"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-56-32_gemini-3-flash.html\">google/gemini-3-flash-preview</a>",
