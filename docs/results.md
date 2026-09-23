@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 55 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 56 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -847,6 +847,20 @@ Latest one-shot runs for 55 models (20 games each, one submission per game, max 
       "inv": "1",
       "avg_time": "8s",
       "tok_per_game": "1.7k",
+      "cost": 0.0,
+      "cost_per_game": "$0.000"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T21-12-22_opus-5.5.html\">anthropic/claude-opus-5.5</a>",
+      "date": "2026-09-23",
+      "pts": 0,
+      "pts_pct": 0.0,
+      "w": "0",
+      "grp": "0/80",
+      "trap": "0",
+      "inv": "20",
+      "avg_time": "5s",
+      "tok_per_game": "0.0k",
       "cost": 0.0,
       "cost_per_game": "$0.000"
     }
