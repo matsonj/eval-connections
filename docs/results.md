@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 59 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 60 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -513,6 +513,20 @@ Latest one-shot runs for 59 models (20 games each, one submission per game, max 
       "tok_per_game": "5.8k",
       "cost": 0.44,
       "cost_per_game": "$0.022"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T22-10-39_deepseek-v4.1-flash.html\">deepseek/deepseek-v4.1-flash</a>",
+      "date": "2026-09-23",
+      "pts": 73,
+      "pts_pct": 0.73,
+      "w": "17",
+      "grp": "70/80",
+      "trap": "20",
+      "inv": "2",
+      "avg_time": "5m5s",
+      "tok_per_game": "17.2k",
+      "cost": 0.2,
+      "cost_per_game": "$0.010"
     },
     {
       "model": "<a href=\"logs/2026-08-12T18-21-34_seed-2-1-turbo.html\">bytedance-seed/seed-2-1-turbo</a>",
