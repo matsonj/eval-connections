@@ -235,3 +235,12 @@ models:
     llama3.3: "meta-llama/llama-3.3-70b-instruct"
     kimi-k2: "moonshotai/kimi-k2-0905"
     cydonia-24b-v4.1: "thedrummer/cydonia-24b-v4.1"
+
+# CLI names that always run with the <thinking> section removed from the prompt
+# (same as --no-thinking-block). Anthropic refuses prompts that ask the model to
+# write its reasoning into a tag (finish_reason content_filter, empty content),
+# which the eval would otherwise score as ONESHOT_INVALID. Top-level on purpose:
+# scripts iterate every section under `models:` as a name -> slug map.
+no_thinking_block:
+  - opus-5
+  - opus-5.5

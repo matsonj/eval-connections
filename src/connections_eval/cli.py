@@ -30,7 +30,7 @@ def _validate_run_args(
     model: Optional[str], interactive: bool, puzzles: Optional[int],
     puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
     prompt_file: str, mode: str, reasoning_effort: Optional[str] = None,
-    structured_output: bool = False,
+    structured_output: bool = False, no_thinking_block: bool = False,
 ) -> Optional[List[int]]:
     """
     Validate run command arguments and return parsed puzzle IDs.
@@ -47,6 +47,10 @@ def _validate_run_args(
             f"Invalid reasoning effort: {reasoning_effort}. Must be one of: {', '.join(valid_efforts)}",
             style="red",
         )
+        raise typer.Exit(1)
+
+    if no_thinking_block and structured_output:
+        console.print("--no-thinking-block applies to the XML prompt only; drop --structured-output", style="red")
         raise typer.Exit(1)
 
     if not interactive and not model:
@@ -162,6 +166,16 @@ def run(
             "prompt, so results are NOT directly comparable with default runs."
         )
     ),
+    no_thinking_block: bool = typer.Option(
+        False,
+        "--no-thinking-block",
+        help=(
+            "Remove the <thinking> section from the prompt's response format. "
+            "Anthropic refuses prompts that ask the model to write out its "
+            "reasoning. Applied automatically to models listed under "
+            "no_thinking_block in model_mappings.yml."
+        )
+    ),
     threads: int = typer.Option(
         8,
         "--threads",
@@ -201,8 +215,16 @@ def run(
     """Run connections evaluation."""
     parsed_puzzle_ids = _validate_run_args(
         model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
-        reasoning_effort, structured_output,
+        reasoning_effort, structured_output, no_thinking_block,
     )
+
+    # Models listed in model_mappings.yml get the flag automatically, so runs
+    # that can't pass extra CLI args (the GitHub Action) still work.
+    if not interactive and model in ConnectionsGame.load_no_thinking_block_models(inputs_path):
+        if structured_output:
+            console.print(f"{model} requires the thinking block removed, which --structured-output doesn't support", style="red")
+            raise typer.Exit(1)
+        no_thinking_block = True
 
     # Get model name for interactive mode
     if interactive:
@@ -214,7 +236,8 @@ def run(
     try:
         game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode,
                                reasoning_effort=reasoning_effort,
-                               structured_output=structured_output)
+                               structured_output=structured_output,
+                               no_thinking_block=no_thinking_block)
 
         # Fail fast on a bad OpenRouter slug instead of burning the retry
         # budget on every puzzle.
@@ -259,6 +282,8 @@ def run(
             console.print(f"Reasoning Effort: {reasoning_effort}")
         if structured_output:
             console.print("Structured Output: enabled (JSON schema; not comparable with XML-format runs)")
+        if no_thinking_block:
+            console.print("Thinking Block: removed from prompt")
         if parsed_puzzle_ids is not None:
             console.print(f"Puzzles: {len(parsed_puzzle_ids)} specific IDs")
         else:
@@ -346,6 +371,8 @@ def _display_summary(summary: dict, interactive: bool):
         table.add_row("Reasoning Effort", summary["reasoning_effort"])
     if summary.get("structured_output"):
         table.add_row("Structured Output", "JSON schema")
+    if summary.get("no_thinking_block"):
+        table.add_row("Thinking Block", "removed")
     table.add_row("Puzzles Attempted", str(summary["puzzles_attempted"]))
     table.add_row("Puzzles Solved", str(summary["puzzles_solved"]))
 
