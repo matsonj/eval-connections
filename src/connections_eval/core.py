@@ -1,6 +1,7 @@
 """Core game logic and metrics for Connections puzzles."""
 
 import random
+import re
 import time
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -247,7 +248,7 @@ class ConnectionsGame:
 
     def __init__(self, inputs_path: Path, log_path: Path, seed: Optional[int] = None, verbose: bool = False,
                  mode: str = "classic", reasoning_effort: Optional[str] = None,
-                 structured_output: bool = False):
+                 structured_output: bool = False, no_thinking_block: bool = False):
         """
         Initialize the game engine.
 
@@ -265,6 +266,10 @@ class ConnectionsGame:
                 constrains the model's output; responses are normalized back to the
                 usual text protocol in _extract_content. Changes the response
                 protocol, so results are not comparable with XML-format runs.
+            no_thinking_block: Drop the <thinking> section from the prompt's
+                RESPONSE FORMAT. Anthropic's classifier refuses prompts that ask
+                the model to write its reasoning into a tag (Opus 5 on the
+                Anthropic route, Opus 5.5 everywhere), so those runs need this.
         """
         self.inputs_path = inputs_path
         self.log_path = log_path
@@ -273,6 +278,7 @@ class ConnectionsGame:
         self.mode = mode
         self.reasoning_effort = reasoning_effort
         self.structured_output = structured_output
+        self.no_thinking_block = no_thinking_block
         # Built once per game: the schema depends only on the mode.
         self.response_format = build_response_format(mode) if structured_output else None
         self.rng = random.Random(self.seed)
@@ -321,7 +327,21 @@ class ConnectionsGame:
         filename = "prompt_template_oneshot.xml" if self.mode == "oneshot" else "prompt_template.xml"
         with open(self.inputs_path / filename, 'r') as f:
             template = f.read()
+        if self.no_thinking_block:
+            template = self._strip_thinking_block(template)
         return json_prompt_template(template, self.mode) if self.structured_output else template
+
+    _THINKING_BLOCK_RE = re.compile(r"<thinking>\n\[Your reasoning\]\n</thinking>\n\n")
+
+    @classmethod
+    def _strip_thinking_block(cls, template: str) -> str:
+        """Remove the <thinking> section from the RESPONSE FORMAT. Raises if the
+        template no longer contains it, so a template edit can't silently turn
+        the flag into a no-op."""
+        stripped, n = cls._THINKING_BLOCK_RE.subn("", template)
+        if n != 1:
+            raise ValueError("no_thinking_block: prompt template has no <thinking> section to remove")
+        return stripped
 
     def _load_model_mappings(self) -> Dict[str, str]:
         """Load model mappings from YAML file."""
@@ -569,6 +589,7 @@ class ConnectionsGame:
             "mode": mode,
             "reasoning_effort": self.reasoning_effort,
             "structured_output": self.structured_output,
+            "no_thinking_block": self.no_thinking_block,
             "avg_time_sec": round(avg_time, 1),
             "avg_inference_sec": round(avg_inference, 1),
             "total_inference_sec": round(total_inference_sec, 3),

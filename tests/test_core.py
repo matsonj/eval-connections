@@ -519,6 +519,19 @@ class TestConnectionsGameMode:
         assert "<guess>" in game.prompt_template
         assert "<answer>" not in game.prompt_template
 
+    @pytest.mark.parametrize("mode,kept", [("oneshot", "<answer>"), ("classic", "<guess>")])
+    def test_no_thinking_block_strips_thinking_section(self, mode, kept):
+        default = ConnectionsGame(self._INPUTS, Path("logs"), mode=mode)
+        game = ConnectionsGame(self._INPUTS, Path("logs"), mode=mode, no_thinking_block=True)
+        assert "<thinking>" in default.prompt_template
+        assert "<thinking>" not in game.prompt_template
+        assert kept in game.prompt_template
+        assert "RESPONSE FORMAT:\nProvide your response in this exact structure:\n\n" + kept in game.prompt_template
+
+    def test_no_thinking_block_raises_when_template_lacks_section(self):
+        with pytest.raises(ValueError, match="no <thinking> section"):
+            ConnectionsGame._strip_thinking_block("RESPONSE FORMAT:\n<answer>\n</answer>")
+
 
 class TestOneshotEndToEnd:
     """run_evaluation drives the one-shot path end to end (mocked adapter)."""
