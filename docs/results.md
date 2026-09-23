@@ -109,6 +109,20 @@ Latest one-shot runs for 57 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.015"
     },
     {
+      "model": "<a href=\"logs/2026-09-23T22-08-55_opus-5.5.html\">anthropic/claude-opus-5.5</a>",
+      "date": "2026-09-23",
+      "pts": 90,
+      "pts_pct": 0.9,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "30",
+      "inv": "0",
+      "avg_time": "8s",
+      "tok_per_game": "1.5k",
+      "cost": 0.38,
+      "cost_per_game": "$0.019"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T22-58-18_muse-spark-1.1.html\">meta/muse-spark-1.1</a>",
       "date": "2026-07-22",
       "pts": 90,
@@ -861,20 +875,6 @@ Latest one-shot runs for 57 models (20 games each, one submission per game, max 
       "inv": "1",
       "avg_time": "8s",
       "tok_per_game": "1.7k",
-      "cost": 0.0,
-      "cost_per_game": "$0.000"
-    },
-    {
-      "model": "<a href=\"logs/2026-09-23T21-12-22_opus-5.5.html\">anthropic/claude-opus-5.5</a>",
-      "date": "2026-09-23",
-      "pts": 0,
-      "pts_pct": 0.0,
-      "w": "0",
-      "grp": "0/80",
-      "trap": "0",
-      "inv": "20",
-      "avg_time": "5s",
-      "tok_per_game": "0.0k",
       "cost": 0.0,
       "cost_per_game": "$0.000"
     }
