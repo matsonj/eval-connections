@@ -343,6 +343,13 @@ class ConnectionsGame:
             raise ValueError("no_thinking_block: prompt template has no <thinking> section to remove")
         return stripped
 
+    @staticmethod
+    def load_no_thinking_block_models(inputs_path: Path) -> Set[str]:
+        """CLI model names listed under `no_thinking_block` in model_mappings.yml."""
+        with open(inputs_path / "model_mappings.yml", 'r') as f:
+            data = yaml.safe_load(f)
+        return set(data.get("no_thinking_block") or [])
+
     def _load_model_mappings(self) -> Dict[str, str]:
         """Load model mappings from YAML file."""
         mappings_file = self.inputs_path / "model_mappings.yml"

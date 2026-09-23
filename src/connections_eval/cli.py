@@ -171,8 +171,9 @@ def run(
         "--no-thinking-block",
         help=(
             "Remove the <thinking> section from the prompt's response format. "
-            "Required for Opus 5.5 (and Opus 5 on the Anthropic route): Anthropic "
-            "refuses prompts that ask the model to write out its reasoning."
+            "Anthropic refuses prompts that ask the model to write out its "
+            "reasoning. Applied automatically to models listed under "
+            "no_thinking_block in model_mappings.yml."
         )
     ),
     threads: int = typer.Option(
@@ -216,6 +217,14 @@ def run(
         model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
         reasoning_effort, structured_output, no_thinking_block,
     )
+
+    # Models listed in model_mappings.yml get the flag automatically, so runs
+    # that can't pass extra CLI args (the GitHub Action) still work.
+    if not interactive and model in ConnectionsGame.load_no_thinking_block_models(inputs_path):
+        if structured_output:
+            console.print(f"{model} requires the thinking block removed, which --structured-output doesn't support", style="red")
+            raise typer.Exit(1)
+        no_thinking_block = True
 
     # Get model name for interactive mode
     if interactive:

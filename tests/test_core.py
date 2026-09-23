@@ -528,6 +528,12 @@ class TestConnectionsGameMode:
         assert kept in game.prompt_template
         assert "RESPONSE FORMAT:\nProvide your response in this exact structure:\n\n" + kept in game.prompt_template
 
+    def test_no_thinking_block_models_listed_and_mapped(self):
+        names = ConnectionsGame.load_no_thinking_block_models(self._INPUTS)
+        assert "opus-5.5" in names
+        # A typo'd name would silently never match a --model argument.
+        assert names <= set(ConnectionsGame(self._INPUTS, Path("logs")).MODEL_CONFIG)
+
     def test_no_thinking_block_raises_when_template_lacks_section(self):
         with pytest.raises(ValueError, match="no <thinking> section"):
             ConnectionsGame._strip_thinking_block("RESPONSE FORMAT:\n<answer>\n</answer>")
