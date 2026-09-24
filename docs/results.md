@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 60 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 61 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -597,6 +597,20 @@ Latest one-shot runs for 60 models (20 games each, one submission per game, max 
       "tok_per_game": "2.8k",
       "cost": 0.36,
       "cost_per_game": "$0.018"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T22-21-01_mimo-v2.6-flash.html\">xiaomi/mimo-v2.6-flash</a>",
+      "date": "2026-09-23",
+      "pts": 69,
+      "pts_pct": 0.69,
+      "w": "15",
+      "grp": "66/80",
+      "trap": "18",
+      "inv": "1",
+      "avg_time": "53m16s",
+      "tok_per_game": "111.5k",
+      "cost": 0.49,
+      "cost_per_game": "$0.024"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-41-49_deepseek-v4-flash.html\">deepseek/deepseek-v4-flash</a>",
