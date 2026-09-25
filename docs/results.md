@@ -109,20 +109,6 @@ Latest one-shot runs for 61 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.015"
     },
     {
-      "model": "<a href=\"logs/2026-09-23T22-08-55_opus-5.5.html\">anthropic/claude-opus-5.5</a>",
-      "date": "2026-09-23",
-      "pts": 90,
-      "pts_pct": 0.9,
-      "w": "20",
-      "grp": "80/80",
-      "trap": "30",
-      "inv": "0",
-      "avg_time": "8s",
-      "tok_per_game": "1.5k",
-      "cost": 0.38,
-      "cost_per_game": "$0.019"
-    },
-    {
       "model": "<a href=\"logs/2026-07-22T22-58-18_muse-spark-1.1.html\">meta/muse-spark-1.1</a>",
       "date": "2026-07-22",
       "pts": 90,
@@ -163,6 +149,20 @@ Latest one-shot runs for 61 models (20 games each, one submission per game, max 
       "tok_per_game": "2.5k",
       "cost": 0.15,
       "cost_per_game": "$0.008"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-25T14-33-37_opus-5.5.html\">anthropic/claude-opus-5.5</a>",
+      "date": "2026-09-25",
+      "pts": 86,
+      "pts_pct": 0.86,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "8s",
+      "tok_per_game": "1.5k",
+      "cost": 0.36,
+      "cost_per_game": "$0.018"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-25-41_gemini-3.1.html\">google/gemini-3.1-pro-preview</a>",
