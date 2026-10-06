@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 62 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 63 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -765,6 +765,20 @@ Latest one-shot runs for 62 models (20 games each, one submission per game, max 
       "tok_per_game": "4.1k",
       "cost": 0.09,
       "cost_per_game": "$0.005"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-06T17-28-32_mistral-large-4.html\">mistralai/mistral-large-4-0</a>",
+      "date": "2026-10-06",
+      "pts": 61,
+      "pts_pct": 0.61,
+      "w": "16",
+      "grp": "67/80",
+      "trap": "10",
+      "inv": "0",
+      "avg_time": "6m59s",
+      "tok_per_game": "20.1k",
+      "cost": 0.83,
+      "cost_per_game": "$0.041"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-08-13_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",
