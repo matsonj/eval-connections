@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 61 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 62 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -429,6 +429,20 @@ Latest one-shot runs for 61 models (20 games each, one submission per game, max 
       "tok_per_game": "20.4k",
       "cost": 0.11,
       "cost_per_game": "$0.006"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-06T17-28-11_sonnet-5.5.html\">anthropic/claude-sonnet-5.5</a>",
+      "date": "2026-10-06",
+      "pts": 76,
+      "pts_pct": 0.76,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "16",
+      "inv": "0",
+      "avg_time": "7s",
+      "tok_per_game": "1.5k",
+      "cost": 0.18,
+      "cost_per_game": "$0.009"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-26-38_grok-4.5.html\">x-ai/grok-4.5</a>",
