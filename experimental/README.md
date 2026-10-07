@@ -16,6 +16,52 @@ Each run prints a per-puzzle transcript and summary and writes a JSON file to
 `experimental/runs/`. A canonical run costs about six cents and takes under ten
 seconds.
 
+## Decisions models via OpenRouter: Jev vs GPT-6 Luna
+
+`decisions_classic_solver.py` runs the same solver against OpenRouter's
+decisions endpoint (`POST https://openrouter.ai/api/alpha/decisions`), so any
+decisions model can be benchmarked with identical questions, blend and
+feedback rules. Only `--model` changes. It imports the solver from
+`jev_classic_solver.py` and looks up each model's price from OpenRouter.
+
+```bash
+# key: OPENROUTER_API_KEY, from the environment or .env at the repo root
+uv run python experimental/decisions_classic_solver.py                                    # openai/gpt-6-luna-decisions
+uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13
+uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13 --seed 43 --puzzle-ids 246,304
+```
+
+To reproduce the comparison below, run each model at seeds 42, 43 and 44 and
+average the summaries:
+
+```bash
+for m in typesafe/jev-1.13 openai/gpt-6-luna-decisions; do
+  for s in 42 43 44; do uv run python experimental/decisions_classic_solver.py --model $m --seed $s; done
+done
+```
+
+Results on the canonical 20 (2026-10-07):
+
+| | Jev (`typesafe/jev-1.13`) | GPT-6 Luna Decisions |
+|---|---|---|
+| Puzzles won | 14.8 / 20 | 9.7 / 20 |
+| Groups found | 67.2 / 80 | 56.0 / 80 |
+| Mistakes per puzzle | 1.9 | 2.5 |
+| Cost per run | $0.06 | $0.20 |
+| Median latency | ~470 ms | ~550 ms |
+
+Jev is averaged over six runs (two passes of seeds 42–44: 15/15/17 and 14/15/13
+wins). It is non-deterministic, so expect about ±1–2 wins per run. Luna
+returned identical results on both passes. Luna costs more per token ($0.10 vs
+$0.042 per 1M input, output free for both) and counts about 45% more tokens for
+the same requests. The solver's wording and blend weights were tuned on Jev, so
+the setup favours it somewhat.
+
+If an OpenAI-routed model fails with `401 Incorrect API key provided: sk-proj-…`,
+OpenRouter is forwarding a stale OpenAI key saved in the account's BYOK settings
+(https://openrouter.ai/settings/integrations); remove it or allow shared
+capacity.
+
 ## Why this exists
 
 Jev is not a language model. Its one endpoint, `POST /v1/systemone`, takes a

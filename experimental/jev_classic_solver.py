@@ -71,9 +71,8 @@ class Usage:
         self.calls += other.calls
         self.http_ms.extend(other.http_ms)
 
-    @property
-    def cost_usd(self) -> float:
-        return self.input_tokens * PRICE_PER_INPUT_TOKEN
+    def cost_usd(self, price_per_input_token: float = PRICE_PER_INPUT_TOKEN) -> float:
+        return self.input_tokens * price_per_input_token
 
 
 @dataclass
@@ -165,30 +164,35 @@ class JevClient:
 
     def ask(self, state: Dict, questions: Dict[str, Dict]) -> Tuple[Dict[str, Dict], Usage]:
         body = {"model": self.model, "state": state, "questions": questions}
-        usage = Usage()
-        last_error: Optional[Exception] = None
-        for attempt in range(MAX_ATTEMPTS):
-            started = time.perf_counter()
-            try:
-                response = requests.post(API_URL, json=body, headers=self.headers, timeout=REQUEST_TIMEOUT_SEC)
-            except requests.RequestException as exc:
-                usage.http_ms.append((time.perf_counter() - started) * 1000)
-                usage.calls += 1
-                last_error = exc
-                time.sleep(backoff_seconds(attempt, None))
-                continue
+        payload, usage = post_with_retries(API_URL, body, self.headers)
+        return payload["answers"], usage
+
+
+def post_with_retries(url: str, body: Dict, headers: Dict[str, str]) -> Tuple[Dict, Usage]:
+    usage = Usage()
+    last_error: Optional[Exception] = None
+    for attempt in range(MAX_ATTEMPTS):
+        started = time.perf_counter()
+        try:
+            response = requests.post(url, json=body, headers=headers, timeout=REQUEST_TIMEOUT_SEC)
+        except requests.RequestException as exc:
             usage.http_ms.append((time.perf_counter() - started) * 1000)
             usage.calls += 1
-            if response.status_code in RETRYABLE_STATUSES:
-                last_error = requests.HTTPError(f"HTTP {response.status_code}", response=response)
-                time.sleep(backoff_seconds(attempt, response.headers.get("Retry-After")))
-                continue
-            response.raise_for_status()
-            payload = response.json()
-            usage.input_tokens += payload["usage"]["input_tokens"]
-            usage.output_tokens += payload["usage"]["output_tokens"]
-            return payload["answers"], usage
-        raise RuntimeError(f"gave up after {MAX_ATTEMPTS} attempts: {last_error}")
+            last_error = exc
+            time.sleep(backoff_seconds(attempt, None))
+            continue
+        usage.http_ms.append((time.perf_counter() - started) * 1000)
+        usage.calls += 1
+        if response.status_code in RETRYABLE_STATUSES:
+            last_error = requests.HTTPError(f"HTTP {response.status_code}", response=response)
+            time.sleep(backoff_seconds(attempt, response.headers.get("Retry-After")))
+            continue
+        response.raise_for_status()
+        payload = response.json()
+        usage.input_tokens += payload["usage"]["input_tokens"]
+        usage.output_tokens += payload["usage"]["output_tokens"]
+        return payload, usage
+    raise RuntimeError(f"gave up after {MAX_ATTEMPTS} attempts: {last_error}")
 
 
 def backoff_seconds(attempt: int, retry_after: Optional[str]) -> float:
@@ -340,7 +344,8 @@ def play_all(client: JevClient, puzzles: List[Puzzle], seed: int, threads: int) 
     return sorted(results, key=lambda r: r.puzzle_id)
 
 
-def print_report(results: List[GameResult], wall_seconds: float, model: str) -> None:
+def print_report(results: List[GameResult], wall_seconds: float, model: str,
+                 price_per_input_token: float = PRICE_PER_INPUT_TOKEN) -> None:
     total = Usage()
     for r in results:
         total.add(r.usage)
@@ -365,10 +370,11 @@ def print_report(results: List[GameResult], wall_seconds: float, model: str) -> 
         print(f"failed puzzles:       {failed}")
     median_http = statistics.median(total.http_ms) if total.http_ms else 0.0
     print(f"api calls:            {total.calls}   median http {median_http:.0f} ms")
-    print(f"tokens:               {total.input_tokens:,} in / {total.output_tokens:,} out   cost ${total.cost_usd:.4f}")
+    print(f"tokens:               {total.input_tokens:,} in / {total.output_tokens:,} out   cost ${total.cost_usd(price_per_input_token):.4f}")
 
 
-def save_results(results: List[GameResult], model: str, seed: int) -> Path:
+def save_results(results: List[GameResult], model: str, seed: int,
+                 price_per_input_token: float = PRICE_PER_INPUT_TOKEN) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%dT%H-%M-%S")
     path = OUTPUT_DIR / f"{stamp}_{model}.json"
@@ -386,7 +392,7 @@ def save_results(results: List[GameResult], model: str, seed: int) -> Path:
                 "seconds": r.seconds,
                 "input_tokens": r.usage.input_tokens,
                 "output_tokens": r.usage.output_tokens,
-                "cost_usd": r.usage.cost_usd,
+                "cost_usd": r.usage.cost_usd(price_per_input_token),
                 "error": r.error,
                 "turns": [{"guess": list(t.guess), "result": t.result} for t in r.turns],
             }
