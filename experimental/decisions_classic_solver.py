@@ -1,7 +1,15 @@
 """Play NYT Connections in classic mode with a decisions model (Jev, GPT-6 Luna, ...) through OpenRouter.
 
-OpenRouter's /api/alpha/decisions takes a state plus a map of typed questions and returns probabilities, so
-every model is scored with the same pair and set questions, blend and feedback rules. Only --model changes.
+A decisions model never writes text: it takes a state plus typed questions and returns probabilities. So
+this script plays the game and the model only judges relatedness. Each turn:
+
+  1. Ask the model to score every pair of remaining words (0 unrelated .. 2 same group), in one request.
+  2. Rank every four-word set by the sum of its six pair scores.
+  3. Drop sets the feedback so far rules out, and boost sets that complete a ONE AWAY guess.
+  4. Ask the model to score the top 60 sets directly ("do these four form a group?"), in one request.
+  5. Blend the two scores and guess the best set; our code judges it against the answer key.
+
+Every model gets identical questions and rules. Only --model changes.
 
     uv run python experimental/decisions_classic_solver.py                                  # GPT-6 Luna Decisions
     uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13
@@ -16,14 +24,13 @@ import re
 import statistics
 import sys
 import time
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 import requests
 import yaml
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PUZZLES_FILE = REPO_ROOT / "inputs" / "connections_puzzles.yml"
@@ -34,17 +41,17 @@ API_URL = "https://openrouter.ai/api/alpha/decisions"
 MODEL_ENDPOINTS_URL = "https://openrouter.ai/api/v1/models/{model}/endpoints"
 DEFAULT_MODEL = "openai/gpt-6-luna-decisions"
 REQUEST_TIMEOUT_SEC = 120
-RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 529}
+RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504, 529}
 MAX_ATTEMPTS = 5
 BACKOFF_BASE_SEC = 1.0
 BACKOFF_MAX_SEC = 30.0
 
 MAX_MISTAKES = 4
 GROUP_SIZE = 4
+PAIRS_PER_SET = 6
+# Tuned on Jev, 2026-09-17: more candidates or a different bonus did not help.
 CANDIDATE_SETS_FOR_DIRECT_SCORE = 60
 ONE_AWAY_BONUS = 1.0
-PAIR_WEIGHT = 1.0
-SET_WEIGHT = 1.0
 
 PUZZLE_BLURB = "NYT Connections: the sixteen words form four hidden groups of four related words each."
 PAIR_TASK = "Judge whether the two words belong to the same group of four in this Connections puzzle."
@@ -56,16 +63,15 @@ RELATEDNESS_LEVELS = [
 ]
 
 
-Words = Tuple[str, ...]
-WordSet = FrozenSet[str]
+Words = tuple[str, ...]
+WordSet = frozenset[str]
 
 
 @dataclass
 class Puzzle:
     id: int
-    words: List[str]
-    groups: List[WordSet]
-    difficulty: Optional[float]
+    words: list[str]
+    groups: list[WordSet]
 
 
 @dataclass
@@ -73,7 +79,7 @@ class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
     calls: int = 0
-    http_ms: List[float] = field(default_factory=list)
+    http_ms: list[float] = field(default_factory=list)
 
     def add(self, other: "Usage") -> None:
         self.input_tokens += other.input_tokens
@@ -84,11 +90,11 @@ class Usage:
 
 @dataclass
 class Feedback:
-    wrong: List[WordSet] = field(default_factory=list)
-    one_away: List[WordSet] = field(default_factory=list)
+    wrong: list[WordSet] = field(default_factory=list)
+    one_away: list[WordSet] = field(default_factory=list)
 
     @property
-    def plain_wrong(self) -> List[WordSet]:
+    def plain_wrong(self) -> list[WordSet]:
         return [g for g in self.wrong if g not in self.one_away]
 
 
@@ -106,13 +112,13 @@ class GameResult:
     guesses: int
     mistakes: int
     first_guess_correct: bool
-    turns: List[Turn]
+    turns: list[Turn]
     usage: Usage
     seconds: float
-    error: Optional[str] = None
+    error: str | None = None
 
 
-def load_puzzles(only_ids: Optional[Sequence[int]], canonical_only: bool) -> List[Puzzle]:
+def load_puzzles(only_ids: Sequence[int] | None, canonical_only: bool) -> list[Puzzle]:
     data = yaml.safe_load(PUZZLES_FILE.read_text())
     puzzles = []
     for raw in data["puzzles"]:
@@ -124,7 +130,6 @@ def load_puzzles(only_ids: Optional[Sequence[int]], canonical_only: bool) -> Lis
             id=raw["id"],
             words=[w.upper() for w in raw["words"]],
             groups=[frozenset(w.upper() for w in g["words"]) for g in raw["groups"]],
-            difficulty=raw.get("difficulty"),
         ))
     return puzzles
 
@@ -134,7 +139,7 @@ def load_api_key() -> str:
     if from_env:
         return from_env.strip()
     if ENV_FILE.exists():
-        match = re.search(r"^\s*(?:export\s+)?OPENROUTER_API_KEY=[\"']?([^\"'\r\n]+)", ENV_FILE.read_text(), re.M)
+        match = re.search(r"^\s*(?:export\s+)?OPENROUTER_API_KEY=[\"']?([^\"'\r\n]+)", ENV_FILE.read_text(), re.MULTILINE)
         if match:
             return match.group(1).strip()
     sys.exit(f"No OpenRouter API key: set OPENROUTER_API_KEY or add it to {ENV_FILE}")
@@ -147,7 +152,7 @@ def price_per_input_token(api_key: str, model: str) -> float:
     return float(response.json()["data"]["endpoints"][0]["pricing"]["prompt"])
 
 
-def relatedness_question(task: str, **fields) -> Dict:
+def relatedness_question(task: str, **fields) -> dict:
     return {
         "type": "score",
         "instructions": {"task": task, **fields},
@@ -155,21 +160,21 @@ def relatedness_question(task: str, **fields) -> Dict:
     }
 
 
-def pair_questions(words: Sequence[str]) -> Dict[str, Dict]:
+def pair_questions(words: Sequence[str]) -> dict[str, dict]:
     return {
         f"{a}|{b}": relatedness_question(PAIR_TASK, word_a=a, word_b=b)
         for a, b in itertools.combinations(words, 2)
     }
 
 
-def set_questions(candidate_sets: Sequence[Words]) -> Dict[str, Dict]:
+def set_questions(candidate_sets: Sequence[Words]) -> dict[str, dict]:
     return {
         "|".join(words): relatedness_question(SET_TASK, words=list(words))
         for words in candidate_sets
     }
 
 
-def puzzle_state(words: Sequence[str]) -> Dict:
+def puzzle_state(words: Sequence[str]) -> dict:
     return {"puzzle": PUZZLE_BLURB, "words": list(words)}
 
 
@@ -178,22 +183,21 @@ class DecisionsClient:
         self.headers = {"Authorization": f"Bearer {api_key}"}
         self.model = model
 
-    def ask(self, state: Dict, questions: Dict[str, Dict]) -> Tuple[Dict[str, Dict], Usage]:
+    def ask(self, state: dict, questions: dict[str, dict]) -> tuple[dict[str, dict], Usage]:
         body = {"model": self.model, "state": state, "questions": questions}
         usage = Usage()
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for attempt in range(MAX_ATTEMPTS):
             started = time.perf_counter()
             try:
                 response = requests.post(API_URL, json=body, headers=self.headers, timeout=REQUEST_TIMEOUT_SEC)
             except requests.RequestException as exc:
-                usage.http_ms.append((time.perf_counter() - started) * 1000)
-                usage.calls += 1
-                last_error = exc
-                time.sleep(backoff_seconds(attempt, None))
-                continue
+                response, last_error = None, exc
             usage.http_ms.append((time.perf_counter() - started) * 1000)
             usage.calls += 1
+            if response is None:
+                time.sleep(backoff_seconds(attempt, None))
+                continue
             if response.status_code in RETRYABLE_STATUSES:
                 last_error = requests.HTTPError(f"HTTP {response.status_code}", response=response)
                 time.sleep(backoff_seconds(attempt, response.headers.get("Retry-After")))
@@ -206,7 +210,7 @@ class DecisionsClient:
         raise RuntimeError(f"gave up after {MAX_ATTEMPTS} attempts: {last_error}")
 
 
-def backoff_seconds(attempt: int, retry_after: Optional[str]) -> float:
+def backoff_seconds(attempt: int, retry_after: str | None) -> float:
     if retry_after:
         try:
             return min(float(retry_after), BACKOFF_MAX_SEC)
@@ -216,11 +220,11 @@ def backoff_seconds(attempt: int, retry_after: Optional[str]) -> float:
     return exponential * random.uniform(0.5, 1.0)
 
 
-def normalized_score(answer: Dict) -> float:
+def normalized_score(answer: dict) -> float:
     return answer["score"] / (len(RELATEDNESS_LEVELS) - 1)
 
 
-def pair_affinities(client: DecisionsClient, words: Sequence[str]) -> Tuple[Dict[FrozenSet[str], float], Usage]:
+def pair_affinities(client: DecisionsClient, words: Sequence[str]) -> tuple[dict[frozenset[str], float], Usage]:
     answers, usage = client.ask(puzzle_state(words), pair_questions(words))
     affinity = {}
     for key, answer in answers.items():
@@ -229,7 +233,7 @@ def pair_affinities(client: DecisionsClient, words: Sequence[str]) -> Tuple[Dict
     return affinity, usage
 
 
-def pair_sum(words: Words, affinity: Dict[FrozenSet[str], float]) -> float:
+def pair_sum(words: Words, affinity: dict[frozenset[str], float]) -> float:
     return sum(affinity[frozenset(pair)] for pair in itertools.combinations(words, 2))
 
 
@@ -245,8 +249,8 @@ def one_away_bonus(candidate: WordSet, feedback: Feedback) -> float:
     return 0.0
 
 
-def score_candidate_sets(remaining: Sequence[str], affinity: Dict[FrozenSet[str], float],
-                         feedback: Feedback) -> Dict[Words, float]:
+def score_candidate_sets(remaining: Sequence[str], affinity: dict[frozenset[str], float],
+                         feedback: Feedback) -> dict[Words, float]:
     scored = {}
     for words in itertools.combinations(sorted(remaining), GROUP_SIZE):
         candidate = frozenset(words)
@@ -255,22 +259,20 @@ def score_candidate_sets(remaining: Sequence[str], affinity: Dict[FrozenSet[str]
     return scored
 
 
-def blend_with_direct_scores(client: DecisionsClient, remaining: Sequence[str], pair_scores: Dict[Words, float],
-                             rng: random.Random) -> Tuple[Dict[Words, float], Usage]:
+def blend_with_direct_scores(client: DecisionsClient, remaining: Sequence[str], pair_scores: dict[Words, float],
+                             rng: random.Random) -> tuple[dict[Words, float], Usage]:
     top = sorted(pair_scores, key=pair_scores.get, reverse=True)[:CANDIDATE_SETS_FOR_DIRECT_SCORE]
     rng.shuffle(top)
     answers, usage = client.ask(puzzle_state(remaining), set_questions(top))
     blended = {}
     for key, answer in answers.items():
         words = tuple(key.split("|"))
-        pair_component = PAIR_WEIGHT * pair_scores[words] / len(list(itertools.combinations(words, 2)))
-        set_component = SET_WEIGHT * normalized_score(answer)
-        blended[words] = pair_component + set_component
+        blended[words] = pair_scores[words] / PAIRS_PER_SET + normalized_score(answer)
     return blended, usage
 
 
-def choose_guess(client: DecisionsClient, remaining: List[str], feedback: Feedback,
-                 rng: random.Random) -> Tuple[Words, Usage]:
+def choose_guess(client: DecisionsClient, remaining: list[str], feedback: Feedback,
+                 rng: random.Random) -> tuple[Words, Usage]:
     usage = Usage()
     if len(remaining) == GROUP_SIZE:
         return tuple(remaining), usage
@@ -283,12 +285,10 @@ def choose_guess(client: DecisionsClient, remaining: List[str], feedback: Feedba
         return next(iter(pair_scores)), usage
     blended, set_usage = blend_with_direct_scores(client, shuffled, pair_scores, rng)
     usage.add(set_usage)
-    if not blended:
-        return max(pair_scores, key=pair_scores.get), usage
     return max(blended, key=blended.get), usage
 
 
-def judge(guess: Words, puzzle: Puzzle, solved: List[WordSet]) -> str:
+def judge(guess: Words, puzzle: Puzzle, solved: list[WordSet]) -> str:
     guessed = frozenset(guess)
     if guessed in puzzle.groups:
         return "CORRECT"
@@ -302,9 +302,9 @@ def play(client: DecisionsClient, puzzle: Puzzle, seed: int) -> GameResult:
     rng = random.Random(seed + puzzle.id)
     remaining = puzzle.words[:]
     rng.shuffle(remaining)
-    solved: List[WordSet] = []
+    solved: list[WordSet] = []
     feedback = Feedback()
-    turns: List[Turn] = []
+    turns: list[Turn] = []
     usage = Usage()
     mistakes = 0
     started = time.perf_counter()
@@ -341,7 +341,7 @@ def play_or_record_failure(client: DecisionsClient, puzzle: Puzzle, seed: int) -
     started = time.perf_counter()
     try:
         return play(client, puzzle, seed)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - record the failure, keep the other puzzles running
         return GameResult(
             puzzle_id=puzzle.id, won=False, groups_found=0, guesses=0, mistakes=0,
             first_guess_correct=False, turns=[], usage=Usage(),
@@ -349,13 +349,16 @@ def play_or_record_failure(client: DecisionsClient, puzzle: Puzzle, seed: int) -
         )
 
 
-def play_all(client: DecisionsClient, puzzles: List[Puzzle], seed: int, threads: int) -> List[GameResult]:
+def play_all(client: DecisionsClient, puzzles: list[Puzzle], seed: int, threads: int) -> list[GameResult]:
     with ThreadPoolExecutor(max_workers=threads) as pool:
         results = list(pool.map(lambda p: play_or_record_failure(client, p, seed), puzzles))
     return sorted(results, key=lambda r: r.puzzle_id)
 
 
-def print_report(results: List[GameResult], wall_seconds: float, model: str, price: float) -> None:
+RESULT_SYMBOLS = {"CORRECT": "C", "INCORRECT - ONE AWAY": "~", "INCORRECT": "x"}
+
+
+def print_report(results: list[GameResult], wall_seconds: float, model: str, price: float) -> None:
     total = Usage()
     for r in results:
         total.add(r.usage)
@@ -363,8 +366,7 @@ def print_report(results: List[GameResult], wall_seconds: float, model: str, pri
     print(f"model {model}   puzzles {n}   wall {wall_seconds:.1f}s")
     print(f"{'id':>5} {'won':>4} {'groups':>6} {'guesses':>7} {'mistakes':>8} {'first':>5}  transcript")
     for r in results:
-        transcript = " | ".join(f"{t.result[0] if t.result == 'CORRECT' else ('~' if 'ONE AWAY' in t.result else 'x')} "
-                                f"{','.join(t.guess)}" for t in r.turns)
+        transcript = " | ".join(f"{RESULT_SYMBOLS[t.result]} {','.join(t.guess)}" for t in r.turns)
         if r.error:
             transcript = f"FAILED: {r.error}"
         print(f"{r.puzzle_id:>5} {'yes' if r.won else '-':>4} {r.groups_found:>6} {r.guesses:>7} {r.mistakes:>8} "
@@ -384,7 +386,7 @@ def print_report(results: List[GameResult], wall_seconds: float, model: str, pri
           f"cost ${total.input_tokens * price:.4f}")
 
 
-def save_results(results: List[GameResult], model: str, seed: int, price: float) -> Path:
+def save_results(results: list[GameResult], model: str, seed: int, price: float) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%dT%H-%M-%S")
     path = OUTPUT_DIR / f"{stamp}_{model.split('/')[-1]}.json"
