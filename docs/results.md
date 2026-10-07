@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 63 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 64 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -653,6 +653,20 @@ Latest one-shot runs for 63 models (20 games each, one submission per game, max 
       "tok_per_game": "2.8k",
       "cost": 0.12,
       "cost_per_game": "$0.006"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-07T19-58-46_haiku-5.5.html\">anthropic/claude-haiku-5.5</a>",
+      "date": "2026-10-07",
+      "pts": 67,
+      "pts_pct": 0.67,
+      "w": "15",
+      "grp": "64/80",
+      "trap": "18",
+      "inv": "0",
+      "avg_time": "10s",
+      "tok_per_game": "2.6k",
+      "cost": 0.02,
+      "cost_per_game": "$0.001"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-52-12_gemini-3.5-flash.html\">google/gemini-3.5-flash</a>",
