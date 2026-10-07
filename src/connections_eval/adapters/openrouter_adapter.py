@@ -107,6 +107,9 @@ _PROVIDER_SLUG_MAP = {
 # once OpenRouter stops sending top_p on the Anthropic route.
 _PROVIDER_SLUG_OVERRIDES = {
     "anthropic/claude-sonnet-5": "amazon-bedrock",
+    # Anthropic no longer serves claude-opus-4.1 first-party; Bedrock is its
+    # only OpenRouter endpoint, so pinning "anthropic" 404s ("No endpoints found").
+    "anthropic/claude-opus-4.1": "amazon-bedrock",
 }
 
 
