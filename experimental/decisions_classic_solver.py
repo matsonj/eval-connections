@@ -42,6 +42,8 @@ MODEL_ENDPOINTS_URL = "https://openrouter.ai/api/v1/models/{model}/endpoints"
 DEFAULT_MODEL = "openai/gpt-6-luna-decisions"
 REQUEST_TIMEOUT_SEC = 120
 RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504, 529}
+# Clef rejects more than 64 questions per request; every model gets the same split so requests stay identical.
+MAX_QUESTIONS_PER_REQUEST = 64
 MAX_ATTEMPTS = 5
 BACKOFF_BASE_SEC = 1.0
 BACKOFF_MAX_SEC = 30.0
@@ -160,18 +162,14 @@ def relatedness_question(task: str, **fields) -> dict:
     }
 
 
-def pair_questions(words: Sequence[str]) -> dict[str, dict]:
-    return {
-        f"{a}|{b}": relatedness_question(PAIR_TASK, word_a=a, word_b=b)
-        for a, b in itertools.combinations(words, 2)
-    }
+# Question names are positional (p0, s0, ...): some providers (Clef) only accept [A-Za-z0-9_.-] names,
+# and puzzle words can contain spaces, "/", "&" or ".".
+def pair_questions(pairs: Sequence[tuple[str, str]]) -> dict[str, dict]:
+    return {f"p{i}": relatedness_question(PAIR_TASK, word_a=a, word_b=b) for i, (a, b) in enumerate(pairs)}
 
 
 def set_questions(candidate_sets: Sequence[Words]) -> dict[str, dict]:
-    return {
-        "|".join(words): relatedness_question(SET_TASK, words=list(words))
-        for words in candidate_sets
-    }
+    return {f"s{i}": relatedness_question(SET_TASK, words=list(words)) for i, words in enumerate(candidate_sets)}
 
 
 def puzzle_state(words: Sequence[str]) -> dict:
@@ -184,7 +182,17 @@ class DecisionsClient:
         self.model = model
 
     def ask(self, state: dict, questions: dict[str, dict]) -> tuple[dict[str, dict], Usage]:
-        body = {"model": self.model, "state": state, "questions": questions}
+        names = list(questions)
+        answers: dict[str, dict] = {}
+        usage = Usage()
+        for start in range(0, len(names), MAX_QUESTIONS_PER_REQUEST):
+            chunk = {name: questions[name] for name in names[start:start + MAX_QUESTIONS_PER_REQUEST]}
+            chunk_answers, chunk_usage = self._post({"model": self.model, "state": state, "questions": chunk})
+            answers.update(chunk_answers)
+            usage.add(chunk_usage)
+        return answers, usage
+
+    def _post(self, body: dict) -> tuple[dict[str, dict], Usage]:
         usage = Usage()
         last_error: Exception | None = None
         for attempt in range(MAX_ATTEMPTS):
@@ -202,7 +210,8 @@ class DecisionsClient:
                 last_error = requests.HTTPError(f"HTTP {response.status_code}", response=response)
                 time.sleep(backoff_seconds(attempt, response.headers.get("Retry-After")))
                 continue
-            response.raise_for_status()
+            if not response.ok:
+                raise requests.HTTPError(f"HTTP {response.status_code}: {response.text[:500]}", response=response)
             payload = response.json()
             usage.input_tokens += payload["usage"]["input_tokens"]
             usage.output_tokens += payload["usage"]["output_tokens"]
@@ -225,11 +234,9 @@ def normalized_score(answer: dict) -> float:
 
 
 def pair_affinities(client: DecisionsClient, words: Sequence[str]) -> tuple[dict[frozenset[str], float], Usage]:
-    answers, usage = client.ask(puzzle_state(words), pair_questions(words))
-    affinity = {}
-    for key, answer in answers.items():
-        a, b = key.split("|")
-        affinity[frozenset((a, b))] = normalized_score(answer)
+    pairs = list(itertools.combinations(words, 2))
+    answers, usage = client.ask(puzzle_state(words), pair_questions(pairs))
+    affinity = {frozenset(pair): normalized_score(answers[f"p{i}"]) for i, pair in enumerate(pairs)}
     return affinity, usage
 
 
@@ -264,10 +271,8 @@ def blend_with_direct_scores(client: DecisionsClient, remaining: Sequence[str], 
     top = sorted(pair_scores, key=pair_scores.get, reverse=True)[:CANDIDATE_SETS_FOR_DIRECT_SCORE]
     rng.shuffle(top)
     answers, usage = client.ask(puzzle_state(remaining), set_questions(top))
-    blended = {}
-    for key, answer in answers.items():
-        words = tuple(key.split("|"))
-        blended[words] = pair_scores[words] / PAIRS_PER_SET + normalized_score(answer)
+    blended = {words: pair_scores[words] / PAIRS_PER_SET + normalized_score(answers[f"s{i}"])
+               for i, words in enumerate(top)}
     return blended, usage
 
 
