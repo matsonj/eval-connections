@@ -1,10 +1,11 @@
-# Experimental: Connections with decisions models (Jev, GPT-6 Luna)
+# Experimental: Connections with decisions models (Jev, Clef, GPT-6 Luna)
 
 `decisions_classic_solver.py` plays NYT Connections puzzles in classic mode
 (guess one group of four, get CORRECT / INCORRECT / INCORRECT - ONE AWAY, repeat
 until all four groups are found or four mistakes are made) using a decisions
-model, such as TypeSafe's Jev or OpenAI's GPT-6 Luna Decisions, through
-OpenRouter's decisions endpoint (`POST https://openrouter.ai/api/alpha/decisions`).
+model, such as TypeSafe's Jev, Cloudflare's Clef or OpenAI's GPT-6 Luna
+Decisions, through OpenRouter's decisions endpoint
+(`POST https://openrouter.ai/api/alpha/decisions`).
 Every model gets identical questions, blend and feedback rules; only `--model`
 changes. It is a standalone script and does not touch the main harness.
 
@@ -12,42 +13,49 @@ changes. It is a standalone script and does not touch the main harness.
 # key: OPENROUTER_API_KEY, from the environment or .env at the repo root
 uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13      # canonical 20, 20 threads
 uv run python experimental/decisions_classic_solver.py                                # openai/gpt-6-luna-decisions
+uv run python experimental/decisions_classic_solver.py --model cloudflare/clef
 uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13 --seed 43 --puzzle-ids 246,817
 uv run python experimental/decisions_classic_solver.py --all --threads 10
 ```
 
 Each run prints a per-puzzle transcript and summary and writes a JSON file to
 `experimental/runs/` (git-ignored). Prices are looked up per model from
-OpenRouter. A canonical run takes under ten seconds and costs about six cents
-with Jev, twenty with Luna.
+OpenRouter. A canonical run costs about $0.06 with Jev, $0.20 with Luna and
+$0.41 with Clef, and takes under ten seconds (about thirty with Clef).
 
-## Jev vs GPT-6 Luna Decisions
+## Jev vs Clef vs GPT-6 Luna Decisions
 
 To reproduce the comparison below, run each model at seeds 42, 43 and 44 and
 average the summaries:
 
 ```bash
-for m in typesafe/jev-1.13 openai/gpt-6-luna-decisions; do
+for m in typesafe/jev-1.13 cloudflare/clef openai/gpt-6-luna-decisions; do
   for s in 42 43 44; do uv run python experimental/decisions_classic_solver.py --model $m --seed $s; done
 done
 ```
 
 Results on the canonical 20 (2026-10-07):
 
-| | Jev (`typesafe/jev-1.13`) | GPT-6 Luna Decisions |
-|---|---|---|
-| Puzzles won | 14.8 / 20 | 9.7 / 20 |
-| Groups found | 67.2 / 80 | 56.0 / 80 |
-| Mistakes per puzzle | 1.9 | 2.5 |
-| Cost per run | $0.06 | $0.20 |
-| Median latency | ~470 ms | ~550 ms |
+| | Jev (`typesafe/jev-1.13`) | Clef (`cloudflare/clef`) | GPT-6 Luna Decisions |
+|---|---|---|---|
+| Puzzles won | 14.8 / 20 | 11.7 / 20 | 9.7 / 20 |
+| Groups found | 67.2 / 80 | 58.0 / 80 | 56.0 / 80 |
+| Mistakes per puzzle | 1.9 | 2.4 | 2.5 |
+| Cost per run | $0.06 | $0.41 | $0.20 |
+| Median latency | ~470 ms | ~1,850 ms | ~550 ms |
 
 Jev is averaged over six runs (two passes of seeds 42–44: 15/15/17 and 14/15/13
-wins). It is non-deterministic, so expect about ±1–2 wins per run. Luna
-returned identical results on both passes. Luna costs more per token ($0.10 vs
-$0.042 per 1M input, output free for both) and counts about 45% more tokens for
-the same requests. The solver's wording and blend weights were tuned on Jev, so
-the setup favours it somewhat.
+wins). It is non-deterministic, so expect about ±1–2 wins per run. Clef
+(13/11/11 wins) and Luna (11/9/9) returned identical results when rerun. Input
+prices per 1M tokens are $0.042 (Jev), $0.24 (Clef) and $0.10 (Luna); output is
+free for all three. Luna counts about 45% more tokens than Jev for the same
+requests, Clef about 20% more. The solver's wording and blend weights were
+tuned on Jev, so the setup favours it somewhat.
+
+Clef only accepts question names matching `[A-Za-z0-9_.-]` and at most 64
+questions per request, so the script names questions by position (`p0`, `s0`,
+...) and splits requests at 64 for every model. This did not change Luna's
+guesses on any puzzle.
 
 If an OpenAI-routed model fails with `401 Incorrect API key provided: sk-proj-…`,
 OpenRouter is forwarding a stale OpenAI key saved in the account's BYOK settings
@@ -56,15 +64,16 @@ capacity.
 
 ## Why this exists
 
-Jev is not a language model. Its one endpoint, `POST /v1/systemone`, takes a
-`state` and a map of typed questions and returns probabilities: a Noul is a
-yes/no probability, a Choice is a distribution over named options, a Score is a
-distribution over ordered levels. It never generates text, so the main harness,
-which sends a prompt and parses `<answer>` blocks, cannot evaluate it. To put
-Jev on the same rubric as the LLMs, our code has to decompose the puzzle into
-typed questions and assemble the guess itself. That means the solver is part of
-the "model" being scored. Any leaderboard entry for this should be labelled with
-the method, not just the model name.
+Decisions models are not language models. OpenRouter's decisions endpoint
+(which uses TypeSafe's native `POST /v1/systemone` format) takes a `state` and a
+map of typed questions and returns probabilities: a Noul is a yes/no
+probability, a Choice is a distribution over named options, a Score is a
+distribution over ordered levels. The model never generates text, so the main
+harness, which sends a prompt and parses `<answer>` blocks, cannot evaluate it.
+To put these models on the same rubric as the LLMs, our code has to decompose
+the puzzle into typed questions and assemble the guess itself. That means the
+solver is part of the "model" being scored. Any leaderboard entry for this
+should be labelled with the method, not just the model name.
 
 ## What the script does, in reading order
 
@@ -72,7 +81,9 @@ the method, not just the model name.
 2. For each turn, shuffle the remaining words and put them in the `state`.
 3. Ask one 3-level Score question per pair of remaining words: "do these two
    belong to the same group of four?" Instructions are structured objects
-   (`{task, word_a, word_b}`), not prose.
+   (`{task, word_a, word_b}`), not prose. Questions are named by position and
+   sent at most 64 per request, so the 120 pairs of a full board take two
+   requests.
 4. Score every candidate set of four by summing its six pair scores, giving a
    value from 0 to 6.
 5. Keep only candidates consistent with the feedback so far. The rules are
@@ -84,19 +95,20 @@ the method, not just the model name.
      belongs to some other group.
    Candidates overlapping a ONE AWAY guess in exactly 3 words also get a bonus
    of 1.0 added to their pair sum.
-6. Take the top 60 candidates by that score and ask Jev a direct 3-level Score
-   on each: "do these four together form one of the real groups?"
+6. Take the top 60 candidates by that score and ask the model a direct 3-level
+   Score on each: "do these four together form one of the real groups?"
 7. Blend: `(pair sum + bonus) / 6 + direct score / 2`. The pair component runs
    from 0 to 7/6, the set component from 0 to 1. Guess the best set.
 8. Our code judges the guess against the answer key and updates the feedback.
-   Jev never sees the feedback text; it only ever answers questions.
+   The model never sees the feedback text; it only ever answers questions.
 
 Two shortcuts skip the API: when exactly four words remain they are guessed
 directly, and when the feedback leaves a single consistent candidate it is
-guessed without the direct set Score. A puzzle whose requests fail after five
-attempts is recorded as a failure and the rest of the run still completes.
+guessed without the direct set Score. Timeouts, rate limits and 5xx errors are
+retried; a puzzle whose requests fail after five attempts is recorded as a
+failure and the rest of the run still completes.
 
-## Results on the canonical 20 (2026-09-17, `jev-1.13.0`)
+## How the method was tuned on Jev (2026-09-17, `jev-1.13.0`)
 
 | Method | Wins /20 | Groups /80 | First guess correct | Mistakes per puzzle |
 |---|---|---|---|---|
@@ -215,5 +227,5 @@ Recorded so nobody retries them.
   FLYER, SENATOR, STAR), PAPER ___ (CLIP, TIGER, TOWEL, TRAIL), homophones and
   most fill-in-the-blank groups. No question phrasing we tried moved these.
 - The trap bonus from the one-shot leaderboard is not modelled here.
-- Rate limits are 1,200 requests per minute. A canonical run makes about 180
-  calls, so 20 threads is comfortable.
+- A canonical run makes about 200 to 250 requests. 20 threads has been fine on
+  OpenRouter for all three models.
