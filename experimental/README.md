@@ -1,35 +1,27 @@
-# Experimental: Connections with TypeSafe Jev
+# Experimental: Connections with decisions models (Jev, GPT-6 Luna)
 
-`jev_classic_solver.py` plays NYT Connections puzzles in classic mode (guess one
-group of four, get CORRECT / INCORRECT / INCORRECT - ONE AWAY, repeat until all
-four groups are found or four mistakes are made) using TypeSafe.ai's Jev model.
-It is a standalone script and does not touch the main harness.
-
-```bash
-# key: either export TYPESAFE_API_KEY or put the raw key in .env.jev at the repo root (git-ignored)
-uv run python experimental/jev_classic_solver.py                 # canonical 20, 20 threads
-uv run python experimental/jev_classic_solver.py --puzzle-ids 246,817
-uv run python experimental/jev_classic_solver.py --all --threads 10
-```
-
-Each run prints a per-puzzle transcript and summary and writes a JSON file to
-`experimental/runs/`. A canonical run costs about six cents and takes under ten
-seconds.
-
-## Decisions models via OpenRouter: Jev vs GPT-6 Luna
-
-`decisions_classic_solver.py` runs the same solver against OpenRouter's
-decisions endpoint (`POST https://openrouter.ai/api/alpha/decisions`), so any
-decisions model can be benchmarked with identical questions, blend and
-feedback rules. Only `--model` changes. It imports the solver from
-`jev_classic_solver.py` and looks up each model's price from OpenRouter.
+`decisions_classic_solver.py` plays NYT Connections puzzles in classic mode
+(guess one group of four, get CORRECT / INCORRECT / INCORRECT - ONE AWAY, repeat
+until all four groups are found or four mistakes are made) using a decisions
+model, such as TypeSafe's Jev or OpenAI's GPT-6 Luna Decisions, through
+OpenRouter's decisions endpoint (`POST https://openrouter.ai/api/alpha/decisions`).
+Every model gets identical questions, blend and feedback rules; only `--model`
+changes. It is a standalone script and does not touch the main harness.
 
 ```bash
 # key: OPENROUTER_API_KEY, from the environment or .env at the repo root
-uv run python experimental/decisions_classic_solver.py                                    # openai/gpt-6-luna-decisions
-uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13
-uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13 --seed 43 --puzzle-ids 246,304
+uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13      # canonical 20, 20 threads
+uv run python experimental/decisions_classic_solver.py                                # openai/gpt-6-luna-decisions
+uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13 --seed 43 --puzzle-ids 246,817
+uv run python experimental/decisions_classic_solver.py --all --threads 10
 ```
+
+Each run prints a per-puzzle transcript and summary and writes a JSON file to
+`experimental/runs/` (git-ignored). Prices are looked up per model from
+OpenRouter. A canonical run takes under ten seconds and costs about six cents
+with Jev, twenty with Luna.
+
+## Jev vs GPT-6 Luna Decisions
 
 To reproduce the comparison below, run each model at seeds 42, 43 and 44 and
 average the summaries:
