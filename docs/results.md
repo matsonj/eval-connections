@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 64 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 65 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -611,6 +611,20 @@ Latest one-shot runs for 64 models (20 games each, one submission per game, max 
       "tok_per_game": "2.8k",
       "cost": 0.36,
       "cost_per_game": "$0.018"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-07T22-40-16_opus-4.1.html\">anthropic/claude-opus-4.1</a>",
+      "date": "2026-10-07",
+      "pts": 69,
+      "pts_pct": 0.69,
+      "w": "17",
+      "grp": "70/80",
+      "trap": "16",
+      "inv": "0",
+      "avg_time": "1m41s",
+      "tok_per_game": "2.2k",
+      "cost": 2.61,
+      "cost_per_game": "$0.130"
     },
     {
       "model": "<a href=\"logs/2026-09-23T22-21-01_mimo-v2.6-flash.html\">xiaomi/mimo-v2.6-flash</a>",
