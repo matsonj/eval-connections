@@ -1,10 +1,11 @@
-# Experimental: Connections with decisions models (Jev, Clef, GPT-6 Luna)
+# Experimental: Connections with decisions models
 
 `decisions_classic_solver.py` plays NYT Connections puzzles in classic mode
 (guess one group of four, get CORRECT / INCORRECT / INCORRECT - ONE AWAY, repeat
 until all four groups are found or four mistakes are made) using a decisions
-model, such as TypeSafe's Jev, Cloudflare's Clef or OpenAI's GPT-6 Luna
-Decisions, through OpenRouter's decisions endpoint
+model, such as TypeSafe's Jev, Perplexity's Decider, Inception's Mercury
+Decide, Cloudflare's Clef, OpenAI's GPT-6 Luna Decisions or Microsoft's
+Microsoft-Decision-1, through OpenRouter's decisions endpoint
 (`POST https://openrouter.ai/api/alpha/decisions`).
 Every model gets identical questions, blend and feedback rules; only `--model`
 changes. It is a standalone script and does not touch the main harness.
@@ -13,44 +14,59 @@ changes. It is a standalone script and does not touch the main harness.
 # key: OPENROUTER_API_KEY, from the environment or .env at the repo root
 uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13      # canonical 20, 20 threads
 uv run python experimental/decisions_classic_solver.py                                # openai/gpt-6-luna-decisions
-uv run python experimental/decisions_classic_solver.py --model cloudflare/clef
 uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13 --seed 43 --puzzle-ids 246,817
 uv run python experimental/decisions_classic_solver.py --all --threads 10
 ```
 
 Each run prints a per-puzzle transcript and summary and writes a JSON file to
 `experimental/runs/` (git-ignored). Prices are looked up per model from
-OpenRouter. A canonical run costs about $0.06 with Jev, $0.20 with Luna and
-$0.41 with Clef, and takes under ten seconds (about thirty with Clef).
+OpenRouter. A canonical run takes 10 to 30 seconds depending on the model.
 
-## Jev vs Clef vs GPT-6 Luna Decisions
+## Comparing decisions models
 
 To reproduce the comparison below, run each model at seeds 42, 43 and 44 and
-average the summaries:
+average the summaries (run non-deterministic models twice):
 
 ```bash
-for m in typesafe/jev-1.13 cloudflare/clef openai/gpt-6-luna-decisions; do
+for m in typesafe/jev-1.13 perplexity/pplx-decider-v1.1-27b inception/mercury-decide \
+         cloudflare/clef openai/gpt-6-luna-decisions microsoft/microsoft-decision-1; do
   for s in 42 43 44; do uv run python experimental/decisions_classic_solver.py --model $m --seed $s; done
 done
 ```
 
-Results on the canonical 20 (2026-10-07):
+Results on the canonical 20 (2026-10-07 to 2026-10-12):
 
-| | Jev (`typesafe/jev-1.13`) | Clef (`cloudflare/clef`) | GPT-6 Luna Decisions |
-|---|---|---|---|
-| Puzzles won | 14.8 / 20 | 11.7 / 20 | 9.7 / 20 |
-| Groups found | 67.2 / 80 | 58.0 / 80 | 56.0 / 80 |
-| Mistakes per puzzle | 1.9 | 2.4 | 2.5 |
-| Cost per run | $0.06 | $0.41 | $0.20 |
-| Median latency | ~470 ms | ~1,850 ms | ~550 ms |
+| Model | Puzzles won | Groups found | Mistakes per puzzle | Cost per run | Median latency | Requests/sec |
+|---|---|---|---|---|---|---|
+| Jev (`typesafe/jev-1.13`) | 14.8 / 20 | 67.2 / 80 | 1.9 | $0.06 | ~300 ms | ~33 |
+| Perplexity Decider (`perplexity/pplx-decider-v1.1-27b`) | 13.3 / 20 | 63.3 / 80 | 2.0 | $0.05 | ~1,450 ms | ~8 |
+| Mercury Decide (`inception/mercury-decide`) | 12.3 / 20 | 60.7 / 80 | 2.2 | $0.001 | ~800 ms | ~16 |
+| Clef (`cloudflare/clef`) | 11.7 / 20 | 58.0 / 80 | 2.4 | $0.41 | ~1,850 ms | ~8 |
+| GPT-6 Luna Decisions (`openai/gpt-6-luna-decisions`) | 9.7 / 20 | 56.0 / 80 | 2.5 | $0.20 | ~440 ms | ~24 |
+| Microsoft-Decision-1 (`microsoft/microsoft-decision-1`) | 8.0 / 20 | 47.8 / 80 | 2.8 | $0.04 | ~700 ms | ~19 |
 
-Jev is averaged over six runs (two passes of seeds 42–44: 15/15/17 and 14/15/13
-wins). It is non-deterministic, so expect about ±1–2 wins per run. Clef
-(13/11/11 wins) and Luna (11/9/9) returned identical results when rerun. Input
-prices per 1M tokens are $0.042 (Jev), $0.24 (Clef) and $0.10 (Luna); output is
-free for all three. Luna counts about 45% more tokens than Jev for the same
-requests, Clef about 20% more. The solver's wording and blend weights were
-tuned on Jev, so the setup favours it somewhat.
+Requests/sec is API calls divided by wall time with 20 games in parallel.
+The solver's wording and blend weights were tuned on Jev, so the setup
+favours it somewhat.
+
+- **Determinism.** Jev, Mercury Decide and Microsoft-Decision-1 return
+  different answers on reruns and are averaged over six runs (two passes of
+  seeds 42–44); expect about ±1–2 wins per run. Perplexity Decider, Clef and
+  Luna returned identical results when rerun and are averaged over three.
+- **Cost.** Input prices per 1M tokens are $0.042 (Jev, Microsoft), $0.02
+  (Perplexity, Mercury), $0.24 (Clef) and $0.10 (Luna); output is free. Token
+  counts differ a lot for the same requests: Mercury bills only its "native"
+  tokens (about 225 per 64-question request, against about 6,000 by
+  OpenRouter's own count), confirmed against the account's spend, so a run
+  costs about a tenth of a cent.
+- **Latency.** Perplexity Decider's latency grows with questions per request
+  (serially about 405 ms for 1 question, 545 ms for 16, 1,110 ms for 64);
+  Jev's stays flat at about 360–400 ms. The solver sends up to 64 questions
+  per request, so models that scale with request size look slower here than
+  their OpenRouter latency figures.
+- **Rate limits.** Mercury Decide returned HTTP 429 at 20 threads; retries
+  usually recover, but one run lost a puzzle after five attempts and was left
+  out of the averages.
 
 Clef only accepts question names matching `[A-Za-z0-9_.-]` and at most 64
 questions per request, so the script names questions by position (`p0`, `s0`,
@@ -227,5 +243,6 @@ Recorded so nobody retries them.
   FLYER, SENATOR, STAR), PAPER ___ (CLIP, TIGER, TOWEL, TRAIL), homophones and
   most fill-in-the-blank groups. No question phrasing we tried moved these.
 - The trap bonus from the one-shot leaderboard is not modelled here.
-- A canonical run makes about 200 to 250 requests. 20 threads has been fine on
-  OpenRouter for all three models.
+- A canonical run makes about 230 to 270 requests. 20 threads has been fine on
+  OpenRouter for every model except Mercury Decide, which sometimes returns
+  HTTP 429; use `--threads 10` if that loses puzzles.
