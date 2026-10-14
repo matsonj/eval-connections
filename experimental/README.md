@@ -234,6 +234,109 @@ Recorded so nobody retries them.
 - A larger ONE AWAY bonus. Removing the bonus entirely cost a couple of groups.
 - `jev-preview`: indistinguishable from `jev-latest`.
 
+## Cost tuning (2026-10-13)
+
+Jev bills input tokens only, so the question is where the ~6,000 tokens of a 64-question request go.
+Single requests on one full board, `usage.input_tokens`:
+
+| 64 pair questions | Input tokens | Per question |
+|---|---|---|
+| 3-level Score, solver wording (default) | 8,065 | ~120 |
+| Same with an empty state | 7,946 | (state ≈ 120 per request) |
+| Score, no task string | 6,529 | ~96 |
+| Score, criteria cut to "different" / "related" / "same group" | 6,401 | ~94 |
+| Score, string instructions and 1-character criteria | 3,900 | ~55 |
+| Noul, solver task, structured `{task, word_a, word_b}` | 3,649 | ~51 |
+| Noul, task "Same group of four?" | 2,753 | ~37 |
+
+A request has about 250 tokens of fixed overhead plus the state, so the state is about 1.5% of the bill and
+moving text into it saves nothing. Each Score criterion costs about 13 tokens of structure plus its text
+even at one character, so the three criteria are about 57% of a Score question. A default run splits about
+55 / 45 between pair and set questions at ~130 tokens each. The levers are the question type and the
+question count; the wording is a smaller lever.
+
+New flags, all off by default; with no flags the requests are byte-identical to before (checked offline
+over all 41 puzzles against a fake API):
+`--pair-type noul`, `--set-type noul`, `--pair-wording terse|terse-task`, `--set-wording terse|terse-task`,
+`--set-margin M` (skip the set request when the top pair sum leads by M), `--reask touched|uncertain`
+(`--uncertain-band LO,HI`, default 0.25,0.75), `--endgame splits` (with 8 words left, set-score both halves of
+every consistent split, no pair questions). `experimental/run_cost_tuning.sh` has every config as a tag.
+
+Results on the canonical 20, median (range); 5 seeds are 42–46 and 2 seeds are 42–43. The baseline over
+seeds 42–46 is 15 (14–16) wins, 68 (65–70) groups and $0.059.
+
+| Config (tag) | Seeds | Wins | Groups | Tokens/run | Cost/run |
+|---|---|---|---|---|---|
+| Baseline, earlier 5 seeds (`base`) | 5 | 15 (14–16) | 68 (65–70) | 1405k | $0.059 |
+| Noul pairs and sets (`noul_both`) | 5 | 15 (13–15) | 67 (62–67) | 673k | $0.028 |
+| `noul_both` + split endgame (`nb_endgame`) | 5 | 15 (14–16) | 66 (65–71) | 617k | $0.026 |
+| `nb_endgame` + `--reask uncertain` (`nb_eg_unc`) | 5 | 15 (14–16) | 67 (66–70) | 541k | $0.023 |
+| `noul_both` + touched + margin 0.5 + endgame (`nb_combo`) | 5 | 15 (14–15) | 67 (65–69) | 452k | $0.019 |
+| `--levels 2` (`lv2`) | 5 | 15 (14–16) | 67 (64–70) | 1161k | $0.049 |
+| `--set-margin 0.5` (`margin05`) | 5 | 15 (15–17) | 67 (66–72) | 1254k | $0.053 |
+| `--reask uncertain` (`reask_unc`) | 5 | 14 (13–16) | 64 (61–68) | 1225k | $0.051 |
+| `--reask touched` | 2 | 15 (14–16) | 66.5 | 1078k | $0.045 |
+| `--endgame splits` | 2 | 15 | 67.5 | 1257k | $0.053 |
+| Terse pair criteria / terse pair task | 2 | 15 / 15 | 67 / 66.5 | 1255k / 1205k | $0.053 / $0.051 |
+| Terse set criteria / terse set task | 2 | 14.5 / 14 | 66.5 / 64.5 | | $0.055 / $0.052 |
+| Noul pairs only / Noul sets only | 2 | 14 / 14 | 65 / 66 | | $0.043 / $0.045 |
+| `--top-k` 20 / 30 / 40 | 2 | 13.5 / 13.5 / 12.5 | 63 / 62.5 / 62 | | $0.042–0.052 |
+| `--set-margin 1.0` (rarely triggers) | 2 | 14 | 64.5 | 1395k | $0.059 |
+| `--reask uncertain --uncertain-band 0.15,0.85` | 2 | 14 | 63.5 | 1341k | $0.056 |
+| `noul_both` + terse-task pairs | 2 | 13 (10–16) | 62 | 600k | $0.025 |
+| `noul_both` + margin 0.3 / 0.5 | 2 | 13.5 / 13.5 | 64 / 64.5 | | $0.024 / $0.026 |
+| `noul_both` + touched | 2 | 13.5 | 64 | 532k | $0.022 |
+| `--levels 2` + margin 0.5 + uncertain + endgame (`score_combo`) | 2 | 14.5 | 65.5 | 770k | $0.032 |
+
+**Held-out check.** `--all` runs 41 puzzles; the 21 non-canonical ones are held out. One run per seed:
+
+| Config | Seed | Canonical 20: wins / groups | Held-out 21: wins / groups | All 41 | Cost, all 41 |
+|---|---|---|---|---|---|
+| Baseline | 42 | 14 / 65 | 13 / 60 | 27 / 125 | $0.128 |
+| Baseline | 43 | 16 / 70 | 10 / 54 | 26 / 124 | $0.132 |
+| `nb_eg_unc` | 42 | 15 / 67 | 11 / 56 | 26 / 123 | $0.049 |
+| `nb_eg_unc` | 43 | 13 / 63 | 12 / 58 | 25 / 121 | $0.048 |
+| `nb_combo` | 42 | 15 / 66 | 10 / 51 | 25 / 117 | $0.040 |
+| `nb_combo` | 43 | 14 / 64 | 11 / 53 | 25 / 117 | $0.042 |
+| `--levels 2 --set-margin 0.5` | 42 | 15 / 66 | 12 / 58 | 27 / 124 | $0.091 |
+| `noul_both` | 42 | 14 / 66 | 11 / 54 | 25 / 120 | $0.062 |
+
+The baseline itself moved 3 wins on the held-out 21 between seeds, so a single held-out run is not
+enough. On two seeds, `nb_eg_unc` ties the baseline on the held-out puzzles (11.5 wins / 57 groups on
+average for both) and is 1 win and 2.5 groups behind over all 41, which is within one run's noise.
+`nb_combo` scored 117 groups on both seeds against 124–125, so its extra cuts (touched re-asking and the
+set margin on top of Noul) cost real accuracy. It is also about twice as fast on the canonical 20 (about
+4 s and 150 requests against about 8 s and 230); `nb_eg_unc` takes about 4.4 s and 185 requests.
+
+**Recommended:** `nb_eg_unc`, at $0.023 per canonical run against $0.059 (−61%) and $0.048 against $0.13
+on all 41:
+
+```bash
+uv run python experimental/decisions_classic_solver.py --model typesafe/jev-1.13 \
+  --pair-type noul --set-type noul --endgame splits --reask uncertain
+```
+
+The conservative choice is `--levels 2 --set-margin 0.5`: it keeps Score questions, matched the baseline on
+`--all` (27 / 124) and saves about 30%. Its two levers passed 5 seeds separately, but the combination has
+only the one `--all` run.
+
+What worked and what didn't:
+
+- **Noul is the big lever.** It halves the tokens and keeps the median on the canonical 20, but the
+  worst seed falls to 13 wins and 62 groups. The README's earlier "Score beats Noul" finding came from a
+  static matrix; with re-querying and the set blend the gap is small, and the split endgame plus uncertain re-asking close it.
+- **Fewer set questions hurts.** Top-k below 60 cost 1.5–2.5 wins at every value tried.
+- **Terse set wording hurts; terse pair wording is neutral but saves little** (6–12%).
+- **Skipping work after the first turn is roughly neutral on its own** (margin 0.5, split endgame,
+  touched re-asking) and saves 10–25% each. Stacked on Noul, touched re-asking plus the margin lost about 7 groups over all 41; uncertain re-asking plus the split endgame did not.
+- **Lower-risk savings:** `--levels 2` (−17%) and `--set-margin 0.5` (−10%) both met the bar over 5
+  seeds without Noul; together they matched the baseline on one `--all` run.
+
+Also fixed: HTTP 401/402 now stop the run immediately instead of being recorded as failed puzzles, OpenRouter's
+transient HTTP 499 "internal_error" is retried, and two runs with one tag finishing in the same second no
+longer overwrite each other's JSON. Per-puzzle JSON now records `stage_tokens` and `stage_questions`.
+OpenRouter's key usage lags by a minute or so, so a rising total right after a batch is the batch landing.
+
 ## Known limits
 
 - The word list in `connections_puzzles.yml` is stored in group order. The
