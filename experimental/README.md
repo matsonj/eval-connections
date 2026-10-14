@@ -329,6 +329,13 @@ What worked and what didn't:
 - **Terse set wording hurts; terse pair wording is neutral but saves little** (6–12%).
 - **Skipping work after the first turn is roughly neutral on its own** (margin 0.5, split endgame,
   touched re-asking) and saves 10–25% each. Stacked on Noul, touched re-asking plus the margin lost about 7 groups over all 41; uncertain re-asking plus the split endgame did not.
+- **Confidence anchors in the state did not help** (tested with a temporary flag, not kept: three invented groups, as prose or a list,
+  labelled 90% / 30% / 10%, words absent from every puzzle; on top of `nb_eg_unc`). Picked on the canonical
+  20 and tested on the held-out 21, two `--all` seeds each: the list form won the canonical 20 (15 / 67.5
+  against 14 / 65) and lost the held-out 21 (10.5 / 50.5 against 11.5 / 57). The prose form was worse on the
+  canonical 20 (12.5 / 62.5) and swung 22–27 wins over all 41. On a single board the anchors made the Noul
+  answers more extreme, not less (39 of 64 between 0.2 and 0.8, against 47 without), so the hoped-for
+  spreading did not happen.
 - **Lower-risk savings:** `--levels 2` (−17%) and `--set-margin 0.5` (−10%) both met the bar over 5
   seeds without Noul; together they matched the baseline on one `--all` run.
 
