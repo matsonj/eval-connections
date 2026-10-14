@@ -41,7 +41,10 @@ API_URL = "https://openrouter.ai/api/alpha/decisions"
 MODEL_ENDPOINTS_URL = "https://openrouter.ai/api/v1/models/{model}/endpoints"
 DEFAULT_MODEL = "openai/gpt-6-luna-decisions"
 REQUEST_TIMEOUT_SEC = 120
-RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504, 529}
+# 499 is OpenRouter's transient "internal_error" ("Unable to complete this request"), seen on Jev 2026-10-13.
+RETRYABLE_STATUSES = {408, 429, 499, 500, 502, 503, 504, 529}
+# Bad key or no credits: every later request fails the same way, so stop the run instead of recording failures.
+FATAL_STATUSES = {401, 402}
 # Clef rejects more than 64 questions per request; every model gets the same split so requests stay identical.
 MAX_QUESTIONS_PER_REQUEST = 64
 MAX_ATTEMPTS = 5
@@ -54,6 +57,9 @@ PAIRS_PER_SET = 6
 # Tuned on Jev, 2026-09-17: more candidates or a different bonus did not help.
 CANDIDATE_SETS_FOR_DIRECT_SCORE = 60
 ONE_AWAY_BONUS = 1.0
+# Blend weights: guess score = PAIR_WEIGHT * pair_sum / 6 + SET_WEIGHT * direct set score. Tuned on Jev at 1.0 / 1.0.
+PAIR_WEIGHT = 1.0
+SET_WEIGHT = 1.0
 
 PUZZLE_BLURB = "NYT Connections: the sixteen words form four hidden groups of four related words each."
 PAIR_TASK = "Judge whether the two words belong to the same group of four in this Connections puzzle."
@@ -63,6 +69,29 @@ RELATEDNESS_LEVELS = [
     "Loosely related; could share a broad theme",
     "Clearly members of the same specific four-word category",
 ]
+# Optional: ask the direct set question the way relatedness_probe.py does (--set-wording probe).
+SET_WORDING = "solver"
+PROBE_BLURB = "NYT Connections: a group is four words that share one specific connection."
+PROBE_SET_TASK = ("Do these four words share one specific connection, the way the four words "
+                  "in a single NYT Connections group do?")
+PROBE_SET_LEVELS = ["No: they do not form one group", "Yes: they form one group"]
+BINARY_LEVELS = [
+    "Not members of the same specific four-word category",
+    "Clearly members of the same specific four-word category",
+]
+
+# Cost levers (README "Cost tuning"). Jev bills input tokens only, and almost all of them are per question:
+# each Score criterion costs about 13 tokens of structure plus its text, a Noul question has no criteria.
+PAIR_TYPE = "score"           # "noul": yes/no pair question, about 40% of a 3-level Score's tokens
+PAIR_WORDING = "solver"       # "terse": 1-3 word criteria labels; "terse-task" also shortens the task
+SET_TYPE = "score"
+SET_STAGE_MARGIN: float | None = None   # skip the direct set request when the pair-sum leader wins by this much
+REASK = "all"                 # pair re-asking after turn 1: "all", "touched" (pairs with a word of a wrong guess),
+UNCERTAIN_BAND = (0.25, 0.75)  # or "uncertain" (pairs whose last score fell inside this band)
+ENDGAME = "pairs"             # "splits": with 8 words left, set-score both halves of every split, skip pairs
+TERSE_PAIR_TASK = "Same group of four?"
+TERSE_SET_TASK = "One of the real groups?"
+TERSE_LEVELS = {3: ["different", "related", "same group"], 2: ["different", "same group"]}
 
 
 Words = tuple[str, ...]
@@ -82,12 +111,23 @@ class Usage:
     output_tokens: int = 0
     calls: int = 0
     http_ms: list[float] = field(default_factory=list)
+    # input tokens and question counts by stage ("pair", "set")
+    stage_tokens: dict[str, int] = field(default_factory=dict)
+    stage_questions: dict[str, int] = field(default_factory=dict)
 
     def add(self, other: "Usage") -> None:
         self.input_tokens += other.input_tokens
         self.output_tokens += other.output_tokens
         self.calls += other.calls
         self.http_ms.extend(other.http_ms)
+        for mine, theirs in ((self.stage_tokens, other.stage_tokens), (self.stage_questions, other.stage_questions)):
+            for stage, n in theirs.items():
+                mine[stage] = mine.get(stage, 0) + n
+
+    def tag_stage(self, stage: str, questions: int) -> "Usage":
+        self.stage_tokens[stage] = self.stage_tokens.get(stage, 0) + self.input_tokens
+        self.stage_questions[stage] = self.stage_questions.get(stage, 0) + questions
+        return self
 
 
 @dataclass
@@ -154,22 +194,44 @@ def price_per_input_token(api_key: str, model: str) -> float:
     return float(response.json()["data"]["endpoints"][0]["pricing"]["prompt"])
 
 
-def relatedness_question(task: str, **fields) -> dict:
+def relatedness_question(task: str, qtype: str = "score", wording: str = "solver", **fields) -> dict:
+    if qtype == "noul":
+        return {"type": "noul", "instructions": {"task": task, **fields}}
+    levels = TERSE_LEVELS[len(RELATEDNESS_LEVELS)] if wording.startswith("terse") else RELATEDNESS_LEVELS
     return {
         "type": "score",
         "instructions": {"task": task, **fields},
-        "criteria": [{"summary": level} for level in RELATEDNESS_LEVELS],
+        "criteria": [{"summary": level} for level in levels],
     }
 
 
 # Question names are positional (p0, s0, ...): some providers (Clef) only accept [A-Za-z0-9_.-] names,
 # and puzzle words can contain spaces, "/", "&" or ".".
 def pair_questions(pairs: Sequence[tuple[str, str]]) -> dict[str, dict]:
-    return {f"p{i}": relatedness_question(PAIR_TASK, word_a=a, word_b=b) for i, (a, b) in enumerate(pairs)}
+    task = TERSE_PAIR_TASK if PAIR_WORDING == "terse-task" else PAIR_TASK
+    return {f"p{i}": relatedness_question(task, PAIR_TYPE, PAIR_WORDING, word_a=a, word_b=b)
+            for i, (a, b) in enumerate(pairs)}
 
 
 def set_questions(candidate_sets: Sequence[Words]) -> dict[str, dict]:
-    return {f"s{i}": relatedness_question(SET_TASK, words=list(words)) for i, words in enumerate(candidate_sets)}
+    if SET_WORDING == "probe":
+        return {f"s{i}": {"type": "score", "instructions": {"task": PROBE_SET_TASK, "words": list(words)},
+                          "criteria": [{"summary": level} for level in PROBE_SET_LEVELS]}
+                for i, words in enumerate(candidate_sets)}
+    task = TERSE_SET_TASK if SET_WORDING == "terse-task" else SET_TASK
+    return {f"s{i}": relatedness_question(task, SET_TYPE, SET_WORDING, words=list(words))
+            for i, words in enumerate(candidate_sets)}
+
+
+def set_state(words: Sequence[str]) -> dict:
+    return {"puzzle": PROBE_BLURB, "words": list(words)} if SET_WORDING == "probe" else puzzle_state(words)
+
+
+def set_score(answer: dict) -> float:
+    if "noul" in answer:
+        return answer["noul"]
+    levels = PROBE_SET_LEVELS if SET_WORDING == "probe" else RELATEDNESS_LEVELS
+    return answer["score"] / (len(levels) - 1)
 
 
 def puzzle_state(words: Sequence[str]) -> dict:
@@ -210,6 +272,10 @@ class DecisionsClient:
                 last_error = requests.HTTPError(f"HTTP {response.status_code}", response=response)
                 time.sleep(backoff_seconds(attempt, response.headers.get("Retry-After")))
                 continue
+            if response.status_code in FATAL_STATUSES:
+                sys.stdout.flush()
+                print(f"fatal: HTTP {response.status_code}: {response.text[:500]}", file=sys.stderr, flush=True)
+                os._exit(2)  # from a worker thread: sys.exit would only end this thread
             if not response.ok:
                 raise requests.HTTPError(f"HTTP {response.status_code}: {response.text[:500]}", response=response)
             payload = response.json()
@@ -230,13 +296,39 @@ def backoff_seconds(attempt: int, retry_after: str | None) -> float:
 
 
 def normalized_score(answer: dict) -> float:
+    if "noul" in answer:
+        return answer["noul"]
     return answer["score"] / (len(RELATEDNESS_LEVELS) - 1)
 
 
-def pair_affinities(client: DecisionsClient, words: Sequence[str]) -> tuple[dict[frozenset[str], float], Usage]:
+@dataclass
+class PairMemory:
+    """Pair scores carried between turns, for --reask touched / uncertain."""
+    affinity: dict[frozenset[str], float] = field(default_factory=dict)
+    last_wrong_guess: WordSet = frozenset()
+
+
+def pairs_to_ask(words: Sequence[str], memory: PairMemory) -> list[tuple[str, str]]:
     pairs = list(itertools.combinations(words, 2))
-    answers, usage = client.ask(puzzle_state(words), pair_questions(pairs))
-    affinity = {frozenset(pair): normalized_score(answers[f"p{i}"]) for i, pair in enumerate(pairs)}
+    if REASK == "all" or not memory.affinity:
+        return pairs
+    if REASK == "touched":
+        touched = memory.last_wrong_guess
+        return [p for p in pairs if touched & set(p)]
+    low, high = UNCERTAIN_BAND
+    return [p for p in pairs if low <= memory.affinity[frozenset(p)] <= high]
+
+
+def pair_affinities(client: DecisionsClient, words: Sequence[str],
+                    memory: PairMemory | None = None) -> tuple[dict[frozenset[str], float], Usage]:
+    memory = memory or PairMemory()
+    pairs = pairs_to_ask(words, memory)
+    usage = Usage()
+    if pairs:
+        answers, usage = client.ask(puzzle_state(words), pair_questions(pairs))
+        usage.tag_stage("pair", len(pairs))
+        memory.affinity.update({frozenset(pair): normalized_score(answers[f"p{i}"]) for i, pair in enumerate(pairs)})
+    affinity = {frozenset(pair): memory.affinity[frozenset(pair)] for pair in itertools.combinations(words, 2)}
     return affinity, usage
 
 
@@ -270,24 +362,53 @@ def blend_with_direct_scores(client: DecisionsClient, remaining: Sequence[str], 
                              rng: random.Random) -> tuple[dict[Words, float], Usage]:
     top = sorted(pair_scores, key=pair_scores.get, reverse=True)[:CANDIDATE_SETS_FOR_DIRECT_SCORE]
     rng.shuffle(top)
-    answers, usage = client.ask(puzzle_state(remaining), set_questions(top))
-    blended = {words: pair_scores[words] / PAIRS_PER_SET + normalized_score(answers[f"s{i}"])
+    answers, usage = client.ask(set_state(remaining), set_questions(top))
+    usage.tag_stage("set", len(top))
+    blended = {words: PAIR_WEIGHT * pair_scores[words] / PAIRS_PER_SET + SET_WEIGHT * set_score(answers[f"s{i}"])
                for i, words in enumerate(top)}
     return blended, usage
 
 
+def endgame_split_guess(client: DecisionsClient, remaining: Sequence[str], shuffled: Sequence[str],
+                        feedback: Feedback, rng: random.Random) -> tuple[Words, Usage]:
+    """Eight words left: score both halves of every feedback-consistent split directly, no pair questions."""
+    first, *rest = sorted(remaining)
+    splits = []
+    for others in itertools.combinations(rest, GROUP_SIZE - 1):  # each split once: the half holding `first`
+        half = (first, *others)
+        other = tuple(w for w in rest if w not in others)
+        if consistent_with_feedback(frozenset(half), feedback) and consistent_with_feedback(frozenset(other), feedback):
+            splits.append((half, other))
+    if len(splits) == 1:
+        return splits[0][0], Usage()
+    halves = [h for split in splits for h in split]
+    rng.shuffle(halves)
+    answers, usage = client.ask(set_state(shuffled), set_questions(halves))
+    usage.tag_stage("set", len(halves))
+    score = {h: SET_WEIGHT * set_score(answers[f"s{i}"]) + PAIR_WEIGHT * one_away_bonus(frozenset(h), feedback) / PAIRS_PER_SET
+             for i, h in enumerate(halves)}
+    best = max(splits, key=lambda split: score[split[0]] + score[split[1]])
+    return max(best, key=score.get), usage
+
+
 def choose_guess(client: DecisionsClient, remaining: list[str], feedback: Feedback,
-                 rng: random.Random) -> tuple[Words, Usage]:
+                 rng: random.Random, memory: PairMemory | None = None) -> tuple[Words, Usage]:
     usage = Usage()
     if len(remaining) == GROUP_SIZE:
         return tuple(remaining), usage
     shuffled = remaining[:]
     rng.shuffle(shuffled)
-    affinity, pair_usage = pair_affinities(client, shuffled)
+    if ENDGAME == "splits" and len(remaining) == 2 * GROUP_SIZE:
+        return endgame_split_guess(client, remaining, shuffled, feedback, rng)
+    affinity, pair_usage = pair_affinities(client, shuffled, memory)
     usage.add(pair_usage)
     pair_scores = score_candidate_sets(remaining, affinity, feedback)
     if len(pair_scores) == 1:
         return next(iter(pair_scores)), usage
+    if SET_STAGE_MARGIN is not None:
+        leader, runner_up = sorted(pair_scores.values(), reverse=True)[:2]
+        if leader - runner_up >= SET_STAGE_MARGIN:
+            return max(pair_scores, key=pair_scores.get), usage
     blended, set_usage = blend_with_direct_scores(client, shuffled, pair_scores, rng)
     usage.add(set_usage)
     return max(blended, key=blended.get), usage
@@ -311,15 +432,17 @@ def play(client: DecisionsClient, puzzle: Puzzle, seed: int) -> GameResult:
     feedback = Feedback()
     turns: list[Turn] = []
     usage = Usage()
+    memory = PairMemory()
     mistakes = 0
     started = time.perf_counter()
 
     while mistakes < MAX_MISTAKES and len(solved) < len(puzzle.groups):
-        guess, turn_usage = choose_guess(client, remaining, feedback, rng)
+        guess, turn_usage = choose_guess(client, remaining, feedback, rng, memory)
         usage.add(turn_usage)
         result = judge(guess, puzzle, solved)
         turns.append(Turn(guess=tuple(sorted(guess)), result=result))
         guessed = frozenset(guess)
+        memory.last_wrong_guess = frozenset() if result == "CORRECT" else guessed
         if result == "CORRECT":
             solved.append(guessed)
             remaining = [w for w in remaining if w not in guessed]
@@ -391,13 +514,23 @@ def print_report(results: list[GameResult], wall_seconds: float, model: str, pri
           f"cost ${total.input_tokens * price:.4f}")
 
 
-def save_results(results: list[GameResult], model: str, seed: int, price: float) -> Path:
+def solver_config() -> dict:
+    return {"pair_weight": PAIR_WEIGHT, "set_weight": SET_WEIGHT, "top_k": CANDIDATE_SETS_FOR_DIRECT_SCORE,
+            "one_away_bonus": ONE_AWAY_BONUS, "levels": len(RELATEDNESS_LEVELS), "set_wording": SET_WORDING,
+            "pair_type": PAIR_TYPE, "pair_wording": PAIR_WORDING, "set_type": SET_TYPE,
+            "set_margin": SET_STAGE_MARGIN, "reask": REASK, "uncertain_band": list(UNCERTAIN_BAND),
+            "endgame": ENDGAME}
+
+
+def save_results(results: list[GameResult], model: str, seed: int, price: float, tag: str = "") -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%dT%H-%M-%S")
-    path = OUTPUT_DIR / f"{stamp}_{model.split('/')[-1]}.json"
+    name = f"{model.split('/')[-1]}{'_' + tag if tag else ''}.json"
     payload = {
         "model": model,
         "seed": seed,
+        "tag": tag,
+        "config": solver_config(),
         "results": [
             {
                 "puzzle_id": r.puzzle_id,
@@ -409,6 +542,8 @@ def save_results(results: list[GameResult], model: str, seed: int, price: float)
                 "seconds": r.seconds,
                 "input_tokens": r.usage.input_tokens,
                 "output_tokens": r.usage.output_tokens,
+                "stage_tokens": r.usage.stage_tokens,
+                "stage_questions": r.usage.stage_questions,
                 "cost_usd": r.usage.input_tokens * price,
                 "error": r.error,
                 "turns": [{"guess": list(t.guess), "result": t.result} for t in r.turns],
@@ -416,8 +551,21 @@ def save_results(results: list[GameResult], model: str, seed: int, price: float)
             for r in results
         ],
     }
-    path.write_text(json.dumps(payload, indent=1))
-    return path
+    path, n = OUTPUT_DIR / f"{stamp}_{name}", 1
+    while True:  # parallel runs of one tag can finish in the same second; "x" claims the name atomically
+        try:
+            with path.open("x") as f:
+                f.write(json.dumps(payload, indent=1))
+            return path
+        except FileExistsError:
+            path, n = OUTPUT_DIR / f"{stamp}.{n}_{name}", n + 1
+
+
+def parse_band(text: str) -> tuple[float, float]:
+    low, high = (float(x) for x in text.split(","))  # ValueError (argparse reports it) unless exactly two numbers
+    if not 0 <= low <= high <= 1:
+        raise argparse.ArgumentTypeError("need 0 <= LOW <= HIGH <= 1")
+    return low, high
 
 
 def parse_args() -> argparse.Namespace:
@@ -428,11 +576,49 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--threads", type=int, default=20)
+    tuning = parser.add_argument_group("tuning (defaults are the Jev-tuned method)")
+    tuning.add_argument("--pair-weight", type=float, default=PAIR_WEIGHT)
+    tuning.add_argument("--set-weight", type=float, default=SET_WEIGHT)
+    tuning.add_argument("--top-k", type=int, default=CANDIDATE_SETS_FOR_DIRECT_SCORE,
+                        help="candidate sets sent for a direct set score each turn")
+    tuning.add_argument("--one-away-bonus", type=float, default=ONE_AWAY_BONUS)
+    tuning.add_argument("--levels", type=int, choices=[2, 3], default=3, help="Score levels for pair and set questions")
+    tuning.add_argument("--set-wording", choices=["solver", "probe", "terse", "terse-task"], default="solver",
+                        help="direct set question: the solver's 3-level wording, relatedness_probe.py's yes/no, "
+                             "short criteria labels (terse) or short labels and a short task (terse-task)")
+    cost = parser.add_argument_group("cost levers (defaults reproduce the tuned method)")
+    cost.add_argument("--pair-type", choices=["score", "noul"], default=PAIR_TYPE)
+    cost.add_argument("--set-type", choices=["score", "noul"], default=SET_TYPE)
+    cost.add_argument("--pair-wording", choices=["solver", "terse", "terse-task"], default=PAIR_WORDING,
+                      help="short criteria labels (terse), or short labels and a short task (terse-task)")
+    cost.add_argument("--set-margin", type=float, default=SET_STAGE_MARGIN,
+                      help="skip the direct set request when the top pair sum leads the runner-up by this much (0-6)")
+    cost.add_argument("--reask", choices=["all", "touched", "uncertain"], default=REASK,
+                      help="which pairs to ask again after the first turn")
+    cost.add_argument("--uncertain-band", type=parse_band,
+                      default=UNCERTAIN_BAND, help="LOW,HIGH pair scores re-asked by --reask uncertain")
+    cost.add_argument("--endgame", choices=["pairs", "splits"], default=ENDGAME,
+                      help="with 8 words left: the usual pairs + sets, or set scores for every two-group split")
+    tuning.add_argument("--tag", default="", help="label added to the output file name and JSON")
     return parser.parse_args()
+
+
+def apply_tuning(args: argparse.Namespace) -> None:
+    global PAIR_WEIGHT, SET_WEIGHT, CANDIDATE_SETS_FOR_DIRECT_SCORE, ONE_AWAY_BONUS, RELATEDNESS_LEVELS, SET_WORDING
+    global PAIR_TYPE, SET_TYPE, PAIR_WORDING, SET_STAGE_MARGIN, REASK, UNCERTAIN_BAND, ENDGAME
+    SET_WORDING = args.set_wording
+    PAIR_TYPE, SET_TYPE, PAIR_WORDING = args.pair_type, args.set_type, args.pair_wording
+    SET_STAGE_MARGIN, REASK, UNCERTAIN_BAND, ENDGAME = args.set_margin, args.reask, args.uncertain_band, args.endgame
+    PAIR_WEIGHT, SET_WEIGHT = args.pair_weight, args.set_weight
+    CANDIDATE_SETS_FOR_DIRECT_SCORE, ONE_AWAY_BONUS = args.top_k, args.one_away_bonus
+    if args.levels == 2:
+        RELATEDNESS_LEVELS = BINARY_LEVELS
 
 
 def main() -> None:
     args = parse_args()
+    apply_tuning(args)
+    print(f"solver config:        {solver_config()}")
     puzzles = load_puzzles(args.puzzle_ids, canonical_only=not args.all)
     if not puzzles:
         sys.exit("no puzzles selected")
@@ -443,7 +629,7 @@ def main() -> None:
     results = play_all(client, puzzles, args.seed, args.threads)
     wall = time.perf_counter() - started
     print_report(results, wall, args.model, price)
-    print(f"saved:                {save_results(results, args.model, args.seed, price)}")
+    print(f"saved:                {save_results(results, args.model, args.seed, price, args.tag)}")
 
 
 if __name__ == "__main__":
