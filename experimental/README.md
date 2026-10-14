@@ -356,3 +356,30 @@ OpenRouter's key usage lags by a minute or so, so a rising total right after a b
 - A canonical run makes about 230 to 270 requests. 20 threads has been fine on
   OpenRouter for every model except Mercury Decide, which sometimes returns
   HTTP 429; use `--threads 10` if that loses puzzles.
+
+## Follow-up investigations
+
+Standalone scripts for comparing decisions models with LLMs. Each writes JSON to `experimental/runs/`;
+`_common.py` holds shared plumbing. Each script's docstring explains its design and its caveats.
+
+| Script | Question it answers | Example |
+|---|---|---|
+| `relatedness_probe.py` | Given four words, can the model tell a real group from a fake one? | `--model typesafe/jev-1.13 --repeats 3` |
+| `llm_judge_solver.py` | Same solver, LLM as the judge: how much of the result is the judge? | `--model anthropic/claude-haiku-4.5` |
+| `hybrid_solver.py` | Can a decisions model and an LLM split the work for better cost or wins? | `--mode filter --llm anthropic/claude-haiku-4.5` |
+| `calibration.py` | Are probe P(yes) values honest probabilities? Offline; writes an SVG. | `experimental/runs/*_probe_*.json` |
+| `category_recognition.py` | Given the right four words, can the model name the category? | `--model typesafe/jev-1.13` |
+| `state_sensitivity.py` | How fast does accuracy fall as irrelevant text is added to the state? | `--model typesafe/jev-1.13` |
+| `contamination.py` | Has the model memorized these specific published puzzles? | `--model anthropic/claude-haiku-4.5 --free-recall` |
+| `batch_scaling.py` | How does latency grow with questions per request? | `--models typesafe/jev-1.13 --reps 10` |
+
+Notes:
+
+- **Question types.** The new decisions scripts use 2-level Score questions where a Noul or Choice would be
+  natural, because Score is the only format whose request and response shape the solver already uses.
+- **LLM probabilities.** LLMs report a 0–100 probability or a letter. Compare them with decisions models on
+  ranking (AUROC) and accuracy, not on raw probability.
+- **Hybrid baselines.** Compare `hybrid_solver.py` against the solver alone and the main harness classic run.
+  Its fallbacks to the plain solver are counted and printed.
+- **Contamination.** Every puzzle in `connections_puzzles.yml` predates current training cutoffs, so
+  `contamination.py` tests memory directly instead of splitting by date. A date split needs newer puzzles added.
