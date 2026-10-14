@@ -228,7 +228,7 @@ def set_state(words: Sequence[str]) -> dict:
 
 
 def set_score(answer: dict) -> float:
-    if SET_TYPE == "noul":
+    if "noul" in answer:
         return answer["noul"]
     levels = PROBE_SET_LEVELS if SET_WORDING == "probe" else RELATEDNESS_LEVELS
     return answer["score"] / (len(levels) - 1)
@@ -273,8 +273,9 @@ class DecisionsClient:
                 time.sleep(backoff_seconds(attempt, response.headers.get("Retry-After")))
                 continue
             if response.status_code in FATAL_STATUSES:
+                sys.stdout.flush()
                 print(f"fatal: HTTP {response.status_code}: {response.text[:500]}", file=sys.stderr, flush=True)
-                os._exit(2)
+                os._exit(2)  # from a worker thread: sys.exit would only end this thread
             if not response.ok:
                 raise requests.HTTPError(f"HTTP {response.status_code}: {response.text[:500]}", response=response)
             payload = response.json()
@@ -295,12 +296,19 @@ def backoff_seconds(attempt: int, retry_after: str | None) -> float:
 
 
 def normalized_score(answer: dict) -> float:
-    if PAIR_TYPE == "noul":
+    if "noul" in answer:
         return answer["noul"]
     return answer["score"] / (len(RELATEDNESS_LEVELS) - 1)
 
 
-def pairs_to_ask(words: Sequence[str], memory: "PairMemory") -> list[tuple[str, str]]:
+@dataclass
+class PairMemory:
+    """Pair scores carried between turns, for --reask touched / uncertain."""
+    affinity: dict[frozenset[str], float] = field(default_factory=dict)
+    last_wrong_guess: WordSet = frozenset()
+
+
+def pairs_to_ask(words: Sequence[str], memory: PairMemory) -> list[tuple[str, str]]:
     pairs = list(itertools.combinations(words, 2))
     if REASK == "all" or not memory.affinity:
         return pairs
@@ -312,7 +320,8 @@ def pairs_to_ask(words: Sequence[str], memory: "PairMemory") -> list[tuple[str, 
 
 
 def pair_affinities(client: DecisionsClient, words: Sequence[str],
-                    memory: "PairMemory") -> tuple[dict[frozenset[str], float], Usage]:
+                    memory: PairMemory | None = None) -> tuple[dict[frozenset[str], float], Usage]:
+    memory = memory or PairMemory()
     pairs = pairs_to_ask(words, memory)
     usage = Usage()
     if pairs:
@@ -321,13 +330,6 @@ def pair_affinities(client: DecisionsClient, words: Sequence[str],
         memory.affinity.update({frozenset(pair): normalized_score(answers[f"p{i}"]) for i, pair in enumerate(pairs)})
     affinity = {frozenset(pair): memory.affinity[frozenset(pair)] for pair in itertools.combinations(words, 2)}
     return affinity, usage
-
-
-@dataclass
-class PairMemory:
-    """Pair scores carried between turns, for --reask touched / uncertain."""
-    affinity: dict[frozenset[str], float] = field(default_factory=dict)
-    last_wrong_guess: WordSet = frozenset()
 
 
 def pair_sum(words: Words, affinity: dict[frozenset[str], float]) -> float:
@@ -370,26 +372,27 @@ def blend_with_direct_scores(client: DecisionsClient, remaining: Sequence[str], 
 def endgame_split_guess(client: DecisionsClient, remaining: Sequence[str], shuffled: Sequence[str],
                         feedback: Feedback, rng: random.Random) -> tuple[Words, Usage]:
     """Eight words left: score both halves of every feedback-consistent split directly, no pair questions."""
-    everything = frozenset(remaining)
+    first, *rest = sorted(remaining)
     splits = []
-    for words in itertools.combinations(sorted(remaining), GROUP_SIZE):
-        half, other = frozenset(words), everything - frozenset(words)
-        if min(half, other, key=sorted) == half and all(consistent_with_feedback(h, feedback) for h in (half, other)):
-            splits.append((words, tuple(sorted(other))))
+    for others in itertools.combinations(rest, GROUP_SIZE - 1):  # each split once: the half holding `first`
+        half = (first, *others)
+        other = tuple(w for w in rest if w not in others)
+        if consistent_with_feedback(frozenset(half), feedback) and consistent_with_feedback(frozenset(other), feedback):
+            splits.append((half, other))
     if len(splits) == 1:
         return splits[0][0], Usage()
     halves = [h for split in splits for h in split]
     rng.shuffle(halves)
     answers, usage = client.ask(set_state(shuffled), set_questions(halves))
     usage.tag_stage("set", len(halves))
-    score = {h: set_score(answers[f"s{i}"]) + PAIR_WEIGHT * one_away_bonus(frozenset(h), feedback) / PAIRS_PER_SET
+    score = {h: SET_WEIGHT * set_score(answers[f"s{i}"]) + PAIR_WEIGHT * one_away_bonus(frozenset(h), feedback) / PAIRS_PER_SET
              for i, h in enumerate(halves)}
     best = max(splits, key=lambda split: score[split[0]] + score[split[1]])
     return max(best, key=score.get), usage
 
 
 def choose_guess(client: DecisionsClient, remaining: list[str], feedback: Feedback,
-                 rng: random.Random, memory: PairMemory) -> tuple[Words, Usage]:
+                 rng: random.Random, memory: PairMemory | None = None) -> tuple[Words, Usage]:
     usage = Usage()
     if len(remaining) == GROUP_SIZE:
         return tuple(remaining), usage
@@ -523,9 +526,6 @@ def save_results(results: list[GameResult], model: str, seed: int, price: float,
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%dT%H-%M-%S")
     name = f"{model.split('/')[-1]}{'_' + tag if tag else ''}.json"
-    path, n = OUTPUT_DIR / f"{stamp}_{name}", 1
-    while path.exists():  # parallel runs of one tag can finish in the same second
-        path, n = OUTPUT_DIR / f"{stamp}.{n}_{name}", n + 1
     payload = {
         "model": model,
         "seed": seed,
@@ -551,8 +551,21 @@ def save_results(results: list[GameResult], model: str, seed: int, price: float,
             for r in results
         ],
     }
-    path.write_text(json.dumps(payload, indent=1))
-    return path
+    path, n = OUTPUT_DIR / f"{stamp}_{name}", 1
+    while True:  # parallel runs of one tag can finish in the same second; "x" claims the name atomically
+        try:
+            with path.open("x") as f:
+                f.write(json.dumps(payload, indent=1))
+            return path
+        except FileExistsError:
+            path, n = OUTPUT_DIR / f"{stamp}.{n}_{name}", n + 1
+
+
+def parse_band(text: str) -> tuple[float, float]:
+    low, high = (float(x) for x in text.split(","))  # ValueError (argparse reports it) unless exactly two numbers
+    if not 0 <= low <= high <= 1:
+        raise argparse.ArgumentTypeError("need 0 <= LOW <= HIGH <= 1")
+    return low, high
 
 
 def parse_args() -> argparse.Namespace:
@@ -582,7 +595,7 @@ def parse_args() -> argparse.Namespace:
                       help="skip the direct set request when the top pair sum leads the runner-up by this much (0-6)")
     cost.add_argument("--reask", choices=["all", "touched", "uncertain"], default=REASK,
                       help="which pairs to ask again after the first turn")
-    cost.add_argument("--uncertain-band", type=lambda s: tuple(float(x) for x in s.split(",")),
+    cost.add_argument("--uncertain-band", type=parse_band,
                       default=UNCERTAIN_BAND, help="LOW,HIGH pair scores re-asked by --reask uncertain")
     cost.add_argument("--endgame", choices=["pairs", "splits"], default=ENDGAME,
                       help="with 8 words left: the usual pairs + sets, or set scores for every two-group split")
