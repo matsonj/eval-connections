@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 67 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 68 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -317,6 +317,20 @@ Latest one-shot runs for 67 models (20 games each, one submission per game, max 
       "tok_per_game": "1.5k",
       "cost": 0.63,
       "cost_per_game": "$0.032"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-20T14-37-14_deepseek-v4.1-flash-1017.html\">deepseek/deepseek-v4.1-flash-1017</a>",
+      "date": "2026-10-20",
+      "pts": 83,
+      "pts_pct": 0.83,
+      "w": "19",
+      "grp": "76/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "1m42s",
+      "tok_per_game": "11.9k",
+      "cost": 0.11,
+      "cost_per_game": "$0.006"
     },
     {
       "model": "<a href=\"logs/2026-09-01T19-01-28_fable-5.1.html\">anthropic/claude-fable-5.1</a>",
