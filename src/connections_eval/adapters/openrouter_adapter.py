@@ -4,7 +4,7 @@ import requests
 import os
 import logging
 from typing import Dict, List, Optional, Set
-from ..utils.retry import retry_with_backoff, get_last_backoff_sec
+from ..utils.retry import retry_with_backoff, get_last_backoff_sec, retry_after_from_headers
 from ..utils.rate_limiter import get_default as get_rate_limiter
 
 logger = logging.getLogger(__name__)
@@ -260,12 +260,8 @@ def chat(messages: List[Dict], model: str, timeout: int = 300, provider: Optiona
         # 429 → feed the AIMD signal so the bucket halves before the retry decorator
         # backs off; all other workers on this model see the new (slower) rate too.
         if response.status_code == 429:
-            ra_raw = response.headers.get("Retry-After")
-            try:
-                ra = float(ra_raw) if ra_raw is not None else None
-            except ValueError:
-                ra = None
-            limiter.on_429(openrouter_model, retry_after=ra)
+            limiter.on_429(openrouter_model,
+                           retry_after=retry_after_from_headers(response.headers))
             # Let the retry decorator handle the actual sleep + retry loop.
             response.raise_for_status()
 

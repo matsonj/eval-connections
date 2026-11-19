@@ -28,21 +28,34 @@ T = TypeVar('T')
 logger = logging.getLogger(__name__)
 
 
+def retry_after_from_headers(headers) -> float | None:
+    """Retry-After in seconds from a header mapping, matched case-insensitively.
+
+    `requests` uses a CaseInsensitiveDict, but mocked or wrapped responses may
+    carry a plain dict with "retry-after", so don't rely on the mapping type.
+    Only the seconds form is handled; an HTTP-date value returns None.
+    """
+    if not headers:
+        return None
+    raw = None
+    for key, value in headers.items():
+        if str(key).lower() == "retry-after":
+            raw = value
+            break
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _retry_after_seconds(exc: Exception) -> float | None:
     """Extract Retry-After seconds from an HTTPError if available."""
     try:
-        if hasattr(exc, "response") and getattr(exc, "response") is not None:  # type: ignore[attr-defined]
-            resp = getattr(exc, "response")  # type: ignore[attr-defined]
-            # Retry-After may be seconds or HTTP date; we only handle seconds
-            # here. `requests` headers are case-insensitive, so one lookup
-            # covers "Retry-After" and "retry-after" alike.
-            retry_after = resp.headers.get("Retry-After")  # type: ignore[attr-defined]
-            if retry_after is not None:
-                try:
-                    return float(retry_after)
-                except ValueError:
-                    # Not a simple seconds value; ignore
-                    return None
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            return retry_after_from_headers(resp.headers)
     except Exception:
         return None
     return None

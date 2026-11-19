@@ -206,6 +206,28 @@ _STRAY_TAIL_RE = re.compile(r"\s*</(?:response|speak|output|answer)>\s*$", re.IG
 # Content of the blocks linter.strip_thinking removes, so the renderer can show them.
 _THINK_BODY_RE = re.compile(r"<think(?:ing)?>(.*?)(?:</think(?:ing)?>|\Z)",
                             re.IGNORECASE | re.DOTALL)
+_THINK_OPEN_RE = re.compile(r"<think(?:ing)?>", re.IGNORECASE)
+_THINK_CLOSE_RE = re.compile(r"</think(?:ing)?>", re.IGNORECASE)
+_ANSWER_OPEN_RE = re.compile(r"<(?:guess|answer)>", re.IGNORECASE)
+
+
+def _close_unclosed_thinking(text: str) -> str:
+    """Close a trailing unclosed <thinking> block before any <guess>/<answer>.
+
+    A truncated or sloppy response like "<thinking>... <guess>A, B, C, D</guess>"
+    would otherwise have its guess swallowed into the collapsed thinking block
+    (the body regex treats end-of-text as the close), leaving an empty bubble.
+    """
+    opens = list(_THINK_OPEN_RE.finditer(text))
+    if not opens:
+        return text
+    last = opens[-1]
+    if _THINK_CLOSE_RE.search(text, last.end()):
+        return text
+    m = _ANSWER_OPEN_RE.search(text, last.end())
+    if not m:
+        return text
+    return text[:m.start()] + "</thinking>" + text[m.start():]
 
 
 def split_thinking_blocks(text: str) -> Tuple[str, str]:
@@ -219,6 +241,7 @@ def split_thinking_blocks(text: str) -> Tuple[str, str]:
     """
     if not text:
         return "", ""
+    text = _close_unclosed_thinking(text)
     thinking = "\n\n".join(
         m.group(1).strip() for m in _THINK_BODY_RE.finditer(text) if m.group(1).strip()
     )
@@ -690,7 +713,11 @@ def main():
     allowed_run_ids = read_allowed_run_ids()
     print(f"📋 {len(allowed_run_ids)} runs linked from the leaderboards")
     if not allowed_run_ids:
-        print("No run_summaries.csv rows to render; nothing to do")
+        # Still rewrite the index so it doesn't keep linking the previous
+        # publish's runs.
+        print("No run_summaries.csv rows to render")
+        build_logs_index([])
+        print(f"✅ Logs index written to {DOCS_LOG_DIR / 'index.html'}")
         return
 
     prune_orphan_pages(allowed_run_ids)
