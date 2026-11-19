@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 71 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 72 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -176,6 +176,20 @@ Latest one-shot runs for 71 models (20 games each, one submission per game, max 
       "avg_time": "8s",
       "tok_per_game": "2.5k",
       "cost": 0.15,
+      "cost_per_game": "$0.008"
+    },
+    {
+      "model": "<a href=\"logs/2026-11-19T22-03-30_gpt6.1-sol.html\">openai/gpt-6.1-sol</a>",
+      "date": "2026-11-19",
+      "pts": 87,
+      "pts_pct": 0.87,
+      "w": "19",
+      "grp": "78/80",
+      "trap": "28",
+      "inv": "0",
+      "avg_time": "27s",
+      "tok_per_game": "1.2k",
+      "cost": 0.16,
       "cost_per_game": "$0.008"
     },
     {
