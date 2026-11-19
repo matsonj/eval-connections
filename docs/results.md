@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 74 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 75 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -415,6 +415,20 @@ Latest one-shot runs for 74 models (20 games each, one submission per game, max 
       "tok_per_game": "11.9k",
       "cost": 0.11,
       "cost_per_game": "$0.006"
+    },
+    {
+      "model": "<a href=\"logs/2026-11-19T22-07-12_kimi-k3.1-pro.html\">moonshotai/kimi-k3.1-pro</a>",
+      "date": "2026-11-19",
+      "pts": 82,
+      "pts_pct": 0.82,
+      "w": "18",
+      "grp": "76/80",
+      "trap": "24",
+      "inv": "0",
+      "avg_time": "14s",
+      "tok_per_game": "2.0k",
+      "cost": 0.29,
+      "cost_per_game": "$0.014"
     },
     {
       "model": "<a href=\"logs/2026-09-01T19-01-28_fable-5.1.html\">anthropic/claude-fable-5.1</a>",
