@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 54 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 68 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -81,6 +81,34 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
   ],
   "data": [
     {
+      "model": "<a href=\"logs/2026-09-04T22-19-43_gpt6-astra.html\">openai/gpt-6-astra</a>",
+      "date": "2026-09-04",
+      "pts": 94,
+      "pts_pct": 0.94,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "34",
+      "inv": "0",
+      "avg_time": "15s",
+      "tok_per_game": "1.1k",
+      "cost": 0.67,
+      "cost_per_game": "$0.034"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-13T18-18-56_gemini-4-argon.html\">google/gemini-4-argon</a>",
+      "date": "2026-10-13",
+      "pts": 92,
+      "pts_pct": 0.92,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "32",
+      "inv": "0",
+      "avg_time": "6s",
+      "tok_per_game": "1.0k",
+      "cost": 0.11,
+      "cost_per_game": "$0.005"
+    },
+    {
       "model": "<a href=\"logs/2026-08-12T16-34-41_grok-4.6.html\">x-ai/grok-4.6</a>",
       "date": "2026-08-12",
       "pts": 91,
@@ -109,6 +137,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.021"
     },
     {
+      "model": "<a href=\"logs/2026-09-23T22-10-15_gpt6-sol.html\">openai/gpt-6-sol</a>",
+      "date": "2026-09-23",
+      "pts": 89,
+      "pts_pct": 0.89,
+      "w": "19",
+      "grp": "78/80",
+      "trap": "30",
+      "inv": "0",
+      "avg_time": "19s",
+      "tok_per_game": "1.3k",
+      "cost": 0.17,
+      "cost_per_game": "$0.009"
+    },
+    {
       "model": "<a href=\"logs/2026-09-02T15-39-21_gemini-3.8-flash.html\">google/gemini-3.8-flash</a>",
       "date": "2026-09-02",
       "pts": 88,
@@ -121,6 +163,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "tok_per_game": "2.5k",
       "cost": 0.15,
       "cost_per_game": "$0.008"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-25T14-33-37_opus-5.5.html\">anthropic/claude-opus-5.5</a>",
+      "date": "2026-09-25",
+      "pts": 86,
+      "pts_pct": 0.86,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "8s",
+      "tok_per_game": "1.5k",
+      "cost": 0.36,
+      "cost_per_game": "$0.018"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-25-41_gemini-3.1.html\">google/gemini-3.1-pro-preview</a>",
@@ -163,6 +219,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "tok_per_game": "1.7k",
       "cost": 1.08,
       "cost_per_game": "$0.054"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T21-43-32_grok-4.7.html\">x-ai/grok-4.7</a>",
+      "date": "2026-09-23",
+      "pts": 85,
+      "pts_pct": 0.85,
+      "w": "19",
+      "grp": "78/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "2m42s",
+      "tok_per_game": "12.2k",
+      "cost": 1.03,
+      "cost_per_game": "$0.052"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-56-32_gemini-3-flash.html\">google/gemini-3-flash-preview</a>",
@@ -247,6 +317,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "tok_per_game": "1.5k",
       "cost": 0.63,
       "cost_per_game": "$0.032"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-20T14-37-14_deepseek-v4.1-flash-1017.html\">deepseek/deepseek-v4.1-flash-1017</a>",
+      "date": "2026-10-20",
+      "pts": 83,
+      "pts_pct": 0.83,
+      "w": "19",
+      "grp": "76/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "1m42s",
+      "tok_per_game": "11.9k",
+      "cost": 0.11,
+      "cost_per_game": "$0.006"
     },
     {
       "model": "<a href=\"logs/2026-09-01T19-01-28_fable-5.1.html\">anthropic/claude-fable-5.1</a>",
@@ -375,6 +459,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.006"
     },
     {
+      "model": "<a href=\"logs/2026-10-06T17-28-11_sonnet-5.5.html\">anthropic/claude-sonnet-5.5</a>",
+      "date": "2026-10-06",
+      "pts": 76,
+      "pts_pct": 0.76,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "16",
+      "inv": "0",
+      "avg_time": "7s",
+      "tok_per_game": "1.5k",
+      "cost": 0.18,
+      "cost_per_game": "$0.009"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T23-26-38_grok-4.5.html\">x-ai/grok-4.5</a>",
       "date": "2026-07-22",
       "pts": 76,
@@ -459,6 +557,34 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.022"
     },
     {
+      "model": "<a href=\"logs/2026-10-12T18-23-32_muse-wonder.html\">meta/muse-wonder</a>",
+      "date": "2026-10-12",
+      "pts": 73,
+      "pts_pct": 0.73,
+      "w": "19",
+      "grp": "78/80",
+      "trap": "14",
+      "inv": "0",
+      "avg_time": "18s",
+      "tok_per_game": "2.1k",
+      "cost": 0.65,
+      "cost_per_game": "$0.033"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T22-10-39_deepseek-v4.1-flash.html\">deepseek/deepseek-v4.1-flash</a>",
+      "date": "2026-09-23",
+      "pts": 73,
+      "pts_pct": 0.73,
+      "w": "17",
+      "grp": "70/80",
+      "trap": "20",
+      "inv": "2",
+      "avg_time": "5m5s",
+      "tok_per_game": "17.2k",
+      "cost": 0.2,
+      "cost_per_game": "$0.010"
+    },
+    {
       "model": "<a href=\"logs/2026-08-12T18-21-34_seed-2-1-turbo.html\">bytedance-seed/seed-2-1-turbo</a>",
       "date": "2026-08-12",
       "pts": 73,
@@ -529,6 +655,34 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.018"
     },
     {
+      "model": "<a href=\"logs/2026-10-07T22-40-16_opus-4.1.html\">anthropic/claude-opus-4.1</a>",
+      "date": "2026-10-07",
+      "pts": 69,
+      "pts_pct": 0.69,
+      "w": "17",
+      "grp": "70/80",
+      "trap": "16",
+      "inv": "0",
+      "avg_time": "1m41s",
+      "tok_per_game": "2.2k",
+      "cost": 2.61,
+      "cost_per_game": "$0.130"
+    },
+    {
+      "model": "<a href=\"logs/2026-09-23T22-21-01_mimo-v2.6-flash.html\">xiaomi/mimo-v2.6-flash</a>",
+      "date": "2026-09-23",
+      "pts": 69,
+      "pts_pct": 0.69,
+      "w": "15",
+      "grp": "66/80",
+      "trap": "18",
+      "inv": "1",
+      "avg_time": "53m16s",
+      "tok_per_game": "111.5k",
+      "cost": 0.49,
+      "cost_per_game": "$0.024"
+    },
+    {
       "model": "<a href=\"logs/2026-07-22T23-41-49_deepseek-v4-flash.html\">deepseek/deepseek-v4-flash</a>",
       "date": "2026-07-22",
       "pts": 68,
@@ -555,6 +709,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "tok_per_game": "2.8k",
       "cost": 0.12,
       "cost_per_game": "$0.006"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-07T19-58-46_haiku-5.5.html\">anthropic/claude-haiku-5.5</a>",
+      "date": "2026-10-07",
+      "pts": 67,
+      "pts_pct": 0.67,
+      "w": "15",
+      "grp": "64/80",
+      "trap": "18",
+      "inv": "0",
+      "avg_time": "10s",
+      "tok_per_game": "2.6k",
+      "cost": 0.02,
+      "cost_per_game": "$0.001"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-52-12_gemini-3.5-flash.html\">google/gemini-3.5-flash</a>",
@@ -641,6 +809,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.016"
     },
     {
+      "model": "<a href=\"logs/2026-09-23T22-09-42_gpt6-luna.html\">openai/gpt-6-luna</a>",
+      "date": "2026-09-23",
+      "pts": 61,
+      "pts_pct": 0.61,
+      "w": "14",
+      "grp": "65/80",
+      "trap": "10",
+      "inv": "0",
+      "avg_time": "14s",
+      "tok_per_game": "1.6k",
+      "cost": 0.01,
+      "cost_per_game": "$0.001"
+    },
+    {
       "model": "<a href=\"logs/2026-08-12T16-33-14_muse-glimmer-30b.html\">meta/muse-glimmer-30b</a>",
       "date": "2026-08-12",
       "pts": 61,
@@ -653,6 +835,20 @@ Latest one-shot runs for 54 models (20 games each, one submission per game, max 
       "tok_per_game": "4.1k",
       "cost": 0.09,
       "cost_per_game": "$0.005"
+    },
+    {
+      "model": "<a href=\"logs/2026-10-06T17-28-32_mistral-large-4.html\">mistralai/mistral-large-4-0</a>",
+      "date": "2026-10-06",
+      "pts": 61,
+      "pts_pct": 0.61,
+      "w": "16",
+      "grp": "67/80",
+      "trap": "10",
+      "inv": "0",
+      "avg_time": "6m59s",
+      "tok_per_game": "20.1k",
+      "cost": 0.83,
+      "cost_per_game": "$0.041"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-08-13_haiku-4.5.html\">anthropic/claude-haiku-4.5</a>",

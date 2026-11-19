@@ -72,6 +72,38 @@ class TestCLI:
         assert "Inputs path does not exist" in result.stdout
     
     @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'})
+    def test_run_malformed_puzzles_yaml(self, tmp_path):
+        """A puzzles file that won't parse exits 1 cleanly, not with a traceback."""
+        import shutil
+        from tests.conftest import INPUTS
+        for f in INPUTS.iterdir():
+            if f.is_file():
+                shutil.copy(f, tmp_path / f.name)
+        (tmp_path / "connections_puzzles.yml").write_text("puzzles: [unclosed\n")
+        result = self.runner.invoke(app, [
+            "run", "--model", "kimi-k3", "--inputs-path", str(tmp_path),
+        ])
+        assert result.exit_code == 1
+        assert "Error loading inputs" in result.stdout
+        assert isinstance(result.exception, SystemExit)  # clean exit, not a traceback
+
+    @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'})
+    def test_run_missing_puzzles_file_named(self, tmp_path):
+        """A missing puzzles file is reported by name, before the game is built."""
+        result = self.runner.invoke(app, [
+            "run", "--model", "kimi-k3", "--inputs-path", str(tmp_path),
+        ])
+        assert result.exit_code == 1
+        assert "Puzzles file not found" in result.stdout
+
+    def test_interactive_bad_puzzle_ids_fails_before_label_prompt(self):
+        """--puzzle-ids is validated before the interactive label prompt."""
+        result = self.runner.invoke(app, ["run", "--interactive", "--puzzle-ids", "1,x"], input="")
+        assert result.exit_code == 1
+        assert "--puzzle-ids must be comma-separated integers" in result.stdout
+        assert "Enter a label" not in result.stdout
+
+    @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'})
     @patch('connections_eval.cli.openrouter_adapter.assert_model_exists')
     @patch('connections_eval.cli.ConnectionsGame')
     def test_run_success(self, mock_game_class, mock_preflight):
@@ -205,3 +237,17 @@ class TestStructuredOutputFlag:
         result, cls = self._invoke(mock_game_class, [])
         assert result.exit_code == 0
         assert cls.call_args.kwargs["structured_output"] is False
+
+
+def test_setup_logger_sanitizes_run_label(tmp_path):
+    """An interactive label with a path separator stays inside log_path."""
+    from connections_eval.utils.logging import setup_logger
+    logger = setup_logger(tmp_path, "2026-11-19T00-00-00_team/alice", verbose=False)
+    logger.info("hello")
+    for h in logger.handlers:
+        h.flush()
+    files = list(tmp_path.glob("connections_eval_*.jsonl"))
+    assert [f.name for f in files] == ["connections_eval_2026-11-19T00-00-00_team_alice.jsonl"]
+    for h in logger.handlers[:]:
+        h.close()
+        logger.removeHandler(h)

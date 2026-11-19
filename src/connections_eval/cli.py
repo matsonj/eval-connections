@@ -29,17 +29,20 @@ def main():
 def _validate_run_args(
     model: Optional[str], interactive: bool, puzzles: Optional[int],
     puzzle_ids: Optional[str], canonical: bool, inputs_path: Path,
-    mode: str, reasoning_effort: Optional[str] = None,
+    prompt_file: str, mode: str, reasoning_effort: Optional[str] = None,
+    structured_output: bool = False, no_thinking_block: bool = False,
 ) -> None:
     """
     Validate run command arguments that don't need the constructed game:
     mode, reasoning effort, --model/--interactive mutual exclusion, puzzle
-    selection mutual exclusion, and that inputs_path exists.
+    selection mutual exclusion, and that inputs_path and the puzzle/template
+    files exist (so a missing file is reported by name rather than as a
+    game-construction error).
 
     The unknown-model check runs in `run()` right after the (single) game
-    is constructed, and the remaining checks (API key, puzzle/template
-    files, --puzzle-ids parsing) run afterward in `_validate_run_paths` —
-    both need to slot into this exact point in the validation order.
+    is constructed, and the remaining checks (API key, --puzzle-ids parsing)
+    run afterward in `_validate_run_paths` — both need to slot into this
+    exact point in the validation order.
 
     Raises typer.Exit on validation failure.
     """
@@ -53,6 +56,10 @@ def _validate_run_args(
             f"Invalid reasoning effort: {reasoning_effort}. Must be one of: {', '.join(valid_efforts)}",
             style="red",
         )
+        raise typer.Exit(1)
+
+    if no_thinking_block and structured_output:
+        console.print("--no-thinking-block applies to the XML prompt only; drop --structured-output", style="red")
         raise typer.Exit(1)
 
     if not interactive and not model:
@@ -76,22 +83,6 @@ def _validate_run_args(
         console.print(f"Inputs path does not exist: {inputs_path}", style="red")
         raise typer.Exit(1)
 
-
-def _validate_run_paths(
-    interactive: bool, inputs_path: Path, prompt_file: str, mode: str,
-    puzzle_ids: Optional[str],
-) -> Optional[List[int]]:
-    """
-    Validate the API key and puzzle/template files, and parse --puzzle-ids.
-
-    Runs after the unknown-model check in `run()` — see `_validate_run_args`.
-
-    Raises typer.Exit on validation failure.
-    """
-    if not interactive and not os.getenv("OPENROUTER_API_KEY"):
-        console.print("OPENROUTER_API_KEY environment variable not set. Run: source .env", style="red")
-        raise typer.Exit(1)
-
     puzzles_file = inputs_path / "connections_puzzles.yml"
     # When mode is oneshot and --prompt-file was left at its default, the
     # template ConnectionsGame actually loads is prompt_template_oneshot.xml
@@ -107,6 +98,21 @@ def _validate_run_paths(
         raise typer.Exit(1)
     if not template_file.exists():
         console.print(f"Prompt template not found: {template_file}", style="red")
+        raise typer.Exit(1)
+
+
+def _validate_run_paths(
+    interactive: bool, puzzle_ids: Optional[str],
+) -> Optional[List[int]]:
+    """
+    Validate the API key and parse --puzzle-ids.
+
+    Runs after the unknown-model check in `run()` — see `_validate_run_args`.
+
+    Raises typer.Exit on validation failure.
+    """
+    if not interactive and not os.getenv("OPENROUTER_API_KEY"):
+        console.print("OPENROUTER_API_KEY environment variable not set. Run: source .env", style="red")
         raise typer.Exit(1)
 
     # Parse puzzle IDs
@@ -167,6 +173,16 @@ def run(
             "prompt, so results are NOT directly comparable with default runs."
         )
     ),
+    no_thinking_block: bool = typer.Option(
+        False,
+        "--no-thinking-block",
+        help=(
+            "Remove the <thinking> section from the prompt's response format. "
+            "Anthropic refuses prompts that ask the model to write out its "
+            "reasoning. Applied automatically to models listed under "
+            "no_thinking_block in model_mappings.yml."
+        )
+    ),
     threads: int = typer.Option(
         8,
         "--threads",
@@ -205,14 +221,17 @@ def run(
 ):
     """Run connections evaluation."""
     _validate_run_args(
-        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, mode, reasoning_effort,
+        model, interactive, puzzles, puzzle_ids, canonical, inputs_path, prompt_file, mode,
+        reasoning_effort, structured_output, no_thinking_block,
     )
 
-    # Get model name for interactive mode
-    if interactive:
-        model_name = typer.prompt("Enter a label for this run (for logging)")
-    else:
-        model_name = model
+    # Models listed in model_mappings.yml get the flag automatically, so runs
+    # that can't pass extra CLI args (the GitHub Action) still work.
+    if not interactive and model in ConnectionsGame.load_no_thinking_block_models(inputs_path):
+        if structured_output:
+            console.print(f"{model} requires the thinking block removed, which --structured-output doesn't support", style="red")
+            raise typer.Exit(1)
+        no_thinking_block = True
 
     # Build the game once — used for the unknown-model check right below and
     # for the run itself (previously a throwaway validation instance was
@@ -221,9 +240,12 @@ def run(
     try:
         game = ConnectionsGame(inputs_path, log_path, seed, verbose=verbose, mode=mode,
                                reasoning_effort=reasoning_effort,
-                               structured_output=structured_output)
-    except FileNotFoundError as e:
-        console.print(f"Error loading model config: {e}", style="red")
+                               structured_output=structured_output,
+                               no_thinking_block=no_thinking_block)
+    except Exception as e:
+        # Malformed puzzles YAML, bad mappings, unreadable template, etc. —
+        # report cleanly instead of escaping as a traceback.
+        console.print(f"Error loading inputs from {inputs_path}: {e}", style="red")
         raise typer.Exit(1)
 
     if model and model not in game.MODEL_CONFIG:
@@ -233,7 +255,14 @@ def run(
             console.print(f"  - {available_model}")
         raise typer.Exit(2)
 
-    parsed_puzzle_ids = _validate_run_paths(interactive, inputs_path, prompt_file, mode, puzzle_ids)
+    parsed_puzzle_ids = _validate_run_paths(interactive, puzzle_ids)
+
+    # Prompt for the interactive label only after every argument check has
+    # passed, so a bad --puzzle-ids fails before the user is asked anything.
+    if interactive:
+        model_name = typer.prompt("Enter a label for this run (for logging)")
+    else:
+        model_name = model
 
     try:
         # Fail fast on a bad OpenRouter slug instead of burning the retry
@@ -279,6 +308,8 @@ def run(
             console.print(f"Reasoning Effort: {reasoning_effort}")
         if structured_output:
             console.print("Structured Output: enabled (JSON schema; not comparable with XML-format runs)")
+        if no_thinking_block:
+            console.print("Thinking Block: removed from prompt")
         if parsed_puzzle_ids is not None:
             console.print(f"Puzzles: {len(parsed_puzzle_ids)} specific IDs")
         else:
@@ -366,6 +397,8 @@ def _display_summary(summary: dict, interactive: bool):
         table.add_row("Reasoning Effort", summary["reasoning_effort"])
     if summary.get("structured_output"):
         table.add_row("Structured Output", "JSON schema")
+    if summary.get("no_thinking_block"):
+        table.add_row("Thinking Block", "removed")
     table.add_row("Puzzles Attempted", str(summary["puzzles_attempted"]))
     table.add_row("Puzzles Solved", str(summary["puzzles_solved"]))
 

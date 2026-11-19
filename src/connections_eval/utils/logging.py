@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -39,7 +40,11 @@ def setup_logger(log_path: Path, run_id: str, verbose: bool = False) -> logging.
     """
     log_path.mkdir(exist_ok=True)
 
-    log_file = log_path / f"connections_eval_{run_id}.jsonl"
+    # run_id embeds the run label, which in interactive mode is free text the
+    # user typed — keep it from introducing path separators or other
+    # filesystem-hostile characters into the file name.
+    safe_run_id = re.sub(r"[^A-Za-z0-9._-]", "_", run_id)
+    log_file = log_path / f"connections_eval_{safe_run_id}.jsonl"
 
     logger = logging.getLogger("connections_eval")
     logger.setLevel(logging.DEBUG)
