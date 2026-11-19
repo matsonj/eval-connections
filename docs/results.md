@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 76 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 77 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -485,6 +485,20 @@ Latest one-shot runs for 76 models (20 games each, one submission per game, max 
       "tok_per_game": "1.7k",
       "cost": 0.1,
       "cost_per_game": "$0.005"
+    },
+    {
+      "model": "<a href=\"logs/2026-11-19T22-15-53_fable-5.2.html\">anthropic/claude-fable-5.2</a>",
+      "date": "2026-11-19",
+      "pts": 80,
+      "pts_pct": 0.8,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "20",
+      "inv": "0",
+      "avg_time": "7s",
+      "tok_per_game": "1.3k",
+      "cost": 0.58,
+      "cost_per_game": "$0.029"
     },
     {
       "model": "<a href=\"logs/2026-09-02T22-49-35_muse-spark-1.3-contributor.html\">meta/muse-spark-1.3-contributor</a>",
