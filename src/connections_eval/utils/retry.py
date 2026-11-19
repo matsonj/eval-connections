@@ -23,39 +23,39 @@ def get_last_backoff_sec() -> float:
     """Seconds slept across all retry attempts of the most recent call on this thread."""
     return getattr(_backoff_state, "backoff_sec", 0.0)
 
-try:
-    # Optional import; only used for isinstance checks
-    import requests  # type: ignore
-    from requests import HTTPError  # type: ignore
-except Exception:  # pragma: no cover
-    requests = None
-    HTTPError = Exception  # type: ignore
-
 T = TypeVar('T')
 
 logger = logging.getLogger(__name__)
 
 
+def retry_after_from_headers(headers) -> float | None:
+    """Retry-After in seconds from a header mapping, matched case-insensitively.
+
+    `requests` uses a CaseInsensitiveDict, but mocked or wrapped responses may
+    carry a plain dict with "retry-after", so don't rely on the mapping type.
+    Only the seconds form is handled; an HTTP-date value returns None.
+    """
+    if not headers:
+        return None
+    raw = None
+    for key, value in headers.items():
+        if str(key).lower() == "retry-after":
+            raw = value
+            break
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _retry_after_seconds(exc: Exception) -> float | None:
     """Extract Retry-After seconds from an HTTPError if available."""
     try:
-        if hasattr(exc, "response") and getattr(exc, "response") is not None:  # type: ignore[attr-defined]
-            resp = getattr(exc, "response")  # type: ignore[attr-defined]
-            # Retry-After may be seconds or HTTP date; we only handle seconds here
-            retry_after = resp.headers.get("Retry-After")  # type: ignore[attr-defined]
-            if retry_after is not None:
-                try:
-                    return float(retry_after)
-                except ValueError:
-                    # Not a simple seconds value; ignore
-                    return None
-            # Some providers use lowercase or alternative headers
-            retry_after = resp.headers.get("retry-after")  # type: ignore[attr-defined]
-            if retry_after is not None:
-                try:
-                    return float(retry_after)
-                except ValueError:
-                    return None
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            return retry_after_from_headers(resp.headers)
     except Exception:
         return None
     return None
@@ -118,16 +118,11 @@ def retry_with_backoff(
                     total_delay = delay + jitter
 
                     if sc == 429:
-                        if ra is not None:
-                            logger.warning(
-                                f"Attempt {attempt + 1}/{max_retries + 1} failed for {func.__name__}: 429 Too Many Requests. "
-                                f"Honoring Retry-After={ra}s; sleeping {total_delay:.2f}s..."
-                            )
-                        else:
-                            logger.warning(
-                                f"Attempt {attempt + 1}/{max_retries + 1} failed for {func.__name__}: 429 Too Many Requests. "
-                                f"No Retry-After; using backoff {total_delay:.2f}s..."
-                            )
+                        detail = f"Honoring Retry-After={ra}s" if ra is not None else "No Retry-After; using backoff"
+                        logger.warning(
+                            f"Attempt {attempt + 1}/{max_retries + 1} failed for {func.__name__}: 429 Too Many Requests. "
+                            f"{detail}; sleeping {total_delay:.2f}s..."
+                        )
                     else:
                         logger.warning(
                             f"Attempt {attempt + 1}/{max_retries + 1} failed for {func.__name__}: {e}. "

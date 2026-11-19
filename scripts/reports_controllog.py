@@ -1,36 +1,9 @@
 """Reports and trial balance checks over controllog events/postings (DuckDB/MotherDuck)."""
 
-import os
-import duckdb  # type: ignore
-
-
-def trial_balance(con) -> None:
-    # Resource accounts must net to zero per unit
-    rows = con.execute(
-        """
-        WITH sums AS (
-          SELECT account_type, unit, SUM(delta_numeric) AS net
-          FROM controllog.postings
-          WHERE account_type LIKE 'resource.%' OR account_type IN ('truth.state','value.utility')
-          GROUP BY 1,2
-        )
-        SELECT * FROM sums WHERE ABS(net) > 1e-9
-        """
-    ).fetchall()
-    if rows:
-        raise RuntimeError(f"Trial balance FAILED: {rows}")
-
-
-def snapshot_sla(con):
-    return con.execute(
-        """
-        SELECT e.project_id, SUM(p.delta_numeric) AS sla_debt
-        FROM controllog.postings p
-        JOIN controllog.events e ON e.event_id=p.event_id
-        WHERE account_type='sla.promises'
-        GROUP BY e.project_id
-        """
-    ).fetchdf()
+from connections_eval.utils.motherduck import (  # noqa: F401  (re-export)
+    connect_motherduck,
+    trial_balance,
+)
 
 
 def flows_cost_utility(con):
@@ -48,7 +21,7 @@ def flows_cost_utility(con):
                SUM(CASE WHEN account_type='value.utility'  THEN  amt ELSE 0 END) AS utility
         FROM p GROUP BY project_id
         """
-    ).fetchdf()
+    ).fetchall()
 
 
 def ops_latency_by_model(con):
@@ -65,19 +38,17 @@ def ops_latency_by_model(con):
           AND p.account_id LIKE 'agent:%'
         GROUP BY 1,2
         """
-    ).fetchdf()
+    ).fetchall()
 
 
 if __name__ == "__main__":
-    db = os.environ.get("MOTHERDUCK_DB", "md:my_db")
-    con = duckdb.connect(db)
+    con = connect_motherduck()
     trial_balance(con)
     print("Trial balance PASS")
-    print("Flows (cost, utility):")
-    print(flows_cost_utility(con))
-    print("Ops (latency by model):")
-    print(ops_latency_by_model(con))
+    print("Flows (project_id, cost, utility):")
+    for row in flows_cost_utility(con):
+        print(f"  {row}")
+    print("Ops (project_id, model, wall_ms):")
+    for row in ops_latency_by_model(con):
+        print(f"  {row}")
     con.close()
-
-
-

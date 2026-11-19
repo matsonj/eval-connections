@@ -19,12 +19,13 @@ Usage:
 """
 
 import argparse
+import csv
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, Optional
 
-import pandas as pd
 import yaml
 
 RUN_SUMMARIES_CSV = Path("results/run_summaries.csv")
@@ -52,39 +53,63 @@ def load_reverse_mapping() -> dict[str, str]:
     return reverse
 
 
-def select_models(df: pd.DataFrame, select_all: bool = False) -> tuple[list[str], set[str]]:
+def _float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _ts(value: Any) -> datetime:
+    """Parse an ISO timestamp; MotherDuck emits some rows tz-naive."""
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def load_runs(csv_path: Path = RUN_SUMMARIES_CSV) -> list[dict[str, Any]]:
+    """Read run_summaries.csv rows, normalizing the fields we key off."""
+    runs: list[dict[str, Any]] = []
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            row["mode"] = (row.get("mode") or "").strip() or "classic"
+            row["start_dt"] = _ts(row.get("start_timestamp"))
+            runs.append(row)
+    return runs
+
+
+def select_models(runs: list[dict[str, Any]], select_all: bool = False) -> tuple[list[str], set[str]]:
     """Return (selected OpenRouter IDs, already-backfilled IDs).
 
     select_all=True selects every model with any 20-puzzle classic run;
     default is the targeted subset (recent OR high solve rate).
     """
-    if "mode" not in df.columns:
-        df = df.assign(mode="classic")
-    df = df.assign(mode=df["mode"].fillna("classic"))
-    df = df[df["puzzles_attempted"] == 20].copy()
-    df = df.assign(
-        start_timestamp=pd.to_datetime(
-            df["start_timestamp"], format="ISO8601", utc=True
-        )
-    )
+    canonical = [r for r in runs if _float(r.get("puzzles_attempted")) == 20]
+    classic = [r for r in canonical if r["mode"] == "classic"]
 
-    classic = df[df["mode"] == "classic"]
     if select_all:
-        selected = set(classic["model"])
+        selected = {r["model"] for r in classic}
     else:
-        first_run = classic.groupby("model")["start_timestamp"].min()
-        latest = classic.loc[classic.groupby("model")["start_timestamp"].idxmax()]
+        first_run: dict[str, datetime] = {}
+        latest: dict[str, dict[str, Any]] = {}
+        for r in classic:
+            model = r["model"]
+            if model not in first_run or r["start_dt"] < first_run[model]:
+                first_run[model] = r["start_dt"]
+            if model not in latest or r["start_dt"] > latest[model]["start_dt"]:
+                latest[model] = r
         cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_DAYS)
-        recent = set(first_run[first_run >= cutoff].index)
-        high = set(latest[latest["solve_rate"] >= SOLVE_RATE_FLOOR]["model"])
+        recent = {m for m, dt in first_run.items() if dt >= cutoff}
+        high = {m for m, r in latest.items()
+                if (_float(r.get("solve_rate")) or 0.0) >= SOLVE_RATE_FLOOR}
         selected = recent | high
 
     # Only trap-scored runs count as backfilled — legacy pre-trap smoke runs
     # used a different scoring scale and must be re-run.
-    oneshot = df[df["mode"] == "oneshot"]
-    if "trap_scored" in oneshot.columns:
-        oneshot = oneshot[oneshot["trap_scored"].fillna(0) == 1]
-    done = set(oneshot["model"])
+    done = {r["model"] for r in canonical
+            if r["mode"] == "oneshot" and (_float(r.get("trap_scored")) or 0.0) == 1}
     return sorted(selected), done
 
 
@@ -101,8 +126,8 @@ def main() -> int:
                              "(needed after scoring-rule or prompt changes)")
     args = parser.parse_args()
 
-    df = pd.read_csv(RUN_SUMMARIES_CSV)
-    selected, done = select_models(df, select_all=args.all)
+    runs = load_runs()
+    selected, done = select_models(runs, select_all=args.all)
     reverse = load_reverse_mapping()
 
     runnable: list[tuple[str, str]] = []  # (openrouter_id, cli_name)
@@ -136,15 +161,12 @@ def main() -> int:
     # Run fastest models first (per-puzzle avg from each model's latest run)
     # so results start landing early; models with no timing history go last.
     timing: dict[str, float] = {}
-    t = df.assign(
-        start_timestamp=pd.to_datetime(df["start_timestamp"], format="ISO8601", utc=True)
-    ).sort_values("start_timestamp")
-    for _, row in t.iterrows():
-        avg = row.get("avg_inference_sec")
-        if pd.isna(avg):
-            avg = row.get("avg_time_sec")
-        if pd.notna(avg):
-            timing[row["model"]] = float(avg)  # last write wins = latest run
+    for row in sorted(runs, key=lambda r: r["start_dt"]):
+        avg = _float(row.get("avg_inference_sec"))
+        if avg is None:
+            avg = _float(row.get("avg_time_sec"))
+        if avg is not None:
+            timing[row["model"]] = avg  # last write wins = latest run
     runnable.sort(key=lambda mc: timing.get(mc[0], float("inf")))
 
     print(f"\nTo run ({len(runnable)} models x 20 one-shot calls each, fastest first):")

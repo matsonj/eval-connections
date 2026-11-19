@@ -7,102 +7,156 @@ Generates two leaderboards from results/run_summaries.csv:
 """
 
 import json
-import subprocess
-import pandas as pd
 import os
+import re
+import subprocess
+
+import duckdb
+
+# Columns added in later CSV versions. Backfilled as NULL when the CSV
+# predates them so older CSVs still render; missing values stay NULL so
+# downstream can show "—" for "not measured".
+BACKFILL_COLUMNS = (
+    "avg_inference_sec",
+    "total_inference_sec",
+    "total_backoff_sec",
+    "total_score",
+    "total_trap_bonus",
+    "max_score",
+    "avg_score",
+    "trap_scored",
+)
+
+# A single connection is used for every query in this script. DuckDB's
+# read_csv interprets naive timestamps in the session timezone, and the
+# TIMESTAMPTZ values it returns are rendered in that same timezone — both
+# steps must agree with the old pandas `to_datetime(..., utc=True)` behavior,
+# so the session timezone is pinned to UTC here rather than left to whatever
+# connection happens to run a given query.
+_CON = duckdb.connect()
+_CON.execute("SET TimeZone='UTC'")
 
 
-def load_and_filter_data(
-    csv_file: str = "results/run_summaries.csv", mode: str = "oneshot"
-) -> pd.DataFrame:
-    """Load CSV data and apply filtering logic for one eval mode."""
-    df = pd.read_csv(csv_file)
+def load_summaries(csv_file: str = "results/run_summaries.csv") -> duckdb.DuckDBPyRelation:
+    """Read the run summaries CSV and normalize columns across CSV versions.
 
-    # Backfill columns added in later versions so older CSVs still render.
-    # Missing values stay NaN so downstream can show "—" for "not measured".
-    for col in (
-        "avg_inference_sec",
-        "total_inference_sec",
-        "total_backoff_sec",
-        "total_score",
-        "total_trap_bonus",
-        "max_score",
-        "avg_score",
-        "trap_scored",
-    ):
-        if col not in df.columns:
-            df[col] = pd.NA
+    Returns a DuckDB relation with a `_csv_row` column recording each row's
+    original position in the file (used later to break ties the same way
+    pandas' idxmax/stable-sort would).
+    """
+    header = _CON.sql(
+        f"SELECT * FROM read_csv({csv_file!r}, parallel=false) LIMIT 0"
+    )
+    header_cols = set(header.columns)
+
+    select_parts = ["*"]
+    for col in BACKFILL_COLUMNS:
+        if col not in header_cols:
+            select_parts.append(f"NULL AS {col}")
 
     # Pre-4.0 CSVs have no mode column; every run back then was classic.
-    if "mode" not in df.columns:
-        df = df.assign(mode="classic")
-    df = df.assign(mode=df["mode"].fillna("classic"))
+    if "mode" not in header_cols:
+        select_parts.append("'classic' AS mode")
 
-    filtered_df = df[
-        (df["puzzles_attempted"] == 20)
-        & (df["total_cost"].notna())
-        & (df["mode"] == mode)
-        # Rows whose model couldn't be resolved from telemetry (garbage runs)
-        & (df["model"] != "unknown")
-    ].copy()
+    select_clause = ", ".join(select_parts)
+    query = f"""
+        SELECT {select_clause}, row_number() OVER () AS _csv_row
+        FROM read_csv({csv_file!r}, parallel=false)
+    """
+    df = _CON.sql(query)
 
-    # Legacy pre-trap one-shot smoke runs (no _TRAP_ in result strings) used a
-    # different scoring scale — exclude them so the board only compares
-    # trap-scored runs.
+    if "mode" in header_cols:
+        df = _CON.sql("SELECT * REPLACE (COALESCE(mode, 'classic') AS mode) FROM df")
+
+    return df
+
+
+def filter_for_mode(df: duckdb.DuckDBPyRelation, mode: str = "oneshot") -> list[dict]:
+    """Apply the leaderboard filtering logic for one eval mode.
+
+    Returns the selected rows (latest run per model, sorted for display) as
+    a list of plain dicts.
+    """
+    trap_clause = ""
     if mode == "oneshot":
-        filtered_df = filtered_df[filtered_df["trap_scored"].fillna(0) == 1]
+        # Legacy pre-trap one-shot smoke runs (no _TRAP_ in result strings) used a
+        # different scoring scale — exclude them so the board only compares
+        # trap-scored runs.
+        trap_clause = "AND COALESCE(trap_scored, 0) = 1"
 
-    if filtered_df.empty:
-        return filtered_df
-
-    # Combined eval cost
-    filtered_df.loc[:, "eval_cost"] = filtered_df["total_cost"] + filtered_df[
-        "total_upstream_cost"
-    ].fillna(0)
-
-    # Latest run per model. MotherDuck emits offsets like "+00:00" for some rows
-    # and plain ISO for others; without utc=True the resulting Series mixes
-    # tz-aware and tz-naive Timestamps, and idxmax() can't compare them.
-    filtered_df.loc[:, "start_timestamp"] = pd.to_datetime(
-        filtered_df["start_timestamp"], format="ISO8601", utc=True
-    )
-    latest_runs = filtered_df.loc[
-        filtered_df.groupby("model")["start_timestamp"].idxmax()
-    ].copy()
-
-    latest_runs.loc[:, "eval_cost_per_game"] = (
-        latest_runs["eval_cost"] / latest_runs["puzzles_attempted"]
+    filtered = _CON.sql(  # noqa: F841 — referenced by name in later SQL (DuckDB replacement scan)
+        f"""
+        SELECT *
+        FROM df
+        WHERE puzzles_attempted = 20
+          AND total_cost IS NOT NULL
+          AND mode = '{mode}'
+          -- Rows whose model couldn't be resolved from telemetry (garbage runs)
+          AND model != 'unknown'
+          {trap_clause}
+        """
     )
 
-    # Sort by inference time (fair across upstream-throttled models) with wall
-    # time as a tiebreaker for historical runs that lack backoff data.
-    sort_time = latest_runs["avg_inference_sec"].where(
-        latest_runs["avg_inference_sec"].notna(), latest_runs["avg_time_sec"]
+    # Fetch only a count here (not a full row): `filtered` still carries the
+    # raw TIMESTAMPTZ start_timestamp/end_timestamp columns, and DuckDB's
+    # Python conversion for timezone-aware timestamps needs pytz, which isn't
+    # a project dependency — those columns are reformatted to plain
+    # strings before any full-row fetch below.
+    if _CON.sql("SELECT count(*) FROM filtered").fetchone()[0] == 0:
+        return []
+
+    # Combined eval cost. Latest run per model, tie-broken by original CSV
+    # row order (mirrors groupby(...).idxmax() picking the first occurrence
+    # of the max timestamp within a group).
+    with_eval_cost = _CON.sql(  # noqa: F841 — referenced by name in later SQL (DuckDB replacement scan)
+        """
+        SELECT *,
+               total_cost + COALESCE(total_upstream_cost, 0) AS eval_cost,
+               row_number() OVER (
+                   PARTITION BY model
+                   ORDER BY start_timestamp DESC, _csv_row ASC
+               ) AS _rn
+        FROM filtered
+        """
     )
+
+    latest_runs = _CON.sql(  # noqa: F841 — referenced by name in later SQL (DuckDB replacement scan)
+        """
+        SELECT *,
+               eval_cost / puzzles_attempted AS eval_cost_per_game,
+               -- Sort by inference time (fair across upstream-throttled models)
+               -- with wall time as a tiebreaker for historical runs that lack
+               -- backoff data.
+               COALESCE(avg_inference_sec, avg_time_sec) AS _sort_time,
+               row_number() OVER (ORDER BY model ASC) AS _orig_order
+        FROM with_eval_cost
+        WHERE _rn = 1
+        """
+    )
+
+    # Final projection. Every TIMESTAMPTZ column is turned into a string here
+    # because DuckDB needs pytz (not a dependency) to hand those to Python;
+    # start_timestamp becomes the plain date build_table_data renders.
+    headline = "COALESCE(total_score, 0) DESC" if mode == "oneshot" else "solve_rate DESC"
+    replace = ["strftime(start_timestamp, '%Y-%m-%d') AS start_timestamp"]
     if mode == "oneshot":
-        # Headline metric is total score (max 5 per puzzle = 100 on canonical).
-        latest_runs.loc[:, "total_score"] = latest_runs["total_score"].fillna(0)
-        sort_keys = ["total_score", "_sort_time", "eval_cost_per_game"]
-    else:
-        sort_keys = ["solve_rate", "_sort_time", "eval_cost_per_game"]
+        replace.append("COALESCE(total_score, 0) AS total_score")
+    replace += [f"{c}::VARCHAR AS {c}" for c, t in zip(latest_runs.columns, latest_runs.types)
+                if "TIME ZONE" in str(t) and c not in ("start_timestamp", "end_timestamp")]
+    ordered = _CON.sql(
+        f"""
+        SELECT * EXCLUDE (end_timestamp) REPLACE ({", ".join(replace)})
+        FROM latest_runs
+        ORDER BY {headline}, _sort_time ASC, eval_cost_per_game ASC, _orig_order ASC
+        """
+    )
 
-    latest_runs = latest_runs.assign(_sort_time=sort_time).sort_values(
-        sort_keys,
-        ascending=[False, True, True],
-    ).drop(columns=["_sort_time"])
-
-    return latest_runs
-
-
-
-def format_percentage(rate):
-    if rate >= 1.0:
-        return "1.000"
-    return f".{int(rate * 1000):03d}"
+    cols = ordered.columns
+    return [dict(zip(cols, row)) for row in ordered.fetchall()]
 
 
 def format_time(seconds):
-    if pd.isna(seconds) or seconds is None:
+    if seconds is None:
         return "0s"
     try:
         seconds = float(seconds)
@@ -121,13 +175,10 @@ def format_tokens(tokens):
     return f"{tokens / 1000:.1f}k"
 
 
-def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, str]]:
+def build_table_data(rows: list[dict], mode: str = "oneshot") -> list[dict[str, str]]:
     """Build the data rows for the mviz table."""
-    avg_tokens = df["total_tokens"] / df["puzzles_attempted"]
-    avg_cost = df["eval_cost"] / df["puzzles_attempted"]
-
-    rows = []
-    for _, row in df.iterrows():
+    data = []
+    for row in rows:
         run_id = row.get("run_id", "")
         model_name = row["model"]
         if run_id:
@@ -135,15 +186,15 @@ def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, 
         else:
             model_cell = model_name
 
-        date = row["start_timestamp"].strftime("%Y-%m-%d")
-        idx = row.name
-        avg_tok = avg_tokens[idx]
-        avg_c = avg_cost[idx]
+        # Already formatted to a plain date string in filter_for_mode's SQL.
+        date = row["start_timestamp"]
+        avg_tok = row["total_tokens"] / row["puzzles_attempted"]
+        avg_c = row["eval_cost"] / row["puzzles_attempted"]
 
         # Inference time when we measured it (wall minus retry backoff),
         # falling back to wall time for historical runs we didn't instrument.
         avg_inference = row.get("avg_inference_sec")
-        if avg_inference is None or pd.isna(avg_inference):
+        if avg_inference is None:
             avg_time_display = format_time(row["avg_time_sec"])
         else:
             avg_time_display = format_time(avg_inference)
@@ -162,12 +213,12 @@ def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, 
             max_score = row.get("max_score")
             max_score = (
                 int(max_score)
-                if max_score is not None and not pd.isna(max_score)
+                if max_score is not None
                 else 5 * int(row["puzzles_attempted"])
             )
             trap_bonus = row.get("total_trap_bonus")
-            trap_cell = "—" if trap_bonus is None or pd.isna(trap_bonus) else str(int(trap_bonus))
-            rows.append({
+            trap_cell = "—" if trap_bonus is None else str(int(trap_bonus))
+            data.append({
                 "model": model_cell,
                 "date": date,
                 "pts": int(row["total_score"]),
@@ -181,7 +232,7 @@ def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, 
         else:
             hit = int(row["correct_guesses"])
             att = int(row["total_guesses"])
-            rows.append({
+            data.append({
                 "model": model_cell,
                 "date": date,
                 "w": str(int(row["puzzles_solved"])),
@@ -191,15 +242,15 @@ def build_table_data(df: pd.DataFrame, mode: str = "oneshot") -> list[dict[str, 
                 **common_tail,
             })
 
-    return rows
+    return data
 
 
 def write_mviz_markdown(
-    df: pd.DataFrame, output_path: str = "docs/results.md", mode: str = "oneshot"
+    rows: list[dict], output_path: str = "docs/results.md", mode: str = "oneshot"
 ):
     """Write the mviz markdown file with table spec."""
-    num_models = len(df)
-    data = build_table_data(df, mode)
+    num_models = len(rows)
+    data = build_table_data(rows, mode)
 
     common_tail_columns = [
         {"id": "avg_time", "title": "AVG/G", "align": "right"},
@@ -306,7 +357,6 @@ def render_html(
     # mviz renders the intro line as plain text (no markdown/HTML), so convert
     # our cross-page markdown links to anchors here. Scoped to the two known
     # leaderboard hrefs so table JSON is never touched.
-    import re
     html = re.sub(
         r"\[([^\[\]]+)\]\((classic\.html|index\.html)\)",
         r'<a href="\2">\1</a>',
@@ -319,65 +369,26 @@ def render_html(
     print(f"HTML rendered to {html_path}")
 
 
-def inject_table_link_into_readme(readme_path: str = "README.md"):
-    """Inject a link to the HTML table into README.md."""
-    with open(readme_path, "r", encoding="utf-8") as f:
-        readme_content = f.read()
-
-    results_section = """## Latest Results
-
-[📊 View Interactive Results Table](https://matsonj.github.io/eval-connections/) - Sports-style box score showing latest one-shot model performance ([classic leaderboard](https://matsonj.github.io/eval-connections/classic.html))
-
-*Table includes points scored, costs, token usage, and timing metrics formatted like sports statistics.*
-
-"""
-
-    if "## Latest Results" in readme_content:
-        start_idx = readme_content.find("## Latest Results")
-        end_idx = readme_content.find("## License", start_idx)
-        if end_idx != -1:
-            new_readme = (
-                readme_content[:start_idx] + results_section + readme_content[end_idx:]
-            )
-        else:
-            print("Could not find License section to place results before")
-            return False
-    else:
-        license_idx = readme_content.find("## License")
-        if license_idx != -1:
-            new_readme = (
-                readme_content[:license_idx]
-                + results_section
-                + readme_content[license_idx:]
-            )
-        else:
-            new_readme = readme_content + "\n\n" + results_section
-
-    with open(readme_path, "w", encoding="utf-8") as f:
-        f.write(new_readme)
-
-    print(f"HTML table link injected into {readme_path}")
-    return True
-
-
 def main():
     pages = [
         ("oneshot", "docs/results.md", "docs/index.html"),
         ("classic", "docs/classic.md", "docs/classic.html"),
     ]
 
+    summaries = load_summaries("results/run_summaries.csv")
+
     for mode, md_path, html_path in pages:
         print(f"Creating mviz results table for {mode} mode...")
-        df = load_and_filter_data("results/run_summaries.csv", mode=mode)
+        rows = filter_for_mode(summaries, mode=mode)
 
-        if df.empty:
+        if not rows:
             # No runs for this mode yet (e.g. oneshot before the backfill).
             # Leave any existing page in place rather than rendering an empty table.
             print(f"No {mode} data found matching the criteria; skipping {html_path}")
             continue
 
-        print(f"Found {len(df)} models meeting criteria")
-        for i, (_, row) in enumerate(df.iterrows(), 1):
+        print(f"Found {len(rows)} models meeting criteria")
+        for i, row in enumerate(rows, 1):
             if mode == "oneshot":
                 print(
                     f"  {i:2d}. {row['model']:15s}: {int(row['total_score']):3d} pts, "
@@ -389,10 +400,8 @@ def main():
                     f"${row['eval_cost']:5.2f} cost, {row['guess_accuracy']:5.1%} accuracy"
                 )
 
-        write_mviz_markdown(df, md_path, mode=mode)
+        write_mviz_markdown(rows, md_path, mode=mode)
         render_html(md_path, html_path)
-
-    inject_table_link_into_readme("README.md")
 
 
 if __name__ == "__main__":

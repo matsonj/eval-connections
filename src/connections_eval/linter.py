@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 _THINK_CLOSED = re.compile(r'<think(?:ing)?>.*?</think(?:ing)?>', re.IGNORECASE | re.DOTALL)
 _THINK_UNCLOSED = re.compile(r'<think(?:ing)?>.*', re.IGNORECASE | re.DOTALL)
 _ANY_TAG = re.compile(r'<[A-Za-z/][^>]*>')
-_TRAP_SENTINEL = re.compile(r'(?:N/?A|NONE)\.?', re.IGNORECASE)  # same set the scorer accepts
+TRAP_SENTINEL = re.compile(r'(?:N/?A|NONE)\.?', re.IGNORECASE)  # same set the scorer accepts
 
 
 @dataclass(frozen=True)
@@ -131,7 +131,7 @@ def lint_oneshot(content: str, puzzle_words: List[str]) -> LintResult:
         problem = None
         if not tl:
             problem = "the <traps> block is empty"
-        elif _TRAP_SENTINEL.fullmatch(tl[0]):
+        elif TRAP_SENTINEL.fullmatch(tl[0]):
             problem = None
         elif len(tl) != 1:
             problem = f"the <traps> block has {len(tl)} lines"

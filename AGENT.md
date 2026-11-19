@@ -16,6 +16,7 @@
 - **Install deps**: `uv sync`
 - **Extract data**: `uv run python scripts/extract_summaries.py` (creates results/run_summaries.csv)
 - **Generate leaderboards**: `uv run python scripts/create_results_mviz.py` (docs/index.html = one-shot, docs/classic.html = classic multi-turn)
+- **Generate log pages**: `uv run python scripts/generate_logs_view.py` (docs/logs/*.html; renders only missing pages and prunes pages for runs that left the leaderboards — add `--force` to re-render everything after a template change)
 
 ## Architecture
 - **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics. Both runners (`_run_puzzle_ai` classic, `_run_puzzle_oneshot_ai` one-shot) share `_run_exchange()` for transport + accounting + telemetry (including the API-error path) and supply only a per-mode verdict callback returning a `_Verdict`; keep mode-specific result strings and log fields in those callbacks
@@ -24,7 +25,7 @@
 - **Partial-response retry**: `openrouter_adapter.chat` raises `PartialResponseError` (retried by `retry_with_backoff`) when a 200 carries `choices` but `usage.completion_tokens == 0` — a transient provider fault (seen with inception/mercury-2.5-preview). Every exchange log record carries `finish_reason`, `native_finish_reason`, `provider`, `usage`
 - **CLI**: `src/connections_eval/cli.py` - Typer-based command interface
 - **Adapters**: `src/connections_eval/adapters/openrouter_adapter.py` - Unified OpenRouter integration for 200+ AI models
-- **Utils**: `src/connections_eval/utils/` - Timing, tokens, logging, retry utilities
+- **Utils**: `src/connections_eval/utils/` - Tokens, logging, retry utilities
 - **Data**: `inputs/connections_puzzles.yml` (puzzles; canonical ones carry `valid_trap_groups` — human-reviewed one-shot trap annotations, size >= 4, supersets allowed), `inputs/prompt_template.xml` (classic prompts), `inputs/prompt_template_oneshot.xml` (one-shot prompts), `inputs/model_mappings.yml` (model ID mappings), `inputs/test_battery.yml` (test model list)
 - **Logs**: JSONL format in `logs/` directory with detailed exchange and summary data
 - **Scripts**: `scripts/` - Analysis and visualization tools for processing evaluation results

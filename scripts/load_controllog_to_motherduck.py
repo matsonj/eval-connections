@@ -1,117 +1,23 @@
 """Load controllog JSONL into DuckDB or MotherDuck.
 
-If MOTHERDUCK_DB starts with "md:", we ATTACH MotherDuck as a remote target and
-push locally-read JSONL into remote tables. Otherwise, we create/update a local
-DuckDB file.
+Thin CLI over ``connections_eval.utils.motherduck.load_directory``; re-exported
+here so `scripts.load_controllog_to_motherduck.load_directory` keeps working for
+manual uploads.
+
+If MOTHERDUCK_DB starts with "md:", rows go to MotherDuck; otherwise to a local
+DuckDB file at that path.
 """
 
 import os
 from pathlib import Path
-import duckdb  # type: ignore
 
-# Canonical column lists — must match dedupe_motherduck.py schemas.
-# JSONL may contain extra fields (e.g. ingest_time) that we skip.
-EVENTS_COLS = [
-    "event_id", "event_time", "kind", "actor_agent_id", "actor_task_id",
-    "project_id", "run_id", "source", "idempotency_key", "payload_json",
-]
-POSTINGS_COLS = [
-    "posting_id", "event_id", "account_type", "account_id",
-    "unit", "delta_numeric", "dims_json",
-]
-
-
-def load_directory(base_log_dir: Path, target_db: str = "md:") -> None:
-    base = Path(base_log_dir) / "controllog"
-    base.mkdir(parents=True, exist_ok=True)
-
-    # Append JSONL from all partitions
-    events_files = [str(p) for p in base.glob("*/events.jsonl")]
-    postings_files = [str(p) for p in base.glob("*/postings.jsonl")]
-
-    # Connect directly to target (MotherDuck or local file)
-    if target_db.startswith("md:"):
-        con = duckdb.connect(target_db)
-    else:
-        con = duckdb.connect(str(Path(target_db)))
-
-    # Use a dedicated schema to avoid search_path issues in MD
-    con.execute("CREATE SCHEMA IF NOT EXISTS controllog")
-
-    if events_files:
-        # idempotency_key must stay VARCHAR: a partition whose keys are all
-        # plain UUIDs (e.g. a run with zero guesses) makes read_json_auto infer
-        # UUID, and the dedup comparison then casts the target's suffixed keys
-        # ("<uuid>:prompt") to UUID, which fails with an INT128 conversion error.
-        ecols = ", ".join(
-            f"{c}::VARCHAR AS {c}" if c == "idempotency_key" else c
-            for c in EVENTS_COLS
-        )
-
-        # Ensure table exists with canonical schema
-        con.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS controllog.events AS
-            SELECT {ecols}
-            FROM read_json_auto(?, format='newline_delimited') WHERE 0;
-            """,
-            [events_files[0]],
-        )
-
-        # Deduplicate using idempotency_key (falls back to event_id for legacy rows)
-        con.execute(
-            f"""
-            INSERT INTO controllog.events
-            SELECT {ecols}
-            FROM read_json_auto(?, format='newline_delimited') src
-            WHERE NOT EXISTS (
-                SELECT 1 FROM controllog.events tgt
-                WHERE tgt.idempotency_key IS NOT NULL
-                  AND src.idempotency_key IS NOT NULL
-                  AND tgt.idempotency_key = src.idempotency_key::VARCHAR
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM controllog.events tgt
-                WHERE tgt.event_id = src.event_id
-            );
-            """,
-            [events_files],
-        )
-
-    if postings_files:
-        pcols = ", ".join(POSTINGS_COLS)
-
-        # Ensure table exists with canonical schema
-        con.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS controllog.postings AS
-            SELECT {pcols}
-            FROM read_json_auto(?, format='newline_delimited') WHERE 0;
-            """,
-            [postings_files[0]],
-        )
-
-        # Deduplicate using posting_id
-        con.execute(
-            f"""
-            INSERT INTO controllog.postings
-            SELECT {pcols}
-            FROM read_json_auto(?, format='newline_delimited') src
-            WHERE NOT EXISTS (
-                SELECT 1 FROM controllog.postings tgt
-                WHERE tgt.posting_id = src.posting_id
-            );
-            """,
-            [postings_files],
-        )
-
-    con.close()
-
+from connections_eval.utils.motherduck import (  # noqa: F401  (re-export)
+    EVENTS_COLS,
+    POSTINGS_COLS,
+    load_directory,
+)
 
 if __name__ == "__main__":
     log_dir = Path(os.environ.get("CTRL_LOG_DIR", "logs"))
     db = os.environ.get("MOTHERDUCK_DB", "md:")
     load_directory(log_dir, db)
-
-
-
