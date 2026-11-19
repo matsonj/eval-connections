@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 77 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 78 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -233,6 +233,20 @@ Latest one-shot runs for 77 models (20 games each, one submission per game, max 
       "tok_per_game": "1.2k",
       "cost": 0.16,
       "cost_per_game": "$0.008"
+    },
+    {
+      "model": "<a href=\"logs/2026-11-19T22-07-11_qwen4-max.html\">qwen/qwen4-max</a>",
+      "date": "2026-11-19",
+      "pts": 87,
+      "pts_pct": 0.87,
+      "w": "19",
+      "grp": "78/80",
+      "trap": "28",
+      "inv": "0",
+      "avg_time": "3m17s",
+      "tok_per_game": "11.1k",
+      "cost": 0.91,
+      "cost_per_game": "$0.045"
     },
     {
       "model": "<a href=\"logs/2026-09-25T14-33-37_opus-5.5.html\">anthropic/claude-opus-5.5</a>",
