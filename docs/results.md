@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 69 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 71 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -109,6 +109,20 @@ Latest one-shot runs for 69 models (20 games each, one submission per game, max 
       "cost_per_game": "$0.005"
     },
     {
+      "model": "<a href=\"logs/2026-11-19T22-03-37_gpt6.2-astra.html\">openai/gpt-6.2-astra</a>",
+      "date": "2026-11-19",
+      "pts": 92,
+      "pts_pct": 0.92,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "32",
+      "inv": "0",
+      "avg_time": "7s",
+      "tok_per_game": "0.6k",
+      "cost": 0.21,
+      "cost_per_game": "$0.010"
+    },
+    {
       "model": "<a href=\"logs/2026-08-12T16-34-41_grok-4.6.html\">x-ai/grok-4.6</a>",
       "date": "2026-08-12",
       "pts": 91,
@@ -177,6 +191,20 @@ Latest one-shot runs for 69 models (20 games each, one submission per game, max 
       "tok_per_game": "1.5k",
       "cost": 0.36,
       "cost_per_game": "$0.018"
+    },
+    {
+      "model": "<a href=\"logs/2026-11-19T22-03-33_gpt6.1-terra.html\">openai/gpt-6.1-terra</a>",
+      "date": "2026-11-19",
+      "pts": 86,
+      "pts_pct": 0.86,
+      "w": "20",
+      "grp": "80/80",
+      "trap": "26",
+      "inv": "0",
+      "avg_time": "11s",
+      "tok_per_game": "1.0k",
+      "cost": 0.06,
+      "cost_per_game": "$0.003"
     },
     {
       "model": "<a href=\"logs/2026-07-22T23-25-41_gemini-3.1.html\">google/gemini-3.1-pro-preview</a>",
