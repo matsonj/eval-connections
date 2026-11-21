@@ -5,7 +5,7 @@ orientation: landscape
 continuous: true
 ---
 
-Latest one-shot runs for 79 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
+Latest one-shot runs for 80 models (20 games each, one submission per game, max 100 pts; sorted by points, avg time, cost) · [Classic (multi-turn) leaderboard →](classic.html)
 
 ```table
 {
@@ -1087,6 +1087,20 @@ Latest one-shot runs for 79 models (20 games each, one submission per game, max 
       "tok_per_game": "5.9k",
       "cost": 0.01,
       "cost_per_game": "$0.001"
+    },
+    {
+      "model": "<a href=\"logs/2026-11-21T16-47-37_inkling-2-mini.html\">thinkingmachines/inkling-2-mini</a>",
+      "date": "2026-11-21",
+      "pts": 43,
+      "pts_pct": 0.43,
+      "w": "5",
+      "grp": "34/80",
+      "trap": "14",
+      "inv": "0",
+      "avg_time": "59s",
+      "tok_per_game": "11.8k",
+      "cost": 0.09,
+      "cost_per_game": "$0.004"
     },
     {
       "model": "<a href=\"logs/2026-07-22T22-52-28_mercury-2.html\">inception/mercury-2</a>",
