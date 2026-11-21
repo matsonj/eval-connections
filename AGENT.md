@@ -18,6 +18,12 @@
 - **Generate leaderboards**: `uv run python scripts/create_results_mviz.py` (docs/index.html = one-shot, docs/classic.html = classic multi-turn)
 - **Generate log pages**: `uv run python scripts/generate_logs_view.py` (docs/logs/*.html; renders only missing pages and prunes pages for runs that left the leaderboards — add `--force` to re-render everything after a template change)
 
+## Adding a New Model
+1. **Map it**: add `short-name: "provider/model-id"` to `inputs/model_mappings.yml` under the provider's section (never `:batch` variants — they are async-only). New Anthropic models also go in `no_thinking_block`
+2. **Smoke test locally** on one canonical puzzle: `source .env && uv run connections_eval run --model SHORT_NAME --puzzle-ids 246 --threads 1`. Check that responses are valid (no invalid responses or lint loops), along with token use, latency and cost. Don't run the full canonical set locally: it uploads to MotherDuck, and the full run belongs on CI
+3. **Commit and push** the mapping to `main`: `git commit -m "Add SHORT_NAME model mapping"`, then `git push origin main`. The workflow checks out `main`, so the mapping must be pushed first
+4. **Run the canonical set on GitHub Actions**: `gh workflow run run-evaluation.yml -f model=SHORT_NAME -f canonical=true` (default mode is `oneshot`; add `-f mode=classic` for multi-turn). Watch it with `gh run watch <run-id>`. The workflow regenerates `docs/`, `results/` and `README.md` from MotherDuck, then commits them as "Update docs: SHORT_NAME evaluation results". Run `git pull` afterwards
+
 ## Architecture
 - **Core**: `src/connections_eval/core.py` - Game logic, puzzle handling, metrics. Both runners (`_run_puzzle_ai` classic, `_run_puzzle_oneshot_ai` one-shot) share `_run_exchange()` for transport + accounting + telemetry (including the API-error path) and supply only a per-mode verdict callback returning a `_Verdict`; keep mode-specific result strings and log fields in those callbacks
 - **Linter**: `src/connections_eval/linter.py` - Structural-only checks of a one-shot response against the RESPONSE FORMAT (`lint_oneshot`, `feedback_message`, `splice_segment`); never reveals correctness. One-shot mode spends up to `ConnectionsGame.MAX_LINT_RETRIES` extra exchanges: a missing answer gets a full-response continuation telling the model to finish, while other failures ask for just the failed segment (logged as `LINT_RETRY_<rule>`, then scored)
